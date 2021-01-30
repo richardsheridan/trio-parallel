@@ -1,8 +1,13 @@
+import sys
+from typing import TYPE_CHECKING
+
 import trio
 from trio._util import ConflictDetector
 from trio._windows_pipes import PipeSendStream, _HandleHolder, DEFAULT_RECEIVE_SIZE
 from trio.abc import SendChannel, ReceiveChannel
 from ._windows_cffi import ErrorCodes, peek_pipe_message_left
+
+assert sys.platform == "win32" or not TYPE_CHECKING
 
 
 class PipeSendChannel(SendChannel[bytes]):
@@ -26,7 +31,9 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
 
     def __init__(self, handle: int) -> None:
         self._handle_holder = _HandleHolder(handle)
-        self._conflict_detector = ConflictDetector("another task is currently using this pipe")
+        self._conflict_detector = ConflictDetector(
+            "another task is currently using this pipe"
+        )
 
     async def receive(self) -> bytes:
         with self._conflict_detector:
@@ -51,10 +58,14 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
         if self._handle_holder.closed:
             raise trio.ClosedResourceError("this pipe is already closed")
         try:
-            return await trio.lowlevel.readinto_overlapped(self._handle_holder.handle, buffer)
+            return await trio.lowlevel.readinto_overlapped(
+                self._handle_holder.handle, buffer
+            )
         except BrokenPipeError:
             if self._handle_holder.closed:
-                raise trio.ClosedResourceError("another task closed this pipe") from None
+                raise trio.ClosedResourceError(
+                    "another task closed this pipe"
+                ) from None
 
             # Windows raises BrokenPipeError on one end of a pipe
             # whenever the other end closes, regardless of direction.
