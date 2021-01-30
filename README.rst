@@ -86,3 +86,8 @@ I want to map a function over a collection of arguments
 
 This is fully possible but we leave the implementation of that up to you.
 Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
+
+Contributing
+------------
+If you notice any bugs, need any help, or want to contribute any code,
+GitHub issues and pull requests are very welcome! Please read the `code of conduct <CODE_OF_CONDUCT.md>`_.
