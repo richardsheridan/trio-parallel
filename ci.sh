@@ -3,6 +3,7 @@
 set -ex -o pipefail
 
 # Log some general info about the environment
+uname -a
 env | sort
 
 if [ "$JOB_NAME" = "" ]; then
@@ -28,14 +29,6 @@ function curl-harder() {
 ################################################################
 # Bootstrap python environment, if necessary
 ################################################################
-
-### Alpine ###
-
-if [ -e /etc/alpine-release ]; then
-    apk add --no-cache gcc musl-dev libffi-dev openssl-dev python3-dev curl
-    python3 -m venv venv
-    source venv/bin/activate
-fi
 
 ### PyPy nightly (currently on Travis) ###
 
@@ -79,21 +72,30 @@ python -m pip --version
 python setup.py sdist --formats=zip
 python -m pip install dist/*.zip
 
-if [ "$CHECK_DOCS" = "1" ]; then
-    python -m pip install -r docs-requirements.txt
-    towncrier --yes  # catch errors in newsfragments
-    cd docs
-    # -n (nit-picky): warn on missing references
-    # -W: turn warnings into errors
-    sphinx-build -nW  -b html source build
-elif [ "$CHECK_LINT" = "1" ]; then
+if python -c 'import sys; sys.exit(sys.version_info >= (3, 7))'; then
+    # Python < 3.7, select last ipython with 3.6 support
+    # macOS requires the suffix for --in-place or you get an undefined label error
+    sed -i'.bak' 's/ipython==[^ ]*/ipython==7.16.1/' test-requirements.txt
+    sed -i'.bak' 's/traitlets==[^ ]*/traitlets==4.3.3/' test-requirements.txt
+    git diff test-requirements.txt
+fi
+
+if [ "$CHECK_FORMATTING" = "1" ]; then
     python -m pip install -r test-requirements.txt
     source check.sh
 else
     # Actual tests
     python -m pip install -r test-requirements.txt
 
-    mkdir empty
+    # So we can run the test for our apport/excepthook interaction working
+    if [ -e /etc/lsb-release ] && grep -q Ubuntu /etc/lsb-release; then
+        sudo apt install -q python3-apport
+    fi
+
+    # We run the tests from inside an empty directory, to make sure Python
+    # doesn't pick up any .py files from our working dir. Might have been
+    # pre-created by some of the code above.
+    mkdir empty || true
     cd empty
 
     INSTALLDIR=$(python -c "import os, trio_parallel; print(os.path.dirname(trio_parallel.__file__))")
@@ -103,18 +105,10 @@ else
     # 'coverage xml' to generate the report that it uses, and that will only
     # apply the ignore patterns in the current directory's .coveragerc.
     cp ../.coveragerc .
-    if pytest -W error -ra --junitxml=../test-results.xml ${INSTALLDIR} --cov="$INSTALLDIR" --verbose; then
+    if pytest -W error -r a --junitxml=../test-results.xml ${INSTALLDIR} --cov="$INSTALLDIR" --verbose; then
         PASSED=true
     else
         PASSED=false
-    fi
-
-    # Flag pypy and cpython coverage differently, until it settles down...
-    FLAG="cpython"
-    if [[ "$PYPY_NIGHTLY_BRANCH" == "py3.6" ]]; then
-        FLAG="pypy36nightly"
-    elif [[ "$(python -V)" == *PyPy* ]]; then
-        FLAG="pypy36release"
     fi
 
     # The codecov docs recommend something like 'bash <(curl ...)' to pipe the
@@ -123,7 +117,7 @@ else
     # wait until we've successfully fetched the whole script before trying to
     # run it.
     curl-harder -o codecov.sh https://codecov.io/bash
-    bash codecov.sh -n "${JOB_NAME}" -F "$FLAG"
+    bash codecov.sh -n "${JOB_NAME}"
 
     $PASSED
 fi
