@@ -134,18 +134,13 @@ class WorkerProc:
         # Neither this nor the child process should be waiting at this point
         self._rehabilitate_pipes()
         async with trio.open_nursery() as nursery:
-            # Monitor needed for pypy and other platforms that don't
-            # promptly raise EndOfChannel
-            nursery.start_soon(self._child_monitor)
             try:
                 await self._send(ForkingPickler.dumps((sync_fn, args)))
                 result = ForkingPickler.loads(await self._recv())
             except trio.EndOfChannel:
                 # Likely the worker died while we were waiting on a pipe
                 self.kill()  # Just make sure
-                # sleep and let the monitor raise the appropriate error to avoid
-                # creating any MultiErrors in this codepath
-                await trio.sleep_forever()
+                raise BrokenWorkerError(f"{self._proc} died unexpectedly")
             except BaseException:
                 # Cancellation leaves the process in an unknown state, so
                 # there is no choice but to kill, anyway it frees the pipe threads.
@@ -155,13 +150,6 @@ class WorkerProc:
             # Must cancel the _child_monitor task to escape the nursery
             nursery.cancel_scope.cancel()
         return result.unwrap()
-
-    async def _child_monitor(self):
-        # If this worker dies, raise a catchable error...
-        await self.wait()
-        # but not if another error or cancel is incoming, those take priority!
-        await trio.lowlevel.checkpoint_if_cancelled()
-        raise BrokenWorkerError(f"{self._proc} died unexpectedly")
 
     def is_alive(self):
         # Even if the proc is alive, there is a race condition where it could
