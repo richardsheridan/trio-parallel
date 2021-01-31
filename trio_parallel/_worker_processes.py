@@ -3,7 +3,7 @@ import struct
 import trio
 from collections import deque
 from itertools import count
-from multiprocessing import Pipe, Process
+from multiprocessing import get_context
 from multiprocessing.reduction import ForkingPickler
 
 _limiter_local = trio.lowlevel.RunVar("proc_limiter")
@@ -90,10 +90,10 @@ PROC_CACHE = ProcCache()
 
 
 class WorkerProc:
-    def __init__(self):
-        child_recv_pipe, self._send_pipe = Pipe(duplex=False)
-        self._recv_pipe, child_send_pipe = Pipe(duplex=False)
-        self._proc = Process(
+    def __init__(self, mp_context=get_context("spawn")):
+        child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
+        self._recv_pipe, child_send_pipe = mp_context.Pipe(duplex=False)
+        self._proc = mp_context.Process(
             target=self._work,
             args=(child_recv_pipe, child_send_pipe),
             name=f"Trio worker process {next(_proc_counter)}",
