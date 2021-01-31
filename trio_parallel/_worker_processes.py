@@ -16,12 +16,6 @@ IDLE_TIMEOUT = 60 * 10
 DEFAULT_LIMIT = os.cpu_count()
 _proc_counter = count()
 
-if os.name == "nt":
-    # NOTE: This uses a thread per-process. Can we do better?
-    wait_sentinel = trio.lowlevel.WaitForSingleObject
-else:
-    wait_sentinel = trio.lowlevel.wait_readable
-
 
 class BrokenWorkerError(RuntimeError):
     """Raised when a worker process fails or dies unexpectedly.
@@ -163,15 +157,15 @@ class WorkerProc:
         return result.unwrap()
 
     async def _child_monitor(self):
-        # If this handle becomes ready, raise a catchable error...
-        await wait_sentinel(self._proc.sentinel)
+        # If this worker dies, raise a catchable error...
+        await self.wait()
         # but not if another error or cancel is incoming, those take priority!
         await trio.lowlevel.checkpoint_if_cancelled()
         raise BrokenWorkerError(f"{self._proc} died unexpectedly")
 
     def is_alive(self):
         # Even if the proc is alive, there is a race condition where it could
-        # be dying, use join to make sure if necessary.
+        # be dying, use wait to make sure if necessary.
         return self._proc.is_alive()
 
     def kill(self):
@@ -180,12 +174,10 @@ class WorkerProc:
         except AttributeError:
             self._proc.terminate()
 
-    def join(self, timeout=None):
-        # Needed for some tests. We have to reach in deeply because
-        # _proc.join() doesn't report whether the join was successful
-        return self._proc._popen.wait(timeout) is not None
-
     if os.name == "nt":
+
+        async def wait(self):
+            await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
 
         def _rehabilitate_pipes(self):
             # These must be created in an async context, so defer so
@@ -205,6 +197,9 @@ class WorkerProc:
                 self._recv_chan._handle_holder.handle = -1
 
     else:
+
+        async def wait(self):
+            await trio.lowlevel.wait_readable(self._proc.sentinel)
 
         def _rehabilitate_pipes(self):
             # These must be created in an async context, so defer so
