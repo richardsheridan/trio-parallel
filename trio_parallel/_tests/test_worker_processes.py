@@ -207,7 +207,7 @@ async def test_to_process_run_sync_raises_on_kill():
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(child)
                 await trio.to_thread.run_sync(ev.wait)
-                proc.kill()
+                # proc.kill()
 
 
 async def test_spawn_worker_in_thread_and_prune_cache():
