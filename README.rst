@@ -21,10 +21,11 @@ This is the library for you!
 
     def hard_work(x):
         t = time.perf_counter() + 3
+        y = x
         while time.perf_counter() < t:
             x = not x
-        print(x, "transformed into", not x)
-        return not x
+        print(y, "transformed into", x)
+        return x
 
 
     async def amain():
@@ -90,4 +91,5 @@ Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
 Contributing
 ------------
 If you notice any bugs, need any help, or want to contribute any code,
-GitHub issues and pull requests are very welcome! Please read the `code of conduct <CODE_OF_CONDUCT.md>`_.
+GitHub issues and pull requests are very welcome! Please read the
+`code of conduct <CODE_OF_CONDUCT.md>`_.

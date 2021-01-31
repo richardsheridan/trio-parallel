@@ -183,7 +183,7 @@ class WorkerProc:
             # These must be created in an async context, so defer so
             # that this object can be instantiated in e.g. a thread
             if not hasattr(self, "_send_chan"):
-                from ._winows_pipes import PipeSendChannel, PipeReceiveChannel
+                from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
                 self._send_chan = PipeSendChannel(self._send_pipe.fileno())
                 self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
                 self._send = self._send_chan.send
@@ -294,6 +294,8 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
 
     Raises:
       Exception: Whatever ``sync_fn(*args)`` raises.
+      BrokenWorkerError: Indicates the worker died unexpectedly. Not encountered
+        in normal use.
 
     """
     if limiter is None:
