@@ -203,10 +203,11 @@ async def test_to_process_run_sync_raises_on_kill():
     await to_process_run_sync(_null_func)
     proc = PROC_CACHE._cache[0]
     with pytest.raises(BrokenWorkerError):
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(child)
-            await trio.to_thread.run_sync(ev.wait)
-            proc.kill()
+        with trio.move_on_after(10):
+            async with trio.open_nursery() as nursery:
+                nursery.start_soon(child)
+                await trio.to_thread.run_sync(ev.wait)
+                proc.kill()
 
 
 async def test_spawn_worker_in_thread_and_prune_cache():
