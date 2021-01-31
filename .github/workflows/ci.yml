@@ -15,8 +15,10 @@ jobs:
       fail-fast: false
       matrix:
         python:
+          - '3.6'
           - '3.7'
           - '3.8'
+          - '3.9'
         arch: ['x86', 'x64']
     steps:
       - name: Checkout
@@ -41,18 +43,25 @@ jobs:
       fail-fast: false
       matrix:
         python:
+          - '3.6'
           - '3.7'
           - '3.8'
+          - '3.9'
+          - 'pypy3'
         check_docs: ['0']
-        check_lint: ['0']
+        check_formatting: ['0']
         extra_name: ['']
+        pypy_nightly_branch: [ '' ]
         include:
           - python: '3.8'
             check_docs: '1'
             extra_name: ', check docs'
           - python: '3.8'
-            check_lint: '1'
+            check_formatting: '1'
             extra_name: ', formatting and linting'
+          - python: '3.7'  # <- not actually used
+            pypy_nightly_branch: 'py3.7'
+            extra_name: ', pypy 3.7 nightly'
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -65,8 +74,9 @@ jobs:
       - name: Run tests
         run: ./ci.sh
         env:
+          PYPY_NIGHTLY_BRANCH: '${{ matrix.pypy_nightly_branch }}'
           CHECK_DOCS: '${{ matrix.check_docs }}'
-          CHECK_LINT: '${{ matrix.check_lint }}'
+          CHECK_FORMATTING: '${{ matrix.check_formatting }}'
           # Should match 'name:' up above
           JOB_NAME: 'Linux (${{ matrix.python }}${{ matrix.extra_name }})'
 
@@ -78,8 +88,11 @@ jobs:
       fail-fast: false
       matrix:
         python:
+          - '3.6'
           - '3.7'
           - '3.8'
+          - '3.9'
+          - 'pypy3'
     steps:
       - name: Checkout
         uses: actions/checkout@v2

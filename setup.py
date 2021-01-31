@@ -17,7 +17,7 @@ setup(
     include_package_data=True,
     install_requires=["trio"],
     keywords=["parallel", "trio", "async", "dispatch"],
-    python_requires=">=3.7",
+    python_requires=">=3.6",
     classifiers=[
         "License :: OSI Approved :: MIT License",
         "License :: OSI Approved :: Apache Software License",
