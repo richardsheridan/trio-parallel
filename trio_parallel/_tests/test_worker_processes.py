@@ -215,7 +215,8 @@ async def test_spawn_worker_in_thread_and_prune_cache():
     # take it's number and kill it for the next test
     pid1 = proc._proc.pid
     proc.kill()
-    assert proc.join(1)
+    with trio.fail_after(1):
+        await proc.wait()
     # put dead proc into the cache (normal code never does this)
     PROC_CACHE.push(proc)
     # dead procs shouldn't pop out
@@ -241,14 +242,11 @@ async def test_exhaustively_cancel_run_sync():
     ev = m.Event()
 
     # cancel at job send
-    async def fake_monitor():
-        c.cancel()
-
     proc = WorkerProc()
-    proc._child_monitor = fake_monitor
-    with trio.CancelScope() as c:
-        await proc.run_sync(_never_halts, ev)
-    assert proc.join(1)
+    with trio.fail_after(1):
+        with trio.move_on_after(0):
+            await proc.run_sync(_never_halts, ev)
+        await proc.wait()
 
     # cancel at result recv is tested elsewhere
 
@@ -261,6 +259,7 @@ def _shorten_timeout():  # pragma: no cover
 async def test_racing_timeout():
     proc = WorkerProc()
     await proc.run_sync(_shorten_timeout)
-    assert proc.join(10)
+    with trio.fail_after(1):
+        await proc.wait()
     with pytest.raises(trio.BrokenResourceError):
         await proc.run_sync(_null_func)
