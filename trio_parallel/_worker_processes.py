@@ -131,25 +131,21 @@ class WorkerProc:
             send_pipe.close()
 
     async def run_sync(self, sync_fn, *args):
-        # Neither this nor the child process should be waiting at this point
         self._rehabilitate_pipes()
-        async with trio.open_nursery() as nursery:
-            try:
-                await self._send(ForkingPickler.dumps((sync_fn, args)))
-                result = ForkingPickler.loads(await self._recv())
-            except trio.EndOfChannel:
-                # Likely the worker died while we were waiting on a pipe
-                self.kill()  # Just make sure
-                raise BrokenWorkerError(f"{self._proc} died unexpectedly")
-            except BaseException:
-                # Cancellation leaves the process in an unknown state, so
-                # there is no choice but to kill, anyway it frees the pipe threads.
-                # For other unknown errors, it's best to clean up similarly.
-                self.kill()
-                raise
-            # Must cancel the _child_monitor task to escape the nursery
-            nursery.cancel_scope.cancel()
-        return result.unwrap()
+        try:
+            await self._send(ForkingPickler.dumps((sync_fn, args)))
+            result = ForkingPickler.loads(await self._recv())
+        except trio.EndOfChannel:
+            # Likely the worker died while we were waiting on a pipe
+            self.kill()  # Just make sure
+            raise BrokenWorkerError(f"{self._proc} died unexpectedly")
+        except BaseException:
+            # Cancellation or other unknown errors leave the process in an
+            # unknown state, so there is no choice but to kill.
+            self.kill()
+            raise
+        else:
+            return result.unwrap()
 
     def is_alive(self):
         # Even if the proc is alive, there is a race condition where it could
