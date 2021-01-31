@@ -299,6 +299,8 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
 
     Raises:
       Exception: Whatever ``sync_fn(*args)`` raises.
+      BrokenWorkerError: Indicates the worker died unexpectedly. Not encountered
+        in normal use.
 
     """
     if limiter is None:
