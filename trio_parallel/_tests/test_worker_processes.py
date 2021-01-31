@@ -250,8 +250,12 @@ async def test_exhaustively_cancel_run_sync():
     proc = WorkerProc()
     with trio.fail_after(1):
         with trio.move_on_after(0):
+            print("attempting run_sync")
             await proc.run_sync(_never_halts, ev)
+            print("should not see this")
+        print("run_sync done, proc.wait now")
         await proc.wait()
+        print("proc.wait done")
 
     # cancel at result recv is tested elsewhere
 
