@@ -131,11 +131,14 @@ class WorkerProc:
             send_pipe.close()
 
     async def run_sync(self, sync_fn, *args):
-        self._rehabilitate_pipes()
+        # self._rehabilitate_pipes()
         try:
-            await self._send(ForkingPickler.dumps((sync_fn, args)))
-            result = ForkingPickler.loads(await self._recv())
-        except trio.EndOfChannel:
+            await trio.to_thread.run_sync(self._send_pipe.send, (sync_fn, args), cancellable=True)
+            result = await trio.to_thread.run_sync(self._recv_pipe.recv, cancellable=True)
+            # await self._send(ForkingPickler.dumps((sync_fn, args)))
+            # result = ForkingPickler.loads(await self._recv())
+        except EOFError:
+        # except trio.EndOfChannel:
             # Likely the worker died while we were waiting on a pipe
             self.kill()  # Just make sure
             raise BrokenWorkerError(f"{self._proc} died unexpectedly")
@@ -297,7 +300,8 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
             try:
                 with trio.CancelScope(shield=not cancellable):
                     return await proc.run_sync(sync_fn, *args)
-            except trio.BrokenResourceError:
+            except BrokenPipeError:
+            # except trio.BrokenResourceError:
                 # Rare case where proc timed out even though it was still alive
                 # as we popped it. Just retry.
                 pass

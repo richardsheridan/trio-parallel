@@ -203,7 +203,7 @@ async def test_to_process_run_sync_raises_on_kill():
     await to_process_run_sync(_null_func)
     proc = PROC_CACHE._cache[0]
     with pytest.raises(BrokenWorkerError):
-        with trio.move_on_after(10):
+        with trio.fail_after(1):
             async with trio.open_nursery() as nursery:
                 nursery.start_soon(child)
                 try:
@@ -266,5 +266,6 @@ async def test_racing_timeout():
     await proc.run_sync(_shorten_timeout)
     with trio.fail_after(1):
         await proc.wait()
-        with pytest.raises(trio.BrokenResourceError):
+        with pytest.raises(BrokenPipeError):
+        # with pytest.raises(trio.BrokenResourceError):
             await proc.run_sync(_null_func)
