@@ -1,6 +1,5 @@
 import multiprocessing
 import os
-import platform
 
 import pytest
 import trio
