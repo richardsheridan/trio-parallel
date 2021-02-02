@@ -32,7 +32,7 @@ class BrokenWorkerError(RuntimeError):
 
 def current_default_process_limiter():
     """Get the default `~trio.CapacityLimiter` used by
-    `trio.to_process.run_sync`.
+    `trio_parallel.run_sync`.
 
     The most common reason to call this would be if you want to modify its
     :attr:`~trio.CapacityLimiter.total_tokens` attribute. This attribute
@@ -344,7 +344,7 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
       cancellable (bool): Whether to allow cancellation of this operation.
           Cancellation always involves abrupt termination of the worker process
           with SIGKILL/TerminateProcess.
-      limiter (None, or CapacityLimiter):
+      limiter (None, or trio.CapacityLimiter):
           An object used to limit the number of simultaneous processes. Most
           commonly this will be a `~trio.CapacityLimiter`, but any async
           context manager will succeed.
