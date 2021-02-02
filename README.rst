@@ -19,21 +19,26 @@ This is the library for you!
     import time
 
 
-    def hard_work(x):
-        t = time.perf_counter() + 3
+    def hard_work(n, x):
+        t = time.perf_counter() + n
         y = x
         while time.perf_counter() < t:
             x = not x
         print(y, "transformed into", x)
         return x
 
+    async def too_slow():
+        await trio_parallel.run_sync(hard_work, 20, False, cancellable=True)
+
 
     async def amain():
         t0 = time.perf_counter()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(trio_parallel.run_sync, hard_work, True)
-            nursery.start_soon(trio_parallel.run_sync, hard_work, False)
-            result = await trio_parallel.run_sync(hard_work, None)
+            nursery.start_soon(trio_parallel.run_sync, hard_work, 3, True)
+            nursery.start_soon(trio_parallel.run_sync, hard_work, 1, False)
+            nursery.start_soon(too_slow)
+            result = await trio_parallel.run_sync(hard_work, 2, None)
+            nursery.cancel_scope.cancel()
         print("got", result, "in", time.perf_counter() - t0, "seconds")
 
 
