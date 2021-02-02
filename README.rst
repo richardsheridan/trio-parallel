@@ -42,6 +42,10 @@ This is the library for you!
         trio.run(amain)
 
 
+Documentation
+-------------
+The full API is documented at `<https://trio-parallel.readthedocs.io/>`__
+
 Features
 --------
 
