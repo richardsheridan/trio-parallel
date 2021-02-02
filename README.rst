@@ -77,22 +77,22 @@ offering a set of quirks that users are likely already familiar with.
 FAQ
 ---
 
-I want my workers to talk to each other
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Can I have my workers talk to each other?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is currently possible through the use of `multiprocessing.Manager`,
 but we don't and will not support it. Instead, try using `trio.run_process` and
 having the various Trio runs talk to each other over sockets. Also, look into
 `tractor <https://github.com/goodboy/tractor>`_?
 
-I want my workers to outlive the main Trio process
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Can I let my workers outlive the main Trio process?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The worker processes are started with the `daemon` flag for lifetime management,
 so this use case is not supported.
 
-I want to map a function over a collection of arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+How should I map a function over a collection of arguments?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is fully possible but we leave the implementation of that up to you.
 Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
