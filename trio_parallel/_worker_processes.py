@@ -187,16 +187,16 @@ class WorkerProcBase:
         except AttributeError:
             self._proc.terminate()
 
-    def _rehabilitate_pipes(self):
+    def _rehabilitate_pipes(self):  # pragma: no cover
         pass
 
-    async def _recv(self):
+    async def _recv(self):  # pragma: no cover
         pass
 
-    async def _send(self, buf):
+    async def _send(self, buf):  # pragma: no cover
         pass
 
-    async def wait(self):
+    async def wait(self):  # pragma: no cover
         pass
 
 
