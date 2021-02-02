@@ -1,4 +1,5 @@
 import os
+import platform
 import struct
 from threading import BrokenBarrierError
 
@@ -91,7 +92,7 @@ class ProcCache:
 PROC_CACHE = ProcCache()
 
 
-class WorkerProc:
+class WorkerProcBase:
     def __init__(self, mp_context=get_context("spawn")):
         # it is almost possible to synchronize on the pipe alone
         self._barrier = mp_context.Barrier(2)
@@ -149,33 +150,20 @@ class WorkerProc:
         # Neither this nor the child process should be waiting at this point
         assert not self._barrier.n_waiting, "Must first wake_up() the WorkerProc"
         self._rehabilitate_pipes()
-        async with trio.open_nursery() as nursery:
-            # Monitor needed for pypy and other platforms that don't
-            # promptly raise EndOfChannel
-            nursery.start_soon(self._child_monitor)
-            try:
-                await self._send(ForkingPickler.dumps((sync_fn, args)))
-                result = ForkingPickler.loads(await self._recv())
-            except trio.EndOfChannel:
-                # Likely the worker died while we were waiting on a pipe
-                self.kill()  # Just make sure
-                # sleep and let the monitor raise the appropriate error to avoid
-                # creating any MultiErrors in this codepath
-                await trio.sleep_forever()
-            except BaseException:
-                # Cancellation leaves the process in an unknown state, so
-                # there is no choice but to kill, anyway it frees the pipe threads.
-                # For other unknown errors, it's best to clean up similarly.
-                self.kill()
-                raise
-            # Must cancel the _child_monitor task to escape the nursery
-            nursery.cancel_scope.cancel()
-        return result.unwrap()
-
-    async def _child_monitor(self):
-        # If this worker dies, raise a catchable error...
-        await self.wait()
-        raise BrokenWorkerError(f"{self._proc} died unexpectedly")
+        try:
+            await self._send(ForkingPickler.dumps((sync_fn, args)))
+            result = ForkingPickler.loads(await self._recv())
+        except trio.EndOfChannel:
+            # Likely the worker died while we were waiting on a pipe
+            self.kill()  # Just make sure
+            raise BrokenWorkerError(f"{self._proc} died unexpectedly")
+        except BaseException:
+            # Cancellation or other unknown errors leave the process in an
+            # unknown state, so there is no choice but to kill.
+            self.kill()
+            raise
+        else:
+            return result.unwrap()
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -199,92 +187,138 @@ class WorkerProc:
         except AttributeError:
             self._proc.terminate()
 
-    if os.name == "nt":
+    def _rehabilitate_pipes(self):  # pragma: no cover
+        pass
 
-        async def wait(self):
-            await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
+    async def _recv(self):  # pragma: no cover
+        pass
 
-        def _rehabilitate_pipes(self):
-            # These must be created in an async context, so defer so
-            # that this object can be instantiated in e.g. a thread
-            if not hasattr(self, "_send_chan"):
-                from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
+    async def _send(self, buf):  # pragma: no cover
+        pass
 
-                self._send_chan = PipeSendChannel(self._send_pipe.fileno())
-                self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
-                self._send = self._send_chan.send
-                self._recv = self._recv_chan.receive
+    async def wait(self):  # pragma: no cover
+        pass
 
-        def __del__(self):
-            # Avoid __del__ errors on cleanup: GH#174, GH#1767
-            # multiprocessing will close them for us
-            if hasattr(self, "_send_chan"):
-                self._send_chan._handle_holder.handle = -1
-                self._recv_chan._handle_holder.handle = -1
 
-    else:
+class WindowsWorkerProc(WorkerProcBase):
+    async def wait(self):
+        await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
 
-        async def wait(self):
-            await trio.lowlevel.wait_readable(self._proc.sentinel)
+    def _rehabilitate_pipes(self):
+        # These must be created in an async context, so defer so
+        # that this object can be instantiated in e.g. a thread
+        if not hasattr(self, "_send_chan"):
+            from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
 
-        def _rehabilitate_pipes(self):
-            # These must be created in an async context, so defer so
-            # that this object can be instantiated in e.g. a thread
-            if not hasattr(self, "_send_stream"):
-                self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
-                self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
+            self._send_chan = PipeSendChannel(self._send_pipe.fileno())
+            self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
+            self._send = self._send_chan.send
+            self._recv = self._recv_chan.receive
 
-        async def _recv(self):
-            buf = await self._recv_exactly(4)
-            (size,) = struct.unpack("!i", buf)
-            if size == -1:  # pragma: no cover # can't go this big on CI
-                buf = await self._recv_exactly(8)
-                (size,) = struct.unpack("!Q", buf)
-            return await self._recv_exactly(size)
+    def __del__(self):
+        # Avoid __del__ errors on cleanup: GH#174, GH#1767
+        # multiprocessing will close them for us
+        if hasattr(self, "_send_chan"):
+            self._send_chan._handle_holder.handle = -1
+            self._recv_chan._handle_holder.handle = -1
 
-        async def _recv_exactly(self, size):
-            result_bytes = bytearray()
-            while size:
-                partial_result = await self._recv_stream.receive_some(size)
-                num_recvd = len(partial_result)
-                if not num_recvd:
-                    raise trio.EndOfChannel("got end of file during message")
-                result_bytes.extend(partial_result)
-                if num_recvd > size:  # pragma: no cover
-                    raise RuntimeError("Oversized response")
-                else:
-                    size -= num_recvd
-            return result_bytes
 
-        async def _send(self, buf):
-            n = len(buf)
-            if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
-                pre_header = struct.pack("!i", -1)
-                header = struct.pack("!Q", n)
-                await self._send_stream.send_all(pre_header)
+class PosixWorkerProc(WorkerProcBase):
+    async def wait(self):
+        await trio.lowlevel.wait_readable(self._proc.sentinel)
+
+    def _rehabilitate_pipes(self):
+        # These must be created in an async context, so defer so
+        # that this object can be instantiated in e.g. a thread
+        if not hasattr(self, "_send_stream"):
+            self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
+            self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
+
+    async def _recv(self):
+        buf = await self._recv_exactly(4)
+        (size,) = struct.unpack("!i", buf)
+        if size == -1:  # pragma: no cover # can't go this big on CI
+            buf = await self._recv_exactly(8)
+            (size,) = struct.unpack("!Q", buf)
+        return await self._recv_exactly(size)
+
+    async def _recv_exactly(self, size):
+        result_bytes = bytearray()
+        while size:
+            partial_result = await self._recv_stream.receive_some(size)
+            num_recvd = len(partial_result)
+            if not num_recvd:
+                raise trio.EndOfChannel("got end of file during message")
+            result_bytes.extend(partial_result)
+            if num_recvd > size:  # pragma: no cover
+                raise RuntimeError("Oversized response")
+            else:
+                size -= num_recvd
+        return result_bytes
+
+    async def _send(self, buf):
+        n = len(buf)
+        if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
+            pre_header = struct.pack("!i", -1)
+            header = struct.pack("!Q", n)
+            await self._send_stream.send_all(pre_header)
+            await self._send_stream.send_all(header)
+            await self._send_stream.send_all(buf)
+        else:
+            # For wire compatibility with 3.7 and lower
+            header = struct.pack("!i", n)
+            if n > 16384:
+                # The payload is large so Nagle's algorithm won't be triggered
+                # and we'd better avoid the cost of concatenation.
                 await self._send_stream.send_all(header)
                 await self._send_stream.send_all(buf)
             else:
-                # For wire compatibility with 3.7 and lower
-                header = struct.pack("!i", n)
-                if n > 16384:
-                    # The payload is large so Nagle's algorithm won't be triggered
-                    # and we'd better avoid the cost of concatenation.
-                    await self._send_stream.send_all(header)
-                    await self._send_stream.send_all(buf)
-                else:
-                    # Issue #20540: concatenate before sending, to avoid delays due
-                    # to Nagle's algorithm on a TCP socket.
-                    # Also note we want to avoid sending a 0-length buffer separately,
-                    # to avoid "broken pipe" errors if the other end closed the pipe.
-                    await self._send_stream.send_all(header + buf)
+                # Issue #20540: concatenate before sending, to avoid delays due
+                # to Nagle's algorithm on a TCP socket.
+                # Also note we want to avoid sending a 0-length buffer separately,
+                # to avoid "broken pipe" errors if the other end closed the pipe.
+                await self._send_stream.send_all(header + buf)
 
-        def __del__(self):
-            # Avoid __del__ errors on cleanup: GH#174, GH#1767
-            # multiprocessing will close them for us
-            if hasattr(self, "_send_stream"):
-                self._send_stream._fd_holder.fd = -1
-                self._recv_stream._fd_holder.fd = -1
+    def __del__(self):
+        # Avoid __del__ errors on cleanup: GH#174, GH#1767
+        # multiprocessing will close them for us
+        if hasattr(self, "_send_stream"):
+            self._send_stream._fd_holder.fd = -1
+            self._recv_stream._fd_holder.fd = -1
+
+
+class PypyWorkerProc(WorkerProcBase):
+    async def run_sync(self, sync_fn, *args):
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(self.child_monitor)
+            result = await super().run_sync(sync_fn, *args)
+            nursery.cancel_scope.cancel()
+        return result
+
+    async def child_monitor(self):
+        # If this worker dies, raise a catchable error...
+        await self.wait()
+        # but not if another error or cancel is incoming, those take priority!
+        await trio.lowlevel.checkpoint_if_cancelled()
+        raise BrokenWorkerError(f"{self._proc} died unexpectedly")
+
+
+if os.name == "nt":
+
+    class WorkerProc(WindowsWorkerProc):
+        pass
+
+
+elif platform.python_implementation() == "PyPy":
+
+    class WorkerProc(PypyWorkerProc, PosixWorkerProc):
+        pass
+
+
+else:
+
+    class WorkerProc(PosixWorkerProc):
+        pass
 
 
 async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
