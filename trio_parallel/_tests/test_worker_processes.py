@@ -249,17 +249,3 @@ async def test_exhaustively_cancel_run_sync():
         await proc.wait()
 
     # cancel at result recv is tested elsewhere
-
-
-def _shorten_timeout():  # pragma: no cover
-    from .. import _worker_processes
-    _worker_processes.IDLE_TIMEOUT = 0
-
-
-async def test_racing_timeout():
-    proc = WorkerProc()
-    await proc.run_sync(_shorten_timeout)
-    with trio.fail_after(1):
-        await proc.wait()
-    with pytest.raises(trio.BrokenResourceError):
-        await proc.run_sync(_null_func)
