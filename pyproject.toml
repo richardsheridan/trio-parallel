@@ -2,5 +2,6 @@
 package = "trio_parallel"
 filename = "docs/source/history.rst"
 directory = "newsfragments"
+title_format = "trio-parallel {version} ({project_date})"
 underlines = ["-", "~", "^"]
 issue_format = "`#{issue} <https://github.com/richardsheridan/trio_parallel/issues/{issue}>`__"
