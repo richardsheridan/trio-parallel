@@ -303,8 +303,6 @@ class PypyWorkerProc(WorkerProcBase):
         raise BrokenWorkerError(f"{self._proc} died unexpectedly")
 
 
-
-
 if os.name == "nt":
 
     class WorkerProc(WindowsWorkerProc):
