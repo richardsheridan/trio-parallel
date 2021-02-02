@@ -92,7 +92,7 @@ The worker processes are started with the `daemon` flag for lifetime management,
 so this use case is not supported.
 
 How should I map a function over a collection of arguments?
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is fully possible but we leave the implementation of that up to you.
 Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
