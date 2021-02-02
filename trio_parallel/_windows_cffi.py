@@ -86,7 +86,7 @@ class PipeModes(enum.IntFlag):
 ################################################################
 
 
-def _handle(obj):
+def _handle(obj):  # pragma: no cover
     # For now, represent handles as either cffi HANDLEs or as ints.  If you
     # try to pass in a file descriptor instead, it's not going to work
     # out. (For that msvcrt.get_osfhandle does the trick, but I don't know if
@@ -99,22 +99,13 @@ def _handle(obj):
         return obj
 
 
-def raise_winerror(winerror=None, *, filename=None, filename2=None):
+def raise_winerror(winerror=None, *, filename=None, filename2=None):  # pragma: no cover
     if winerror is None:
         winerror, msg = ffi.getwinerror()
     else:
         _, msg = ffi.getwinerror(winerror)
     # https://docs.python.org/3/library/exceptions.html#OSError
     raise OSError(0, msg, filename, winerror, filename2)
-
-
-def get_pipe_state(handle):
-    lpState = ffi.new("LPDWORD")
-    if not kernel32.GetNamedPipeHandleStateA(
-        _handle(handle), lpState, ffi.NULL, ffi.NULL, ffi.NULL, ffi.NULL, 0
-    ):
-        raise_winerror()  # pragma: no cover
-    return lpState[0]
 
 
 def peek_pipe_message_left(handle):

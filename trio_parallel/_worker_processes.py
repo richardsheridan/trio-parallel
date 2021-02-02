@@ -237,7 +237,7 @@ class WorkerProc:
         async def _recv(self):
             buf = await self._recv_exactly(4)
             (size,) = struct.unpack("!i", buf)
-            if size == -1:
+            if size == -1:  # pragma: no cover # can't go this big on CI
                 buf = await self._recv_exactly(8)
                 (size,) = struct.unpack("!Q", buf)
             return await self._recv_exactly(size)
@@ -258,7 +258,7 @@ class WorkerProc:
 
         async def _send(self, buf):
             n = len(buf)
-            if n > 0x7FFFFFFF:
+            if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
                 pre_header = struct.pack("!i", -1)
                 header = struct.pack("!Q", n)
                 await self._send_stream.send_all(pre_header)
