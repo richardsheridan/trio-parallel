@@ -22,7 +22,7 @@ class PipeSendChannel(SendChannel[bytes]):
         # Works just fine if the pipe is message-oriented
         await self._pss.send_all(value)
 
-    async def aclose(self):
+    async def aclose(self):  # pragma: no cover
         await self._handle_holder.aclose()
 
 
@@ -55,14 +55,14 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
                 return buffer
 
     async def _receive_some_into(self, buffer) -> bytes:
-        if self._handle_holder.closed:
+        if self._handle_holder.closed:  # pragma: no cover
             raise trio.ClosedResourceError("this pipe is already closed")
         try:
             return await trio.lowlevel.readinto_overlapped(
                 self._handle_holder.handle, buffer
             )
         except BrokenPipeError:
-            if self._handle_holder.closed:
+            if self._handle_holder.closed:  # pragma: no cover
                 raise trio.ClosedResourceError(
                     "another task closed this pipe"
                 ) from None
@@ -75,5 +75,5 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
             await trio.lowlevel.checkpoint()
             raise trio.EndOfChannel
 
-    async def aclose(self):
+    async def aclose(self):  # pragma: no cover
         await self._handle_holder.aclose()

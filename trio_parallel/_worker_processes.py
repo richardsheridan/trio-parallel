@@ -1,6 +1,8 @@
 import os
 import platform
 import struct
+from threading import BrokenBarrierError
+
 import trio
 from collections import deque
 from itertools import count
@@ -71,10 +73,16 @@ class ProcCache:
         self._cache.append(proc)
 
     def pop(self):
-        """Get live worker process or raise IndexError"""
+        # Get live, WOKEN worker process or raise IndexError
         while True:
             proc = self._cache.pop()
-            if proc.is_alive():
+            try:
+                proc.wake_up(0)
+            except BrokenWorkerError:
+                # proc must have died in the cache, just try again
+                proc.kill()
+                continue
+            else:
                 return proc
 
     def __len__(self):
@@ -86,24 +94,27 @@ PROC_CACHE = ProcCache()
 
 class WorkerProcBase:
     def __init__(self, mp_context=get_context("spawn")):
+        # it is almost possible to synchronize on the pipe alone
+        self._barrier = mp_context.Barrier(2)
         child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
         self._recv_pipe, child_send_pipe = mp_context.Pipe(duplex=False)
         self._proc = mp_context.Process(
             target=self._work,
-            args=(child_recv_pipe, child_send_pipe),
-            name=f"Trio worker process {next(_proc_counter)}",
+            args=(self._barrier, child_recv_pipe, child_send_pipe),
+            name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
         )
         # The following initialization methods may take a long time
         self._proc.start()
+        self.wake_up()
 
     @staticmethod
-    def _work(recv_pipe, send_pipe):  # pragma: no cover
+    def _work(barrier, recv_pipe, send_pipe):  # pragma: no cover
 
         import inspect
         import outcome
 
-        def worker_fn():
+        def coroutine_checker(fn, args):
             ret = fn(*args)
             if inspect.iscoroutine(ret):
                 # Manually close coroutine to avoid RuntimeWarnings
@@ -115,23 +126,29 @@ class WorkerProcBase:
 
             return ret
 
-        try:
-            while recv_pipe.poll(timeout=IDLE_TIMEOUT):
-                fn, args = recv_pipe.recv()
-                result = outcome.capture(worker_fn)
-                # Unlike the thread cache, it's impossible to deliver the
-                # result from the worker process. So shove it onto the queue
-                # and hope the receiver delivers the result and marks us idle
-                send_pipe.send(result)
+        while True:
+            try:
+                # Return value is party #, not whether awoken within timeout
+                barrier.wait(timeout=IDLE_TIMEOUT)
+            except BrokenBarrierError:
+                # Timeout waiting for job, so we can exit.
+                return
+            # We got a job, and we are "woken"
+            fn, args = recv_pipe.recv()
+            result = outcome.capture(coroutine_checker, fn, args)
+            # Tell the cache that we're done and available for a job
+            # Unlike the thread cache, it's impossible to deliver the
+            # result from the worker process. So shove it onto the queue
+            # and hope the receiver delivers the result and marks us idle
+            send_pipe.send(result)
 
-                del fn
-                del args
-                del result
-        finally:
-            recv_pipe.close()
-            send_pipe.close()
+            del fn
+            del args
+            del result
 
     async def run_sync(self, sync_fn, *args):
+        # Neither this nor the child process should be waiting at this point
+        assert not self._barrier.n_waiting, "Must first wake_up() the WorkerProc"
         self._rehabilitate_pipes()
         try:
             await self._send(ForkingPickler.dumps((sync_fn, args)))
@@ -149,11 +166,22 @@ class WorkerProcBase:
             return result.unwrap()
 
     def is_alive(self):
-        # Even if the proc is alive, there is a race condition where it could
-        # be dying, use wait to make sure if necessary.
-        return self._proc.is_alive()
+        # if the proc is alive, there is a race condition where it could be
+        # dying, but the the barrier should be broken at that time.
+        # Barrier state is a little quicker to check so do that first
+        return not self._barrier.broken and self._proc.is_alive()
+
+    def wake_up(self, timeout=None):
+        # raise an exception if the barrier is broken or we must wait
+        try:
+            self._barrier.wait(timeout)
+        except BrokenBarrierError:
+            # raise our own flavor of exception and ensure death
+            self.kill()
+            raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
 
     def kill(self):
+        self._barrier.abort()
         try:
             self._proc.kill()
         except AttributeError:
@@ -206,13 +234,13 @@ class PosixWorkerProc(WorkerProcBase):
             self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
             self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
 
-    async def _recv(self):
-        buf = await self._recv_exactly(4)
-        (size,) = struct.unpack("!i", buf)
-        if size == -1:
-            buf = await self._recv_exactly(8)
-            (size,) = struct.unpack("!Q", buf)
-        return await self._recv_exactly(size)
+        async def _recv(self):
+            buf = await self._recv_exactly(4)
+            (size,) = struct.unpack("!i", buf)
+            if size == -1:  # pragma: no cover # can't go this big on CI
+                buf = await self._recv_exactly(8)
+                (size,) = struct.unpack("!Q", buf)
+            return await self._recv_exactly(size)
 
     async def _recv_exactly(self, size):
         result_bytes = bytearray()
@@ -228,28 +256,28 @@ class PosixWorkerProc(WorkerProcBase):
                 size -= num_recvd
         return result_bytes
 
-    async def _send(self, buf):
-        n = len(buf)
-        if n > 0x7FFFFFFF:
-            pre_header = struct.pack("!i", -1)
-            header = struct.pack("!Q", n)
-            await self._send_stream.send_all(pre_header)
-            await self._send_stream.send_all(header)
-            await self._send_stream.send_all(buf)
-        else:
-            # For wire compatibility with 3.7 and lower
-            header = struct.pack("!i", n)
-            if n > 16384:
-                # The payload is large so Nagle's algorithm won't be triggered
-                # and we'd better avoid the cost of concatenation.
+        async def _send(self, buf):
+            n = len(buf)
+            if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
+                pre_header = struct.pack("!i", -1)
+                header = struct.pack("!Q", n)
+                await self._send_stream.send_all(pre_header)
                 await self._send_stream.send_all(header)
                 await self._send_stream.send_all(buf)
             else:
-                # Issue #20540: concatenate before sending, to avoid delays due
-                # to Nagle's algorithm on a TCP socket.
-                # Also note we want to avoid sending a 0-length buffer separately,
-                # to avoid "broken pipe" errors if the other end closed the pipe.
-                await self._send_stream.send_all(header + buf)
+                # For wire compatibility with 3.7 and lower
+                header = struct.pack("!i", n)
+                if n > 16384:
+                    # The payload is large so Nagle's algorithm won't be triggered
+                    # and we'd better avoid the cost of concatenation.
+                    await self._send_stream.send_all(header)
+                    await self._send_stream.send_all(buf)
+                else:
+                    # Issue #20540: concatenate before sending, to avoid delays due
+                    # to Nagle's algorithm on a TCP socket.
+                    # Also note we want to avoid sending a 0-length buffer separately,
+                    # to avoid "broken pipe" errors if the other end closed the pipe.
+                    await self._send_stream.send_all(header + buf)
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
@@ -307,7 +335,7 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
     - Protect the main process from untrusted/unstable code without leaks
 
     Other :mod:`multiprocessing` features may work but are not officially
-    supported by Trio, and all the normal :mod:`multiprocessing` caveats apply.
+    supported, and all the normal :mod:`multiprocessing` caveats apply.
 
     Args:
       sync_fn: An importable or pickleable synchronous callable. See the
@@ -338,19 +366,14 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
     async with limiter:
         PROC_CACHE.prune()
 
-        while True:
-            try:
-                proc = PROC_CACHE.pop()
-            except IndexError:
-                proc = await trio.to_thread.run_sync(WorkerProc)
+        try:
+            proc = PROC_CACHE.pop()
+        except IndexError:
+            proc = await trio.to_thread.run_sync(WorkerProc)
 
-            try:
-                with trio.CancelScope(shield=not cancellable):
-                    return await proc.run_sync(sync_fn, *args)
-            except trio.BrokenResourceError:
-                # Rare case where proc timed out even though it was still alive
-                # as we popped it. Just retry.
-                pass
-            finally:
-                if proc.is_alive():
-                    PROC_CACHE.push(proc)
+        try:
+            with trio.CancelScope(shield=not cancellable):
+                return await proc.run_sync(sync_fn, *args)
+        finally:
+            if proc.is_alive():
+                PROC_CACHE.push(proc)

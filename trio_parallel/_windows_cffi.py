@@ -30,7 +30,9 @@ BOOL GetNamedPipeHandleStateA(
 
 # cribbed from pywincffi
 # programmatically strips out those annotations MSDN likes, like _In_
-REGEX_SAL_ANNOTATION = re.compile(r"\b(_In_|_Inout_|_Out_|_Outptr_|_Reserved_)(opt_)?\b")
+REGEX_SAL_ANNOTATION = re.compile(
+    r"\b(_In_|_Inout_|_Out_|_Outptr_|_Reserved_)(opt_)?\b"
+)
 LIB = REGEX_SAL_ANNOTATION.sub(" ", LIB)
 
 # Other fixups:
@@ -84,7 +86,7 @@ class PipeModes(enum.IntFlag):
 ################################################################
 
 
-def _handle(obj):
+def _handle(obj):  # pragma: no cover
     # For now, represent handles as either cffi HANDLEs or as ints.  If you
     # try to pass in a file descriptor instead, it's not going to work
     # out. (For that msvcrt.get_osfhandle does the trick, but I don't know if
@@ -97,7 +99,7 @@ def _handle(obj):
         return obj
 
 
-def raise_winerror(winerror=None, *, filename=None, filename2=None):
+def raise_winerror(winerror=None, *, filename=None, filename2=None):  # pragma: no cover
     if winerror is None:
         winerror, msg = ffi.getwinerror()
     else:
@@ -106,17 +108,10 @@ def raise_winerror(winerror=None, *, filename=None, filename2=None):
     raise OSError(0, msg, filename, winerror, filename2)
 
 
-def get_pipe_state(handle):
-    lpState = ffi.new("LPDWORD")
-    if not kernel32.GetNamedPipeHandleStateA(
-        _handle(handle), lpState, ffi.NULL, ffi.NULL, ffi.NULL, ffi.NULL, 0
-    ):
-        raise_winerror()  # pragma: no cover
-    return lpState[0]
-
-
 def peek_pipe_message_left(handle):
     left = ffi.new("LPDWORD")
-    if not kernel32.PeekNamedPipe(_handle(handle), ffi.NULL, 0, ffi.NULL, ffi.NULL, left):
+    if not kernel32.PeekNamedPipe(
+        _handle(handle), ffi.NULL, 0, ffi.NULL, ffi.NULL, left
+    ):
         raise_winerror()  # pragma: no cover
     return left[0]
