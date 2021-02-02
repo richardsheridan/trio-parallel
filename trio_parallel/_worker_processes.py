@@ -309,7 +309,7 @@ if os.name == "nt":
         pass
 
 
-elif platform.python_implementation == "PyPy":
+elif platform.python_implementation() == "PyPy":
 
     class WorkerProc(PypyWorkerProc, PosixWorkerProc):
         pass
