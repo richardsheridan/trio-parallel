@@ -8,7 +8,8 @@ from .._worker_processes import (
     PROC_CACHE,
     to_process_run_sync,
     current_default_process_limiter,
-    BrokenWorkerError, WorkerProc,
+    BrokenWorkerError,
+    WorkerProc,
 )
 from trio.testing import wait_all_tasks_blocked
 
@@ -113,6 +114,7 @@ def _null_func():  # pragma: no cover
 
 async def test_run_in_worker_process_fail_to_spawn(monkeypatch):
     from .. import _worker_processes
+
     # Test the unlikely but possible case where trying to spawn a worker fails
     def bad_start(*a, **kw):
         raise RuntimeError("the engines canna take it captain")

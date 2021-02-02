@@ -30,7 +30,9 @@ BOOL GetNamedPipeHandleStateA(
 
 # cribbed from pywincffi
 # programmatically strips out those annotations MSDN likes, like _In_
-REGEX_SAL_ANNOTATION = re.compile(r"\b(_In_|_Inout_|_Out_|_Outptr_|_Reserved_)(opt_)?\b")
+REGEX_SAL_ANNOTATION = re.compile(
+    r"\b(_In_|_Inout_|_Out_|_Outptr_|_Reserved_)(opt_)?\b"
+)
 LIB = REGEX_SAL_ANNOTATION.sub(" ", LIB)
 
 # Other fixups:
@@ -117,6 +119,8 @@ def get_pipe_state(handle):
 
 def peek_pipe_message_left(handle):
     left = ffi.new("LPDWORD")
-    if not kernel32.PeekNamedPipe(_handle(handle), ffi.NULL, 0, ffi.NULL, ffi.NULL, left):
+    if not kernel32.PeekNamedPipe(
+        _handle(handle), ffi.NULL, 0, ffi.NULL, ffi.NULL, left
+    ):
         raise_winerror()  # pragma: no cover
     return left[0]

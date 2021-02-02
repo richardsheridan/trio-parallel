@@ -209,6 +209,7 @@ class WorkerProc:
             # that this object can be instantiated in e.g. a thread
             if not hasattr(self, "_send_chan"):
                 from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
+
                 self._send_chan = PipeSendChannel(self._send_pipe.fileno())
                 self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
                 self._send = self._send_chan.send
