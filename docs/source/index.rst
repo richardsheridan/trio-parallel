@@ -12,6 +12,7 @@ trio-parallel: CPU parallelism for Trio
    :maxdepth: 2
 
    history.rst
+   reference.rst
 
 ====================
  Indices and tables
