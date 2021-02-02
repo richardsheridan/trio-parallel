@@ -234,13 +234,13 @@ class PosixWorkerProc(WorkerProcBase):
             self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
             self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
 
-        async def _recv(self):
-            buf = await self._recv_exactly(4)
-            (size,) = struct.unpack("!i", buf)
-            if size == -1:  # pragma: no cover # can't go this big on CI
-                buf = await self._recv_exactly(8)
-                (size,) = struct.unpack("!Q", buf)
-            return await self._recv_exactly(size)
+    async def _recv(self):
+        buf = await self._recv_exactly(4)
+        (size,) = struct.unpack("!i", buf)
+        if size == -1:  # pragma: no cover # can't go this big on CI
+            buf = await self._recv_exactly(8)
+            (size,) = struct.unpack("!Q", buf)
+        return await self._recv_exactly(size)
 
     async def _recv_exactly(self, size):
         result_bytes = bytearray()
@@ -256,28 +256,28 @@ class PosixWorkerProc(WorkerProcBase):
                 size -= num_recvd
         return result_bytes
 
-        async def _send(self, buf):
-            n = len(buf)
-            if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
-                pre_header = struct.pack("!i", -1)
-                header = struct.pack("!Q", n)
-                await self._send_stream.send_all(pre_header)
+    async def _send(self, buf):
+        n = len(buf)
+        if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
+            pre_header = struct.pack("!i", -1)
+            header = struct.pack("!Q", n)
+            await self._send_stream.send_all(pre_header)
+            await self._send_stream.send_all(header)
+            await self._send_stream.send_all(buf)
+        else:
+            # For wire compatibility with 3.7 and lower
+            header = struct.pack("!i", n)
+            if n > 16384:
+                # The payload is large so Nagle's algorithm won't be triggered
+                # and we'd better avoid the cost of concatenation.
                 await self._send_stream.send_all(header)
                 await self._send_stream.send_all(buf)
             else:
-                # For wire compatibility with 3.7 and lower
-                header = struct.pack("!i", n)
-                if n > 16384:
-                    # The payload is large so Nagle's algorithm won't be triggered
-                    # and we'd better avoid the cost of concatenation.
-                    await self._send_stream.send_all(header)
-                    await self._send_stream.send_all(buf)
-                else:
-                    # Issue #20540: concatenate before sending, to avoid delays due
-                    # to Nagle's algorithm on a TCP socket.
-                    # Also note we want to avoid sending a 0-length buffer separately,
-                    # to avoid "broken pipe" errors if the other end closed the pipe.
-                    await self._send_stream.send_all(header + buf)
+                # Issue #20540: concatenate before sending, to avoid delays due
+                # to Nagle's algorithm on a TCP socket.
+                # Also note we want to avoid sending a 0-length buffer separately,
+                # to avoid "broken pipe" errors if the other end closed the pipe.
+                await self._send_stream.send_all(header + buf)
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
