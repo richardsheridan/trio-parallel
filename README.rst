@@ -19,21 +19,26 @@ This is the library for you!
     import time
 
 
-    def hard_work(x):
-        t = time.perf_counter() + 3
+    def hard_work(n, x):
+        t = time.perf_counter() + n
         y = x
         while time.perf_counter() < t:
             x = not x
         print(y, "transformed into", x)
         return x
 
+    async def too_slow():
+        await trio_parallel.run_sync(hard_work, 20, False, cancellable=True)
+
 
     async def amain():
         t0 = time.perf_counter()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(trio_parallel.run_sync, hard_work, True)
-            nursery.start_soon(trio_parallel.run_sync, hard_work, False)
-            result = await trio_parallel.run_sync(hard_work, None)
+            nursery.start_soon(trio_parallel.run_sync, hard_work, 3, True)
+            nursery.start_soon(trio_parallel.run_sync, hard_work, 1, False)
+            nursery.start_soon(too_slow)
+            result = await trio_parallel.run_sync(hard_work, 2, None)
+            nursery.cancel_scope.cancel()
         print("got", result, "in", time.perf_counter() - t0, "seconds")
 
 
@@ -41,6 +46,10 @@ This is the library for you!
         multiprocessing.freeze_support()
         trio.run(amain)
 
+
+Documentation
+-------------
+The full API is documented at `<https://trio-parallel.readthedocs.io/>`__
 
 Features
 --------
@@ -68,22 +77,22 @@ offering a set of quirks that users are likely already familiar with.
 FAQ
 ---
 
-I want my workers to talk to each other
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Can I have my workers talk to each other?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is currently possible through the use of `multiprocessing.Manager`,
 but we don't and will not support it. Instead, try using `trio.run_process` and
 having the various Trio runs talk to each other over sockets. Also, look into
 `tractor <https://github.com/goodboy/tractor>`_?
 
-I want my workers to outlive the main Trio process
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Can I let my workers outlive the main Trio process?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The worker processes are started with the `daemon` flag for lifetime management,
 so this use case is not supported.
 
-I want to map a function over a collection of arguments
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+How should I map a function over a collection of arguments?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is fully possible but we leave the implementation of that up to you.
 Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
