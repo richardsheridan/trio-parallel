@@ -6,10 +6,6 @@ set -ex -o pipefail
 uname -a
 env | sort
 
-if [ "$JOB_NAME" = "" ]; then
-    JOB_NAME="${TRAVIS_OS_NAME}-${TRAVIS_PYTHON_VERSION:-unknown}"
-fi
-
 # Curl's built-in retry system is not very robust; it gives up on lots of
 # network errors that we want to retry on. Wget might work better, but it's
 # not installed on azure pipelines's windows boxes. So... let's try some good
@@ -25,40 +21,6 @@ function curl-harder() {
     done
     return 1
 }
-
-################################################################
-# Bootstrap python environment, if necessary
-################################################################
-
-### PyPy nightly (currently on Travis) ###
-
-if [ "$PYPY_NIGHTLY_BRANCH" != "" ]; then
-    JOB_NAME="pypy_nightly_${PYPY_NIGHTLY_BRANCH}"
-    curl-harder -o pypy.tar.bz2 http://buildbot.pypy.org/nightly/${PYPY_NIGHTLY_BRANCH}/pypy-c-jit-latest-linux64.tar.bz2
-    if [ ! -s pypy.tar.bz2 ]; then
-        # We know:
-        # - curl succeeded (200 response code)
-        # - nonetheless, pypy.tar.bz2 does not exist, or contains no data
-        # This isn't going to work, and the failure is not informative of
-        # anything involving Trio.
-        ls -l
-        echo "PyPy3 nightly build failed to download – something is wrong on their end."
-        echo "Skipping testing against the nightly build for right now."
-        exit 0
-    fi
-    tar xaf pypy.tar.bz2
-    # something like "pypy-c-jit-89963-748aa3022295-linux64"
-    PYPY_DIR=$(echo pypy-c-jit-*)
-    PYTHON_EXE=$PYPY_DIR/bin/pypy3
-
-    if ! ($PYTHON_EXE -m ensurepip \
-              && $PYTHON_EXE -m pip install virtualenv \
-              && $PYTHON_EXE -m virtualenv testenv); then
-        echo "pypy nightly is broken; skipping tests"
-        exit 0
-    fi
-    source testenv/bin/activate
-fi
 
 ################################################################
 # We have a Python environment!
