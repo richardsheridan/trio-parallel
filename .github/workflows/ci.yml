@@ -60,14 +60,10 @@ jobs:
         check_docs: ['0']
         check_formatting: ['0']
         extra_name: ['']
-        pypy_nightly_branch: [ '' ]
         include:
           - python: '3.8'
             check_formatting: '1'
             extra_name: ', formatting and linting'
-         # - python: '3.7'  # <- not actually used
-         #   pypy_nightly_branch: 'py3.7'
-         #   extra_name: ', pypy 3.7 nightly'
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -87,7 +83,6 @@ jobs:
       - name: Run tests
         run: ./ci.sh
         env:
-          PYPY_NIGHTLY_BRANCH: '${{ matrix.pypy_nightly_branch }}'
           CHECK_FORMATTING: '${{ matrix.check_formatting }}'
           # Should match 'name:' up above
           JOB_NAME: 'Linux (${{ matrix.python }}${{ matrix.extra_name }})'
