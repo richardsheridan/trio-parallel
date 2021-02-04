@@ -1,4 +1,4 @@
-trio-parallel - CPU parallelism for Trio
+trio-parallel: CPU parallelism for Trio
 ========================================
 
 .. image:: https://github.com/richardsheridan/trio-parallel/workflows/CI/badge.svg
@@ -24,10 +24,6 @@ trio-parallel - CPU parallelism for Trio
 .. image:: https://badgen.net/github/last-commit/richardsheridan/trio-parallel/main
   :target: https://github.com/richardsheridan/trio-parallel/
   :alt: last commit
-
-.. image:: https://img.shields.io/pypi/v/trio-parallel.svg
-   :target: https://pypi.org/project/trio-parallel
-   :alt: Latest PyPi version
 
 License: Your choice of MIT or Apache License 2.0
 
