@@ -1,9 +1,31 @@
-trio-parallel
-=============
+trio-parallel - CPU parallelism for Trio
+========================================
 
-Welcome to `trio-parallel <https://github.com/richardsheridan/trio-parallel>`__!
+.. |space| unicode:: U+0020
 
-CPU parallelism for Trio
+.. image:: https://github.com/richardsheridan/trio-parallel/workflows/CI/badge.svg
+  :target: https://github.com/richardsheridan/trio-parallel/
+  :alt: CI status
+
+.. image:: https://codecov.io/gh/richardsheridan/trio-parallel/branch/main/graph/badge.svg?token=EQqs2abxxG
+  :target: https://codecov.io/gh/richardsheridan/trio-parallel
+  :alt: Test coverage
+
+.. image:: https://readthedocs.org/projects/trio-parallel/badge/
+  :target: https://trio-parallel.readthedocs.io/
+  :alt: Documentation
+
+.. image:: https://badgen.net/pypi/v/trio-parallel
+  :target: https://pypi.org/project/trio-parallel/
+  :alt: Latest Pypi version
+
+.. image:: https://badgen.net/github/last-commit/richardsheridan/trio-parallel/main
+  :target: https://github.com/richardsheridan/trio-parallel/
+  :alt: last commit
+
+.. image:: https://img.shields.io/pypi/v/trio-parallel.svg
+   :target: https://pypi.org/project/trio-parallel
+   :alt: Latest PyPi version
 
 License: Your choice of MIT or Apache License 2.0
 
@@ -26,6 +48,7 @@ This is the library for you!
             x = not x
         print(y, "transformed into", x)
         return x
+
 
     async def too_slow():
         await trio_parallel.run_sync(hard_work, 20, False, cancellable=True)
