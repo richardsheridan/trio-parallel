@@ -101,15 +101,15 @@ FAQ
 Can I have my workers talk to each other?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This is currently possible through the use of `multiprocessing.Manager`,
-but we don't and will not support it. Instead, try using `trio.run_process` and
+This is currently possible through the use of ``multiprocessing.Manager``,
+but we don't and will not support it. Instead, try using ``trio.run_process`` and
 having the various Trio runs talk to each other over sockets. Also, look into
 `tractor <https://github.com/goodboy/tractor>`_?
 
 Can I let my workers outlive the main Trio process?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The worker processes are started with the `daemon` flag for lifetime management,
+The worker processes are started with the ``daemon`` flag for lifetime management,
 so this use case is not supported.
 
 How should I map a function over a collection of arguments?
