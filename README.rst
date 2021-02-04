@@ -1,8 +1,6 @@
 trio-parallel - CPU parallelism for Trio
 ========================================
 
-.. |space| unicode:: U+0020
-
 .. image:: https://github.com/richardsheridan/trio-parallel/workflows/CI/badge.svg
   :target: https://github.com/richardsheridan/trio-parallel/
   :alt: CI status
@@ -14,6 +12,10 @@ trio-parallel - CPU parallelism for Trio
 .. image:: https://readthedocs.org/projects/trio-parallel/badge/
   :target: https://trio-parallel.readthedocs.io/
   :alt: Documentation
+
+.. image:: https://badgen.net/badge/code%20style/black/black
+  :target: https://github.com/psf/black
+  :alt: Code style: black
 
 .. image:: https://badgen.net/pypi/v/trio-parallel
   :target: https://pypi.org/project/trio-parallel/
