@@ -2,11 +2,12 @@
 trio-parallel: CPU parallelism for Trio
 =======================================
 
-License: Your choice of MIT or Apache License 2.0
-
 Do you have CPU bound work that just keeps slowing down your event loop no matter
 what you try? Do you need to get all those cores humming at once?
 This is the library for you!
+
+The aim of trio-parallel is to use the lightest-weight, lowest-overhead, lowest latency
+method to achieve CPU parallelism of arbitrary Python code with a dead-simple API.
 
 Resources
 ---------
@@ -70,8 +71,6 @@ Example
         trio.run(amain)
 
 
-Documentation
--------------
 The full API is documented at `<https://trio-parallel.readthedocs.io/>`__
 
 Features
@@ -87,18 +86,17 @@ Features
 
 - Convert segfaults and other scary things to catchable errors
 
-This project aims to use the lightest-weight, lowest-overhead, lowest latency
-method to achieve CPU parallelism of arbitrary Python code. At the moment, that
-means *subprocesses*. However, this project is not at all constrained by that,
-and will be considering subinterpreters, or any other avenue as they become available.
-
-Currently, this project is based on ``multiprocessing`` has all the usual multiprocessing caveats
-(``freeze_support``, pickleable objects only). The case for basing these workers on
-multiprocessing is that it keeps a lot of complexity outside of the project while
-offering a set of quirks that users are likely already familiar with.
-
 FAQ
 ---
+
+How does trio-parallel run Python code in parallel?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Currently, this project is based on ``multiprocessing`` subprocesses and
+has all the usual multiprocessing caveats (``freeze_support``, pickleable objects only).
+The case for basing these workers on
+multiprocessing is that it keeps a lot of complexity outside of the project while
+offering a set of quirks that users are likely already familiar with.
 
 Can I have my workers talk to each other?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -129,9 +127,14 @@ GitHub issues and pull requests are very welcome! Please read the
 Motiviation
 -----------
 
-Given that Python (and CPython in particular) has ongoing difficulties with
-CPU-bound work, this package provides :func:`trio_parallel.run_sync` to dispatch
-synchronous function execution to special subprocesses known as "Worker Processes".
+
+This project's aim is to use the lightest-weight, lowest-overhead, lowest latency
+method to achieve parallelism of arbitrary Python code, and make it natively async for Trio.
+Given that Python (and CPython in particular) has ongoing difficulties parallelizing
+CPU-bound work in threads, this package provides :func:`trio_parallel.run_sync` to dispatch
+synchronous function execution to *subprocesses*. However, this project is not at all constrained by that,
+and will be considering subinterpreters, or any other avenue as they become available.
+
 By default, it will create as many workers as the system has CPUs
 (as reported by :func:`os.cpu_count`), allowing fair
 and truly parallel dispatch of CPU-bound work. As with Trio threads, these processes
@@ -174,6 +177,16 @@ may leave the larger system in an incoherent state.
 .. |version badge| image:: https://badgen.net/pypi/v/trio-parallel?icon=pypi
    :target: `distribution`_
    :alt: Latest Pypi version
+
+.. _pypistats: https://pypistats.org/packages/trio-parallel
+.. |pypistats badge| image:: https://img.shields.io/pypi/dm/trio-parallel?logo=pypi&logoColor=whitesmoke
+   :target: `pypistats`_
+   :alt: Pypi monthly downloads
+
+.. _pepy: https://pepy.tech/badge/trio-parallel
+.. |pepy badge| image:: https://pepy.tech/badge/trio-parallel
+   :target: `pepy`_
+   :alt: Pypi total downloads
 
 .. |python versions badge| image:: https://img.shields.io/pypi/pyversions/trio-parallel.svg?color=indianred&logo=PyPI&logoColor=whitesmoke
    :alt: Supported Python versions
