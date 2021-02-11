@@ -48,7 +48,8 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
                 newbuffer = bytearray(DEFAULT_RECEIVE_SIZE + left)
                 with memoryview(newbuffer) as view:
                     view[:DEFAULT_RECEIVE_SIZE] = buffer
-                    await self._receive_some_into(view[DEFAULT_RECEIVE_SIZE:])
+                    with trio.CancelScope(shield=True):
+                        await self._receive_some_into(view[DEFAULT_RECEIVE_SIZE:])
                 return newbuffer
             else:
                 del buffer[received:]
