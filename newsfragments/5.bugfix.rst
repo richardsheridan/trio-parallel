@@ -1,0 +1,1 @@
+Fixed an underlying race condition in IPC. Not a critical bugfix, as it should not be triggered in practice.
