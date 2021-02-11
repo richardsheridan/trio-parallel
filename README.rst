@@ -12,24 +12,22 @@ method to achieve CPU parallelism of arbitrary Python code with a dead-simple AP
 Resources
 ---------
 
-=============  =================================  =============================
+=============  =============================
 
-License        `MIT/Apache2 <license_>`_          |license badge|
-Documentation  `Read the Docs <documentation_>`_  |documentation badge|
-Chat           `Gitter <chat_>`_                  |chat badge|
-Forum          `Discourse <forum_>`_              |forum badge|
-Issues         `GitHub <issues_>`_                |issues badge|
+License        |license badge|
+Documentation  |documentation badge|
+Chat           |chat badge|
+Forum          |forum badge|
+Issues         |issues badge|
+Repository     |repository badge|
+Tests          |tests badge|
+Coverage       |coverage badge|
+Style          |style badge|
+Distribution   | |version badge|
+               | |python versions badge|
+               | |python interpreters badge|
 
-Repository     `GitHub <repository_>`_            |repository badge|
-Tests          `GitHub Actions <tests_>`_         |tests badge|
-Coverage       `Codecov <coverage_>`_             |coverage badge|
-Style          `Black <style_>`_                  |style badge|
-
-Distribution   `PyPI <distribution_>`_            | |version badge|
-                                                  | |python versions badge|
-                                                  | |python interpreters badge|
-
-=============  =================================  =============================
+=============  =============================
 
 Example
 -------
@@ -217,12 +215,11 @@ may leave the larger system in an incoherent state.
    :alt: Test coverage
 
 .. _style: https://github.com/psf/black
-.. |style badge| image:: https://badgen.net/badge/code%20style/black/black
+.. |style badge| image:: https://badgen.net/badge/code%20style/Black/black
    :target: `style`_
    :alt: Code style
 
-.. _license_text: MIT -or- Apache License 2.0
 .. _license: https://github.com/richardsheridan/trio-parallel/blob/main/LICENSE
 .. |license badge| image:: https://badgen.net/pypi/license/trio-parallel
    :target: `license`_
-   :alt: License
+   :alt: MIT -or- Apache License 2.0
