@@ -3,7 +3,6 @@ import platform
 import struct
 import abc
 from itertools import count
-from multiprocessing import get_context
 from pickle import dumps, loads
 from threading import BrokenBarrierError
 
@@ -19,7 +18,11 @@ _proc_counter = count()
 
 
 class WorkerProcBase(abc.ABC):
-    def __init__(self, mp_context=get_context("spawn")):
+    _proc_counter = count()
+
+    def __init__(self, mp_context, idle_timeout, max_jobs):
+        self._max_jobs = max_jobs
+        self._num_jobs = 0
         # It is almost possible to synchronize on the pipe alone but on Pypy
         # the _send_pipe doesn't raise the correct error on death. Anyway,
         # this Barrier strategy is more obvious to understand.
@@ -28,8 +31,8 @@ class WorkerProcBase(abc.ABC):
         self._recv_pipe, child_send_pipe = mp_context.Pipe(duplex=False)
         self._proc = mp_context.Process(
             target=self._work,
-            args=(self._barrier, child_recv_pipe, child_send_pipe),
-            name=f"trio-parallel worker process {next(_proc_counter)}",
+            args=(self._barrier, child_recv_pipe, child_send_pipe, idle_timeout),
+            name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
         # keep our own state flag for quick checks
@@ -37,7 +40,7 @@ class WorkerProcBase(abc.ABC):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(barrier, recv_pipe, send_pipe):  # pragma: no cover
+    def _work(barrier, recv_pipe, send_pipe, idle_timeout):  # pragma: no cover
 
         import inspect
         import signal
@@ -62,7 +65,7 @@ class WorkerProcBase(abc.ABC):
         while True:
             try:
                 # Return value is party #, not whether awoken within timeout
-                barrier.wait(timeout=IDLE_TIMEOUT)
+                barrier.wait(timeout=idle_timeout)
             except BrokenBarrierError:
                 # Timeout waiting for job, so we can exit.
                 return
@@ -80,6 +83,7 @@ class WorkerProcBase(abc.ABC):
     async def run_sync(self, sync_fn, *args):
         # Neither this nor the child process should be waiting at this point
         assert not self._barrier.n_waiting, "Must first wake_up() the worker"
+        self._num_jobs += 1
         try:
             await self._send(dumps((sync_fn, args), protocol=-1))
             # noinspection PyTypeChecker
@@ -94,6 +98,8 @@ class WorkerProcBase(abc.ABC):
             self.kill()  # NOTE: must reap zombie child elsewhere
             raise
         else:
+            if self._num_jobs >= self._max_jobs:
+                self.kill()
             return result.unwrap()
 
     def is_alive(self):

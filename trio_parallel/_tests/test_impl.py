@@ -4,18 +4,13 @@ import os
 import pytest
 import trio
 
-from .._impl import WORKER_CACHE, to_process_run_sync
+from .._impl import DEFAULT_CACHE, run_sync, cache_scope
 
 
 @pytest.fixture(autouse=True)
 def empty_proc_cache():
-    while True:
-        try:
-            proc = WORKER_CACHE.pop()
-            proc.kill()
-            proc._proc.join()
-        except IndexError:
-            return
+    yield
+    DEFAULT_CACHE.clear()
 
 
 def _echo_and_pid(x):  # pragma: no cover
@@ -26,16 +21,16 @@ def _raise_pid():  # pragma: no cover
     raise ValueError(os.getpid())
 
 
-async def test_run_in_worker():
+async def test_run_sync():
     trio_pid = os.getpid()
     limiter = trio.CapacityLimiter(1)
 
-    x, child_pid = await to_process_run_sync(_echo_and_pid, 1, limiter=limiter)
+    x, child_pid = await run_sync(_echo_and_pid, 1, limiter=limiter)
     assert x == 1
     assert child_pid != trio_pid
 
     with pytest.raises(ValueError) as excinfo:
-        await to_process_run_sync(_raise_pid, limiter=limiter)
+        await run_sync(_raise_pid, limiter=limiter)
 
     assert excinfo.value.args[0] != trio_pid
 
@@ -47,11 +42,11 @@ def _block_proc_on_queue(q, ev, done_ev):  # pragma: no cover
     done_ev.set()
 
 
-async def test_cancellation(capfd):
+async def test_run_sync_cancellation(capfd):
     async def child(q, ev, done_ev, cancellable):
         print("start")
         try:
-            return await to_process_run_sync(
+            return await run_sync(
                 _block_proc_on_queue, q, ev, done_ev, cancellable=cancellable
             )
         finally:
@@ -106,17 +101,17 @@ async def _null_async_fn():  # pragma: no cover
     pass
 
 
-async def test_raises_on_async_fn():
+async def test_run_sync_coroutine_error():
     with pytest.raises(TypeError, match="expected a sync function"):
-        await to_process_run_sync(_null_async_fn)
+        await run_sync(_null_async_fn)
 
 
 async def test_prune_cache():
     # take proc's number and kill it for the next test
     while True:
-        _, pid1 = await to_process_run_sync(_echo_and_pid, None)
+        _, pid1 = await run_sync(_echo_and_pid, None)
         try:
-            proc = WORKER_CACHE.pop()
+            proc = DEFAULT_CACHE.pop()
         except IndexError:  # pragma: no cover
             # In CI apparently the worker occasionally doesn't make it all the way
             # to the barrier in time. This is only a slight inefficiency rather
@@ -128,18 +123,36 @@ async def test_prune_cache():
     with trio.fail_after(1):
         await proc.wait()
     # put dead proc into the cache (normal code never does this)
-    WORKER_CACHE.push(proc)
+    DEFAULT_CACHE.push(proc)
     # dead procs shouldn't pop out
     with pytest.raises(IndexError):
-        WORKER_CACHE.pop()
-    WORKER_CACHE.push(proc)
+        DEFAULT_CACHE.pop()
+    DEFAULT_CACHE.push(proc)
     # should spawn a new worker and remove the dead one
-    _, pid2 = await to_process_run_sync(_echo_and_pid, None)
-    assert len(WORKER_CACHE) == 1
+    _, pid2 = await run_sync(_echo_and_pid, None)
+    assert len(DEFAULT_CACHE) == 1
     assert pid1 != pid2
 
 
-async def test_large_job():
+async def test_run_sync_large_job():
     n = 2 ** 20
-    x, _ = await to_process_run_sync(_echo_and_pid, bytearray(n))
+    x, _ = await run_sync(_echo_and_pid, bytearray(n))
     assert len(x) == n
+
+
+async def test_cache_scope():
+    _, pid1 = await run_sync(_echo_and_pid, None)
+    with cache_scope(mp_context="spawn", max_jobs=2):
+        _, pid2 = await run_sync(_echo_and_pid, None)
+        assert pid1 != pid2
+        _, pid3 = await run_sync(_echo_and_pid, None)
+        assert pid3 == pid2
+        _, pid4 = await run_sync(_echo_and_pid, None)
+        assert pid4 != pid2
+    _, pid5 = await run_sync(_echo_and_pid, None)
+    assert pid5 == pid1
+    with cache_scope(idle_timeout=0):
+        _, pid6 = await run_sync(_echo_and_pid, None)
+        await trio.sleep(0.01)
+        _, pid7 = await run_sync(_echo_and_pid, None)
+        assert pid6 != pid7

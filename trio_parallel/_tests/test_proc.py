@@ -10,7 +10,7 @@ from .._proc import WorkerProc
 
 @pytest.fixture
 async def proc():
-    proc = WorkerProc()
+    proc = WorkerProc(multiprocessing.get_context("spawn"), 10, float("inf"))
     await trio.to_thread.run_sync(proc.wake_up)
     try:
         yield proc

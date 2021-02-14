@@ -1,16 +1,21 @@
 import os
+import contextvars
+from collections import deque
+from contextlib import contextmanager
+from multiprocessing import get_context
+from multiprocessing.context import BaseContext
 
 import trio
-from collections import deque
 
 from ._proc import WorkerProc
 from ._util import BrokenWorkerError
 
 
-_limiter_local = trio.lowlevel.RunVar("proc_limiter")
-
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
+_limiter_local = trio.lowlevel.RunVar(
+    "proc_limiter", default=trio.CapacityLimiter(DEFAULT_LIMIT)
+)
 
 
 def current_default_worker_limiter():
@@ -22,12 +27,7 @@ def current_default_worker_limiter():
     is initialized to the number of CPUs reported by :func:`os.cpu_count`.
 
     """
-    try:
-        limiter = _limiter_local.get()
-    except LookupError:
-        limiter = trio.CapacityLimiter(DEFAULT_LIMIT)
-        _limiter_local.set(limiter)
-    return limiter
+    return _limiter_local.get()
 
 
 class WorkerCache:
@@ -67,14 +67,48 @@ class WorkerCache:
             else:
                 return proc
 
+    def clear(self):
+        try:
+            while True:
+                proc = self._cache.pop()
+                proc.kill()
+                trio.lowlevel.start_thread_soon(
+                    lambda: proc._proc.join(1), lambda x: x.unwrap()
+                )
+        except IndexError:
+            pass
+
     def __len__(self):
         return len(self._cache)
 
 
-WORKER_CACHE = WorkerCache()
+DEFAULT_CACHE = WorkerCache()
+DEFAULT_MP_CONTEXT = get_context("spawn")
+DEFAULT_IDLE_TIMEOUT = 600
+DEFAULT_MAX_JOBS = float("inf")
+_worker_context = contextvars.ContextVar(
+    "worker_context",
+    default=(DEFAULT_CACHE, DEFAULT_MP_CONTEXT, DEFAULT_IDLE_TIMEOUT, DEFAULT_MAX_JOBS),
+)
 
 
-async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
+@contextmanager
+def cache_scope(
+    mp_context=get_context("spawn"), idle_timeout=10, max_jobs=float("inf")
+):
+    if not isinstance(mp_context, BaseContext):
+        # noinspection PyTypeChecker
+        mp_context = get_context(mp_context)
+    worker_cache = WorkerCache()
+    token = _worker_context.set((worker_cache, mp_context, idle_timeout, max_jobs))
+    try:
+        yield
+    finally:
+        _worker_context.reset(token)
+        worker_cache.clear()
+
+
+async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     """Run sync_fn in a separate process
 
     This is a wrapping of :class:`multiprocessing.Process` that follows the API of
@@ -117,13 +151,15 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
     if limiter is None:
         limiter = current_default_worker_limiter()
 
+    worker_cache, mp_context, idle_timeout, max_jobs = _worker_context.get()
+
     async with limiter:
-        WORKER_CACHE.prune()
+        worker_cache.prune()
 
         try:
-            proc = WORKER_CACHE.pop()
+            proc = worker_cache.pop()
         except IndexError:
-            proc = WorkerProc()
+            proc = WorkerProc(mp_context, idle_timeout, max_jobs)
             await trio.to_thread.run_sync(proc.wake_up)
 
         try:
@@ -131,4 +167,4 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
                 return await proc.run_sync(sync_fn, *args)
         finally:
             if proc.is_alive():
-                WORKER_CACHE.push(proc)
+                worker_cache.push(proc)

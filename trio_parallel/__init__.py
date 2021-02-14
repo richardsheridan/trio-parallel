@@ -2,8 +2,5 @@
 
 from ._version import __version__
 
-from ._impl import (
-    to_process_run_sync as run_sync,
-    current_default_worker_limiter,
-)
+from ._impl import run_sync, current_default_worker_limiter, cache_scope
 from ._util import BrokenWorkerError
