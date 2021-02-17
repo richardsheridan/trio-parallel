@@ -108,7 +108,6 @@ class WorkerProcBase:
         )
         # keep our own state flag for quick checks
         self._started = False
-        # self._proc.start()
         self._rehabilitate_pipes()
 
     @staticmethod
@@ -224,6 +223,8 @@ class WindowsWorkerProc(WorkerProcBase):
         if hasattr(self, "_send_chan"):
             self._send_chan._handle_holder.handle = -1
             self._recv_chan._handle_holder.handle = -1
+        else:  # pragma: no cover
+            pass
 
 
 class PosixWorkerProc(WorkerProcBase):
@@ -286,6 +287,8 @@ class PosixWorkerProc(WorkerProcBase):
         if hasattr(self, "_send_stream"):
             self._send_stream._fd_holder.fd = -1
             self._recv_stream._fd_holder.fd = -1
+        else:  # pragma: no cover
+            pass
 
 
 class PypyWorkerProc(WorkerProcBase):
