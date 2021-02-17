@@ -150,7 +150,6 @@ class WorkerProcBase:
     async def run_sync(self, sync_fn, *args):
         # Neither this nor the child process should be waiting at this point
         assert not self._barrier.n_waiting, "Must first wake_up() the worker"
-        # self._rehabilitate_pipes()
         try:
             await self._send(ForkingPickler.dumps((sync_fn, args)))
             result = ForkingPickler.loads(await self._recv())
@@ -184,7 +183,7 @@ class WorkerProcBase:
             self._barrier.wait(timeout)
         except BrokenBarrierError:
             # raise our own flavor of exception and reap child
-            if self._proc.is_alive():
+            if self._proc.is_alive():  # pragma: no cover - rare race condition
                 self.kill()
                 self._proc.join()  # this will block for ms, but it should be rare
             raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
