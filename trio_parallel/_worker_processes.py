@@ -24,7 +24,7 @@ class BrokenWorkerError(RuntimeError):
     """Raised when a worker process fails or dies unexpectedly.
 
     This error is not typically encountered in normal use, and indicates a severe
-    failure of either Trio or the code that was executing in the worker.
+    failure of either trio-parallel or the code that was executing in the worker.
     """
 
     pass
@@ -80,7 +80,6 @@ class ProcCache:
                 proc.wake_up(0)
             except BrokenWorkerError:
                 # proc must have died in the cache, just try again
-                proc.kill()
                 continue
             else:
                 return proc
@@ -94,7 +93,9 @@ PROC_CACHE = ProcCache()
 
 class WorkerProcBase:
     def __init__(self, mp_context=get_context("spawn")):
-        # it is almost possible to synchronize on the pipe alone
+        # It is almost possible to synchronize on the pipe alone but on Pypy
+        # the _send_pipe doesn't raise the correct error on death. Anyway,
+        # this Barrier strategy is more obvious to understand.
         self._barrier = mp_context.Barrier(2)
         child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
         self._recv_pipe, child_send_pipe = mp_context.Pipe(duplex=False)
@@ -104,9 +105,9 @@ class WorkerProcBase:
             name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
         )
-        # The following initialization methods may take a long time
-        self._proc.start()
-        self.wake_up()
+        # keep our own state flag for quick checks
+        self._started = False
+        self._rehabilitate_pipes()
 
     @staticmethod
     def _work(barrier, recv_pipe, send_pipe):  # pragma: no cover
@@ -120,8 +121,8 @@ class WorkerProcBase:
                 # Manually close coroutine to avoid RuntimeWarnings
                 ret.close()
                 raise TypeError(
-                    "Trio expected a sync function, but {!r} appears to be "
-                    "asynchronous".format(getattr(fn, "__qualname__", fn))
+                    "trio-parallel worker expected a sync function, but {!r} appears "
+                    "to be asynchronous".format(getattr(fn, "__qualname__", fn))
                 )
 
             return ret
@@ -148,19 +149,22 @@ class WorkerProcBase:
 
     async def run_sync(self, sync_fn, *args):
         # Neither this nor the child process should be waiting at this point
-        assert not self._barrier.n_waiting, "Must first wake_up() the WorkerProc"
-        self._rehabilitate_pipes()
+        assert not self._barrier.n_waiting, "Must first wake_up() the worker"
         try:
             await self._send(ForkingPickler.dumps((sync_fn, args)))
             result = ForkingPickler.loads(await self._recv())
         except trio.EndOfChannel:
             # Likely the worker died while we were waiting on a pipe
             self.kill()  # Just make sure
+            with trio.CancelScope(shield=True):
+                await self.wait()
             raise BrokenWorkerError(f"{self._proc} died unexpectedly")
         except BaseException:
             # Cancellation or other unknown errors leave the process in an
             # unknown state, so there is no choice but to kill.
             self.kill()
+            with trio.CancelScope(shield=True):
+                await self.wait()
             raise
         else:
             return result.unwrap()
@@ -172,12 +176,16 @@ class WorkerProcBase:
         return not self._barrier.broken and self._proc.is_alive()
 
     def wake_up(self, timeout=None):
-        # raise an exception if the barrier is broken or we must wait
+        if not self._started:
+            self._proc.start()
+            self._started = True
         try:
             self._barrier.wait(timeout)
         except BrokenBarrierError:
-            # raise our own flavor of exception and ensure death
-            self.kill()
+            # raise our own flavor of exception and reap child
+            if self._proc.is_alive():  # pragma: no cover - rare race condition
+                self.kill()
+                self._proc.join()  # this will block for ms, but it should be rare
             raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
 
     def kill(self):
@@ -203,17 +211,16 @@ class WorkerProcBase:
 class WindowsWorkerProc(WorkerProcBase):
     async def wait(self):
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
+        return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
-        # These must be created in an async context, so defer so
-        # that this object can be instantiated in e.g. a thread
-        if not hasattr(self, "_send_chan"):
-            from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
+        # These must be created in an async context
+        from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
 
-            self._send_chan = PipeSendChannel(self._send_pipe.fileno())
-            self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
-            self._send = self._send_chan.send
-            self._recv = self._recv_chan.receive
+        self._send_chan = PipeSendChannel(self._send_pipe.fileno())
+        self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
+        self._send = self._send_chan.send
+        self._recv = self._recv_chan.receive
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
@@ -221,18 +228,19 @@ class WindowsWorkerProc(WorkerProcBase):
         if hasattr(self, "_send_chan"):
             self._send_chan._handle_holder.handle = -1
             self._recv_chan._handle_holder.handle = -1
+        else:  # pragma: no cover
+            pass
 
 
 class PosixWorkerProc(WorkerProcBase):
     async def wait(self):
         await trio.lowlevel.wait_readable(self._proc.sentinel)
+        return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
-        # These must be created in an async context, so defer so
-        # that this object can be instantiated in e.g. a thread
-        if not hasattr(self, "_send_stream"):
-            self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
-            self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
+        # These must be created in an async context
+        self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
+        self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
 
     async def _recv(self):
         buf = await self._recv_exactly(4)
@@ -285,6 +293,8 @@ class PosixWorkerProc(WorkerProcBase):
         if hasattr(self, "_send_stream"):
             self._send_stream._fd_holder.fd = -1
             self._recv_stream._fd_holder.fd = -1
+        else:  # pragma: no cover
+            pass
 
 
 class PypyWorkerProc(WorkerProcBase):
@@ -367,7 +377,8 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
         try:
             proc = PROC_CACHE.pop()
         except IndexError:
-            proc = await trio.to_thread.run_sync(WorkerProc)
+            proc = WorkerProc()
+            await trio.to_thread.run_sync(proc.wake_up)
 
         try:
             with trio.CancelScope(shield=not cancellable):

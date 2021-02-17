@@ -20,6 +20,7 @@ def empty_proc_cache():
         try:
             proc = PROC_CACHE.pop()
             proc.kill()
+            proc._proc.join()
         except IndexError:
             return
 
@@ -213,12 +214,13 @@ async def test_to_process_run_sync_raises_on_kill():
                 finally:
                     # if something goes wrong, free the thread
                     ev.set()
-                proc.kill()
+                proc.kill()  # also tests multiple calls to proc.kill
 
 
-async def test_spawn_worker_in_thread_and_prune_cache():
-    # make sure we can successfully put worker spawning in a trio thread
-    proc = await trio.to_thread.run_sync(WorkerProc)
+async def test_wake_worker_in_thread_and_prune_cache():
+    # make sure we can successfully put worker waking in a Trio thread
+    proc = WorkerProc()
+    await trio.to_thread.run_sync(proc.wake_up)
     # take it's number and kill it for the next test
     pid1 = proc._proc.pid
     proc.kill()
@@ -250,6 +252,7 @@ async def test_exhaustively_cancel_run_sync():
 
     # cancel at job send
     proc = WorkerProc()
+    proc.wake_up()
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await proc.run_sync(_never_halts, ev)
