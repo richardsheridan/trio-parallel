@@ -122,8 +122,8 @@ class WorkerProcBase:
                 # Manually close coroutine to avoid RuntimeWarnings
                 ret.close()
                 raise TypeError(
-                    "Trio expected a sync function, but {!r} appears to be "
-                    "asynchronous".format(getattr(fn, "__qualname__", fn))
+                    "trio-parallel worker expected a sync function, but {!r} appears "
+                    "to be asynchronous".format(getattr(fn, "__qualname__", fn))
                 )
 
             return ret
@@ -150,7 +150,7 @@ class WorkerProcBase:
 
     async def run_sync(self, sync_fn, *args):
         # Neither this nor the child process should be waiting at this point
-        assert not self._barrier.n_waiting, "Must first wake_up() the WorkerProc"
+        assert not self._barrier.n_waiting, "Must first wake_up() the worker"
         self._rehabilitate_pipes()
         try:
             await self._send(ForkingPickler.dumps((sync_fn, args)))
