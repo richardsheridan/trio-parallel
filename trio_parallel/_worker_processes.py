@@ -94,7 +94,9 @@ PROC_CACHE = ProcCache()
 
 class WorkerProcBase:
     def __init__(self, mp_context=get_context("spawn")):
-        # it is almost possible to synchronize on the pipe alone
+        # It is almost possible to synchronize on the pipe alone but on Pypy
+        # the _send_pipe doesn't raise the correct error on death. Anyway,
+        # this Barrier strategy is more obvious to understand.
         self._barrier = mp_context.Barrier(2)
         child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
         self._recv_pipe, child_send_pipe = mp_context.Pipe(duplex=False)
