@@ -80,7 +80,6 @@ class ProcCache:
                 proc.wake_up(0)
             except BrokenWorkerError:
                 # proc must have died in the cache, just try again
-                proc.kill()
                 continue
             else:
                 return proc
@@ -158,11 +157,15 @@ class WorkerProcBase:
         except trio.EndOfChannel:
             # Likely the worker died while we were waiting on a pipe
             self.kill()  # Just make sure
+            with trio.CancelScope(shield=True):
+                await self.wait()
             raise BrokenWorkerError(f"{self._proc} died unexpectedly")
         except BaseException:
             # Cancellation or other unknown errors leave the process in an
             # unknown state, so there is no choice but to kill.
             self.kill()
+            with trio.CancelScope(shield=True):
+                await self.wait()
             raise
         else:
             return result.unwrap()
@@ -180,8 +183,10 @@ class WorkerProcBase:
         try:
             self._barrier.wait(timeout)
         except BrokenBarrierError:
-            # raise our own flavor of exception and ensure death
-            self.kill()
+            # raise our own flavor of exception and reap child
+            if self._proc.is_alive():
+                self.kill()
+                self._proc.join()  # this will block for ms, but it should be rare
             raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
 
     def kill(self):
@@ -207,6 +212,7 @@ class WorkerProcBase:
 class WindowsWorkerProc(WorkerProcBase):
     async def wait(self):
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
+        return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context
@@ -230,6 +236,7 @@ class WindowsWorkerProc(WorkerProcBase):
 class PosixWorkerProc(WorkerProcBase):
     async def wait(self):
         await trio.lowlevel.wait_readable(self._proc.sentinel)
+        return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context

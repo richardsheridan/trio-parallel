@@ -20,6 +20,7 @@ def empty_proc_cache():
         try:
             proc = PROC_CACHE.pop()
             proc.kill()
+            proc._proc.join()
         except IndexError:
             return
 
@@ -213,7 +214,7 @@ async def test_to_process_run_sync_raises_on_kill():
                 finally:
                     # if something goes wrong, free the thread
                     ev.set()
-                proc.kill()
+                proc.kill()  # also tests multiple calls to proc.kill
 
 
 async def test_wake_worker_in_thread_and_prune_cache():
