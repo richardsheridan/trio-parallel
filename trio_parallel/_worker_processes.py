@@ -106,9 +106,10 @@ class WorkerProcBase:
             name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
         )
-        # The following initialization methods may take a long time
-        self._proc.start()
-        self.wake_up()
+        # keep our own state flag for quick checks
+        self._started = False
+        # self._proc.start()
+        self._rehabilitate_pipes()
 
     @staticmethod
     def _work(barrier, recv_pipe, send_pipe):  # pragma: no cover
@@ -151,7 +152,7 @@ class WorkerProcBase:
     async def run_sync(self, sync_fn, *args):
         # Neither this nor the child process should be waiting at this point
         assert not self._barrier.n_waiting, "Must first wake_up() the worker"
-        self._rehabilitate_pipes()
+        # self._rehabilitate_pipes()
         try:
             await self._send(ForkingPickler.dumps((sync_fn, args)))
             result = ForkingPickler.loads(await self._recv())
@@ -174,7 +175,9 @@ class WorkerProcBase:
         return not self._barrier.broken and self._proc.is_alive()
 
     def wake_up(self, timeout=None):
-        # raise an exception if the barrier is broken or we must wait
+        if not self._started:
+            self._proc.start()
+            self._started = True
         try:
             self._barrier.wait(timeout)
         except BrokenBarrierError:
@@ -207,15 +210,13 @@ class WindowsWorkerProc(WorkerProcBase):
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
 
     def _rehabilitate_pipes(self):
-        # These must be created in an async context, so defer so
-        # that this object can be instantiated in e.g. a thread
-        if not hasattr(self, "_send_chan"):
-            from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
+        # These must be created in an async context
+        from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
 
-            self._send_chan = PipeSendChannel(self._send_pipe.fileno())
-            self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
-            self._send = self._send_chan.send
-            self._recv = self._recv_chan.receive
+        self._send_chan = PipeSendChannel(self._send_pipe.fileno())
+        self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
+        self._send = self._send_chan.send
+        self._recv = self._recv_chan.receive
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
@@ -230,11 +231,9 @@ class PosixWorkerProc(WorkerProcBase):
         await trio.lowlevel.wait_readable(self._proc.sentinel)
 
     def _rehabilitate_pipes(self):
-        # These must be created in an async context, so defer so
-        # that this object can be instantiated in e.g. a thread
-        if not hasattr(self, "_send_stream"):
-            self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
-            self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
+        # These must be created in an async context
+        self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
+        self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
 
     async def _recv(self):
         buf = await self._recv_exactly(4)
@@ -369,7 +368,8 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
         try:
             proc = PROC_CACHE.pop()
         except IndexError:
-            proc = await trio.to_thread.run_sync(WorkerProc)
+            proc = WorkerProc()
+            await trio.to_thread.run_sync(proc.wake_up)
 
         try:
             with trio.CancelScope(shield=not cancellable):
