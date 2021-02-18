@@ -155,25 +155,21 @@ class WorkerProcBase:
             result = ForkingPickler.loads(await self._recv())
         except trio.EndOfChannel:
             # Likely the worker died while we were waiting on a pipe
-            self.kill()  # Just make sure
-            with trio.CancelScope(shield=True):
-                await self.wait()
+            self.kill()  # NOTE: must reap zombie child elsewhere
             raise BrokenWorkerError(f"{self._proc} died unexpectedly")
         except BaseException:
             # Cancellation or other unknown errors leave the process in an
             # unknown state, so there is no choice but to kill.
-            self.kill()
-            with trio.CancelScope(shield=True):
-                await self.wait()
+            self.kill()  # NOTE: must reap zombie child elsewhere
             raise
         else:
             return result.unwrap()
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
-        # dying, but the the barrier should be broken at that time.
-        # Barrier state is a little quicker to check so do that first
-        return not self._barrier.broken and self._proc.is_alive()
+        # dying, but the the barrier should be broken at that time. This
+        # call reaps zombie children on Unix.
+        return self._proc.is_alive()
 
     def wake_up(self, timeout=None):
         if not self._started:
