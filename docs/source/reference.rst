@@ -8,7 +8,7 @@ Running CPU-bound functions in parallel
 
 .. autofunction:: run_sync
 
-.. autofunction:: current_default_process_limiter
+.. autofunction:: current_default_worker_limiter
 
 Exceptions and warnings
 -----------------------

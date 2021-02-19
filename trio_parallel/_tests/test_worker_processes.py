@@ -5,12 +5,12 @@ import pytest
 import trio
 
 from .._impl import (
-    PROC_CACHE,
+    WORKER_CACHE,
     to_process_run_sync,
-    current_default_process_limiter,
-    BrokenWorkerError,
+    current_default_worker_limiter,
     WorkerProc,
 )
+from .._util import BrokenWorkerError
 from trio.testing import wait_all_tasks_blocked
 
 
@@ -18,7 +18,7 @@ from trio.testing import wait_all_tasks_blocked
 def empty_proc_cache():
     while True:
         try:
-            proc = PROC_CACHE.pop()
+            proc = WORKER_CACHE.pop()
             proc.kill()
             proc._proc.join()
         except IndexError:
@@ -122,7 +122,7 @@ async def test_run_in_worker_process_fail_to_spawn(monkeypatch):
 
     monkeypatch.setattr(_impl, "WorkerProc", bad_start)
 
-    limiter = current_default_process_limiter()
+    limiter = current_default_worker_limiter()
     assert limiter.borrowed_tokens == 0
 
     # We get an appropriate error, and the limiter is cleanly released
@@ -204,7 +204,7 @@ async def test_to_process_run_sync_raises_on_kill():
         await to_process_run_sync(_never_halts, ev, cancellable=True)
 
     await to_process_run_sync(_null_func)
-    proc = PROC_CACHE._cache[0]
+    proc = WORKER_CACHE._cache[0]
     with pytest.raises(BrokenWorkerError):
         with trio.move_on_after(10):
             async with trio.open_nursery() as nursery:
@@ -227,14 +227,14 @@ async def test_wake_worker_in_thread_and_prune_cache():
     with trio.fail_after(1):
         await proc.wait()
     # put dead proc into the cache (normal code never does this)
-    PROC_CACHE.push(proc)
+    WORKER_CACHE.push(proc)
     # dead procs shouldn't pop out
     with pytest.raises(IndexError):
-        PROC_CACHE.pop()
-    PROC_CACHE.push(proc)
+        WORKER_CACHE.pop()
+    WORKER_CACHE.push(proc)
     # should spawn a new worker and remove the dead one
     _, pid2 = await to_process_run_sync(_echo_and_pid, None)
-    assert len(PROC_CACHE) == 1
+    assert len(WORKER_CACHE) == 1
     assert pid1 != pid2
 
 
