@@ -15,7 +15,7 @@ setup(
     license="MIT -or- Apache License 2.0",
     packages=find_packages(),
     include_package_data=True,
-    install_requires=["trio"],
+    install_requires=["trio", "outcome"],
     keywords=["parallel", "trio", "async", "dispatch"],
     python_requires=">=3.6",
     classifiers=[
