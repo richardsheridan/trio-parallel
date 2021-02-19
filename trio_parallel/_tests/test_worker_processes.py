@@ -4,7 +4,7 @@ import os
 import pytest
 import trio
 
-from .._worker_processes import (
+from .._impl import (
     PROC_CACHE,
     to_process_run_sync,
     current_default_process_limiter,
@@ -114,13 +114,13 @@ def _null_func():  # pragma: no cover
 
 
 async def test_run_in_worker_process_fail_to_spawn(monkeypatch):
-    from .. import _worker_processes
+    from .. import _impl
 
     # Test the unlikely but possible case where trying to spawn a worker fails
     def bad_start(*a, **kw):
         raise RuntimeError("the engines canna take it captain")
 
-    monkeypatch.setattr(_worker_processes, "WorkerProc", bad_start)
+    monkeypatch.setattr(_impl, "WorkerProc", bad_start)
 
     limiter = current_default_process_limiter()
     assert limiter.borrowed_tokens == 0
