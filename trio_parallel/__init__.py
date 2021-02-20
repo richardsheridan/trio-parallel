@@ -2,8 +2,8 @@
 
 from ._version import __version__
 
-from ._worker_processes import (
+from ._impl import (
     to_process_run_sync as run_sync,
-    BrokenWorkerError,
-    current_default_process_limiter,
+    current_default_worker_limiter,
 )
+from ._util import BrokenWorkerError
