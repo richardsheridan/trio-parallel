@@ -1,1 +1,0 @@
-Reorganized documentation for less redundancy and more clarity

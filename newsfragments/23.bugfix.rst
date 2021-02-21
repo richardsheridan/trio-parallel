@@ -1,1 +1,0 @@
-Close internal race condition when waiting for subprocess exit codes on macOS.
