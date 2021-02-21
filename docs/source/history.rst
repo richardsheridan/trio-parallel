@@ -23,7 +23,7 @@ Improved Documentation
 - Reorganized documentation for less redundancy and more clarity (`#16 <https://github.com/richardsheridan/trio-parallel/issues/16>`__)
 
 
-trio_parallel 0.2.0 (2021-02-02)
+trio-parallel 0.2.0 (2021-02-02)
 --------------------------------
 
 Bugfixes
