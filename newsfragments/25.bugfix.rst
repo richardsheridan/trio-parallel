@@ -1,0 +1,1 @@
+Avoid a race condition leading to deadlocks when a worker process is killed right after receiving work.
