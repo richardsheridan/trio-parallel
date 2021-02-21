@@ -1,6 +1,7 @@
 import os
 import platform
 import struct
+import time
 from itertools import count
 from multiprocessing import get_context
 
@@ -113,6 +114,11 @@ class WorkerProcBase:
 
     def kill(self):
         self._barrier.abort()
+        # race condition: if we kill while the proc has the underlying semaphore,
+        # we can deadlock it. Spinning on barrier n_waiting attribute doesn't
+        # work because they cheat while the _state is "draining" so spin on _count.
+        while self._barrier._count:
+            time.sleep(0.001)
         try:
             self._proc.kill()
         except AttributeError:
