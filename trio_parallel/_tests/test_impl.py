@@ -113,8 +113,17 @@ async def test_raises_on_async_fn():
 
 async def test_prune_cache():
     # take proc's number and kill it for the next test
-    _, pid1 = await to_process_run_sync(_echo_and_pid, None)
-    proc = WORKER_CACHE.pop()
+    while True:
+        _, pid1 = await to_process_run_sync(_echo_and_pid, None)
+        try:
+            proc = WORKER_CACHE.pop()
+        except IndexError:  # pragma: no cover
+            # In CI apparently the worker occasionally doesn't make it all the way
+            # to the barrier in time. This is only a slight inefficiency rather
+            # than a bug so for now just work around it with this loop.
+            continue
+        else:
+            break
     proc.kill()
     with trio.fail_after(1):
         await proc.wait()
