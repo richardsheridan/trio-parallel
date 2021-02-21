@@ -158,7 +158,14 @@ class WindowsWorkerProc(WorkerProcBase):
 class PosixWorkerProc(WorkerProcBase):
     async def wait(self):
         await trio.lowlevel.wait_readable(self._proc.sentinel)
-        return self._proc.exitcode
+        e = self._proc.exitcode
+        if e is not None:
+            return e
+        else:  # pragma: no cover # to avoid flaky CI, but it happens regularly
+            # race on macOS, see comment in trio.Process._wait
+            self._proc.join()
+            # unfortunately join does not return exitcode
+            return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context
