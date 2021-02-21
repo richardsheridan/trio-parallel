@@ -161,10 +161,11 @@ class PosixWorkerProc(WorkerProcBase):
         e = self._proc.exitcode
         if e is not None:
             return e
-        # race on macOS, see comment in trio.Process._wait
-        self._proc.join()
-        # unfortunately join does not return exitcode
-        return self._proc.exitcode
+        else:  # pragma: no cover # to avoid flaky CI, but it happens regularly
+            # race on macOS, see comment in trio.Process._wait
+            self._proc.join()
+            # unfortunately join does not return exitcode
+            return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context
