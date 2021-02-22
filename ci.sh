@@ -66,7 +66,7 @@ else
     # --cov-config=../.coveragerc to pytest, because codecov.sh will run
     # 'coverage xml' to generate the report that it uses, and that will only
     # apply the ignore patterns in the current directory's .coveragerc.
-    cp ../.coveragerc .
+    cp ../pyproject.toml .
     if pytest -W error -r a --junitxml=../test-results.xml ${INSTALLDIR} --cov="$INSTALLDIR" --verbose; then
         PASSED=true
     else
