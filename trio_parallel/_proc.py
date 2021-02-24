@@ -114,14 +114,15 @@ class WorkerProcBase:
 
     def kill(self):
         self._barrier.abort()
-        # race condition: if we kill while the proc has the underlying semaphore,
-        # we can deadlock it. Spinning on barrier n_waiting attribute doesn't
-        # work because they cheat while the _state is "draining" so spin on _count.
-        while self._barrier._count:
-            time.sleep(0.001)
         try:
-            self._proc.kill()
+            # race condition: if we kill while the proc has the underlying
+            # semaphore, we can deadlock it, so make sure we hold it.
+            with self._barrier._cond:
+                self._proc.kill()
         except AttributeError:
+            # cpython 3.6 uses SIGTERM which is more graceful with respect to
+            # the deadlock, but has an edge case where if this process holds
+            # the semaphore, a wait can timeout and raise an OSError unnecessarily.
             self._proc.terminate()
 
     def _rehabilitate_pipes(self):  # pragma: no cover
