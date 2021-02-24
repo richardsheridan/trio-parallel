@@ -4,8 +4,7 @@ import struct
 import time
 from itertools import count
 from multiprocessing import get_context
-
-from multiprocessing.reduction import ForkingPickler
+from pickle import dumps, loads
 from threading import BrokenBarrierError
 
 import trio
@@ -63,13 +62,13 @@ class WorkerProcBase:
                 # Timeout waiting for job, so we can exit.
                 return
             # We got a job, and we are "woken"
-            fn, args = recv_pipe.recv()
+            fn, args = loads(recv_pipe.recv_bytes())
             result = outcome.capture(coroutine_checker, fn, args)
             # Tell the cache that we're done and available for a job
             # Unlike the thread cache, it's impossible to deliver the
             # result from the worker process. So shove it onto the queue
             # and hope the receiver delivers the result and marks us idle
-            send_pipe.send(result)
+            send_pipe.send_bytes(dumps(result, protocol=-1))
 
             del fn
             del args
@@ -79,8 +78,9 @@ class WorkerProcBase:
         # Neither this nor the child process should be waiting at this point
         assert not self._barrier.n_waiting, "Must first wake_up() the worker"
         try:
-            await self._send(ForkingPickler.dumps((sync_fn, args)))
-            result = ForkingPickler.loads(await self._recv())
+            await self._send(dumps((sync_fn, args), protocol=-1))
+            # noinspection PyTypeChecker
+            result = loads(await self._recv())
         except trio.EndOfChannel:
             # Likely the worker died while we were waiting on a pipe
             self.kill()  # NOTE: must reap zombie child elsewhere
