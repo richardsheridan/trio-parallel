@@ -71,9 +71,6 @@ jobs:
       - name: Run tests
         run: ./ci.sh
         shell: bash
-        env:
-          # Should match 'name:' up above
-          JOB_NAME: 'Windows (${{ matrix.python }}, ${{ matrix.arch }})'
       - name: Codecov
         uses: codecov/codecov-action@v1
         with:
@@ -113,9 +110,6 @@ jobs:
         run: chmod +x ./ci.sh
       - name: Run tests
         run: ./ci.sh
-        env:
-          # Should match 'name:' up above
-          JOB_NAME: 'Linux (${{ matrix.python }})'
       - name: Codecov
         uses: codecov/codecov-action@v1
         with:
@@ -152,9 +146,6 @@ jobs:
             ${{ runner.os }}-pip-
       - name: Run tests
         run: ./ci.sh
-        env:
-          # Should match 'name:' up above
-          JOB_NAME: 'macOS (${{ matrix.python }})'
       - name: Codecov
         uses: codecov/codecov-action@v1
         with:
