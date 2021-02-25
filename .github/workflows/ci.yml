@@ -39,19 +39,38 @@ jobs:
         if: steps.black.outcome != 'success' || steps.flake8.outcome != 'success'
         run: exit 1
 
-  Windows:
-    name: 'Windows (${{ matrix.python }}, ${{ matrix.arch }})'
+  Test:
+    name: 'Test ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})'
     timeout-minutes: 10
-    runs-on: 'windows-latest'
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+          - macos-latest
         python:
           - '3.6'
           - '3.7'
           - '3.8'
           - '3.9'
-        arch: ['x86', 'x64']
+          - 'pypy-3.6'
+          - 'pypy-3.7'
+        arch: [ x64, x86 ]
+        include:
+          - os: ubuntu-latest
+            python: 'pypy-3.7-nightly'
+            arch: x64
+        exclude:
+          - os: windows-latest
+            python: 'pypy-3.6'
+          - os: windows-latest
+            python: 'pypy-3.7'
+          - os: ubuntu-latest
+            arch: x86
+          - os: macos-latest
+            arch: x86
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -63,7 +82,10 @@ jobs:
       - name: Pip cache
         uses: actions/cache@v2
         with:
-          path: ~\AppData\Local\pip\Cache
+          path: |
+            ~/AppData/Local/pip/Cache
+            ~/.cache/pip
+            ~/Library/Caches/pip
           key: ${{ runner.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/test-requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-
@@ -71,81 +93,6 @@ jobs:
       - name: Run tests
         run: ./ci.sh
         shell: bash
-      - name: Codecov
-        uses: codecov/codecov-action@v1
-        with:
-          fail_ci_if_error: true
-
-  Linux:
-    name: 'Linux (${{ matrix.python }})'
-    timeout-minutes: 10
-    runs-on: 'ubuntu-latest'
-    strategy:
-      fail-fast: false
-      matrix:
-        python:
-          - '3.6'
-          - '3.7'
-          - '3.8'
-          - '3.9'
-          - 'pypy-3.6'
-          - 'pypy-3.7'
-          - 'pypy-3.7-nightly'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '${{ matrix.python }}'
-      - name: Pip cache
-        uses: actions/cache@v2
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python }}-${{ hashFiles('**/test-requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python }}-
-            ${{ runner.os }}-pip-
-      - name: Make executable
-        run: chmod +x ./ci.sh
-      - name: Run tests
-        run: ./ci.sh
-      - name: Codecov
-        uses: codecov/codecov-action@v1
-        with:
-          fail_ci_if_error: true
-
-  macOS:
-    name: 'macOS (${{ matrix.python }})'
-    timeout-minutes: 10
-    runs-on: 'macos-latest'
-    strategy:
-      fail-fast: false
-      matrix:
-        python:
-          - '3.6'
-          - '3.7'
-          - '3.8'
-          - '3.9'
-          - 'pypy-3.6'
-          - 'pypy-3.7'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '${{ matrix.python }}'
-      - name: Pip cache
-        uses: actions/cache@v2
-        with:
-          path: ~/Library/Caches/pip
-          key: ${{ runner.os }}-pip-${{ matrix.python }}-${{ hashFiles('**/test-requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.python }}-
-            ${{ runner.os }}-pip-
-      - name: Run tests
-        run: ./ci.sh
       - name: Codecov
         uses: codecov/codecov-action@v1
         with:
