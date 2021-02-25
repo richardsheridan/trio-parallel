@@ -86,10 +86,7 @@ jobs:
             ~/AppData/Local/pip/Cache
             ~/.cache/pip
             ~/Library/Caches/pip
-          key: ${{ runner.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/test-requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-
-            ${{ runner.os }}-pip-
+          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/test-requirements.txt') }}
       - name: Run tests
         run: ./ci.sh
         shell: bash
