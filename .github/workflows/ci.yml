@@ -40,7 +40,7 @@ jobs:
         run: exit 1
 
   Windows:
-    name: 'Windows (${{ matrix.python }}, ${{ matrix.arch }}${{ matrix.extra_name }})'
+    name: 'Windows (${{ matrix.python }}, ${{ matrix.arch }})'
     timeout-minutes: 10
     runs-on: 'windows-latest'
     strategy:
@@ -76,7 +76,7 @@ jobs:
           JOB_NAME: 'Windows (${{ matrix.python }}, ${{ matrix.arch }})'
 
   Linux:
-    name: 'Linux (${{ matrix.python }}${{ matrix.extra_name }})'
+    name: 'Linux (${{ matrix.python }})'
     timeout-minutes: 10
     runs-on: 'ubuntu-latest'
     strategy:
@@ -110,9 +110,8 @@ jobs:
       - name: Run tests
         run: ./ci.sh
         env:
-          CHECK_FORMATTING: '${{ matrix.check_formatting }}'
           # Should match 'name:' up above
-          JOB_NAME: 'Linux (${{ matrix.python }}${{ matrix.extra_name }})'
+          JOB_NAME: 'Linux (${{ matrix.python }})'
 
   macOS:
     name: 'macOS (${{ matrix.python }})'
