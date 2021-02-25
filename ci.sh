@@ -44,7 +44,7 @@ fi
 
 if [ "$CHECK_FORMATTING" = "1" ]; then
     python -m pip install -r test-requirements.txt
-    source check.sh
+    false
 else
     # Actual tests
     python -m pip install -r test-requirements.txt
