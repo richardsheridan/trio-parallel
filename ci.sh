@@ -44,23 +44,5 @@ cd empty
 
 INSTALLDIR=$(python -c "import os, trio_parallel; print(os.path.dirname(trio_parallel.__file__))")
 cp ../setup.cfg $INSTALLDIR
-# We have to copy .coveragerc into this directory, rather than passing
-# --cov-config=../.coveragerc to pytest, because codecov.sh will run
-# 'coverage xml' to generate the report that it uses, and that will only
-# apply the ignore patterns in the current directory's .coveragerc.
-cp ../pyproject.toml .
-if pytest -W error -r a --junitxml=../test-results.xml ${INSTALLDIR} --cov="$INSTALLDIR" --verbose; then
-    PASSED=true
-else
-    PASSED=false
-fi
 
-# The codecov docs recommend something like 'bash <(curl ...)' to pipe the
-# script directly into bash as its being downloaded. But, the codecov
-# server is flaky, so we instead save to a temp file with retries, and
-# wait until we've successfully fetched the whole script before trying to
-# run it.
-curl-harder -o codecov.sh https://codecov.io/bash
-bash codecov.sh -n "${JOB_NAME}"
-
-$PASSED
+pytest -W error -r a --cov-config=../pyproject.toml --cov-report xml "${INSTALLDIR}" --cov="$INSTALLDIR" --verbose

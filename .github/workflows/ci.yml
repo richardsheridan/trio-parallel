@@ -74,6 +74,10 @@ jobs:
         env:
           # Should match 'name:' up above
           JOB_NAME: 'Windows (${{ matrix.python }}, ${{ matrix.arch }})'
+      - name: Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          fail_ci_if_error: true
 
   Linux:
     name: 'Linux (${{ matrix.python }})'
@@ -112,6 +116,10 @@ jobs:
         env:
           # Should match 'name:' up above
           JOB_NAME: 'Linux (${{ matrix.python }})'
+      - name: Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          fail_ci_if_error: true
 
   macOS:
     name: 'macOS (${{ matrix.python }})'
@@ -147,3 +155,7 @@ jobs:
         env:
           # Should match 'name:' up above
           JOB_NAME: 'macOS (${{ matrix.python }})'
+      - name: Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          fail_ci_if_error: true
