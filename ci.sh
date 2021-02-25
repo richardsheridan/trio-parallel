@@ -36,13 +36,7 @@ python -m pip install dist/*.zip
 
 python -m pip install -r test-requirements.txt
 
-# We run the tests from inside an empty directory, to make sure Python
-# doesn't pick up any .py files from our working dir. Might have been
-# pre-created by some of the code above.
-mkdir empty || true
-cd empty
 
 INSTALLDIR=$(python -c "import os, trio_parallel; print(os.path.dirname(trio_parallel.__file__))")
-cp ../setup.cfg $INSTALLDIR
 
-pytest -W error -r a --cov-config=../pyproject.toml --cov-report xml "${INSTALLDIR}" --cov="$INSTALLDIR" --verbose
+pytest -W error -r a --cov-report xml "${INSTALLDIR}" --cov="$INSTALLDIR" --verbose
