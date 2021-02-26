@@ -115,7 +115,11 @@ jobs:
         with:
           name: Build
       - name: Run tests
-        run: ./ci.sh
+        run: |
+          rm -rf trio_parallel
+          python -m pip install -U pip
+          python -m pip install ./*.whl -r test-requirements.txt
+          pytest --pyargs trio_parallel -W error -r a --cov-report xml --cov=trio_parallel --verbose
         shell: bash
       - name: Codecov
         uses: codecov/codecov-action@v1
