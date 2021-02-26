@@ -1,7 +1,26 @@
+[build-system]
+requires = ["setuptools >= 40.6.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [tool.towncrier]
 package = "trio_parallel"
 filename = "docs/source/history.rst"
 directory = "newsfragments"
-title_format = "trio-parallel {version} ({project_date})"
+name = "trio-parallel"
 underlines = ["-", "~", "^"]
 issue_format = "`#{issue} <https://github.com/richardsheridan/trio-parallel/issues/{issue}>`__"
+
+[tool.pytest.ini_options]
+xfail_strict = true
+faulthandler_timeout = 60
+
+[tool.coverage.run]
+branch = true
+source = ["trio_parallel"]
+
+[tool.coverage.report]
+precision = 1
+exclude_lines = [
+  "pragma: no cover",
+  "abc.abstractmethod",
+  ]

@@ -1,9 +1,0 @@
-[run]
-branch=True
-source=trio_parallel
-
-[report]
-precision = 1
-exclude_lines =
-  pragma: no cover
-  abc.abstractmethod

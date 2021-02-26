@@ -1,1 +1,8 @@
+# https://docs.codecov.io/docs/codecovyml-reference
+
+coverage:
+  precision: 1
+  round: down
+  range: "70...100"
+
 comment: false
