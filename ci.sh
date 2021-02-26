@@ -13,6 +13,4 @@ python -m pip install ./*.whl
 
 python -m pip install -r test-requirements.txt
 
-INSTALLDIR=$(python -c "import os, trio_parallel; print(os.path.dirname(trio_parallel.__file__))")
-
-pytest --pyargs trio_parallel._tests -W error -r a --cov-report xml "${INSTALLDIR}" --cov="$INSTALLDIR" --verbose
+pytest --pyargs trio_parallel._tests -W error -r a --cov-report xml --cov=trio_parallel --verbose
