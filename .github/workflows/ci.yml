@@ -22,11 +22,11 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/tools-requirements.txt') }}
+          key: ${{ runner.os }}-pip-black-${{ hashFiles('**/setup.cfg') }}
       - name: Install tools
         run: |
           python -m pip install -U pip
-          python -m pip install -r tools-requirements.txt
+          python -m pip install .[blacken]
       - name: Run Black
         id: black
         run: black --check trio_parallel
@@ -50,6 +50,7 @@ jobs:
         uses: actions/setup-python@v2
       - name: Build sdist wheel
         run: |
+          python -m pip install -U pip
           python -m pip install -U build wheel
           python -m build --no-isolation  # this job is already super isolated
       - name: Upload build artifact
@@ -95,8 +96,6 @@ jobs:
           - os: macos-latest
             arch: x86
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
       - name: Setup python
         uses: actions/setup-python@v2
         with:
@@ -109,16 +108,16 @@ jobs:
             ~/AppData/Local/pip/Cache
             ~/.cache/pip
             ~/Library/Caches/pip
-          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/test-requirements.txt') }}
+          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/setup.cfg') }}
       - name: Download build artifact
         uses: actions/download-artifact@v2
         with:
           name: Build
       - name: Run tests
         run: |
-          rm -rf trio_parallel
+          mv ./*.whl trio_parallel.whl  # need a known name for bracket syntax below
           python -m pip install -U pip
-          python -m pip install ./*.whl -r test-requirements.txt
+          python -m pip install trio_parallel.whl[test]
           pytest --pyargs trio_parallel -W error -r a --cov-report xml --cov=trio_parallel --verbose
         shell: bash
       - name: Codecov
