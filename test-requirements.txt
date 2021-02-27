@@ -1,5 +1,0 @@
-# Testing
-pytest
-pytest-trio
-pytest-cov
-coverage[toml]
