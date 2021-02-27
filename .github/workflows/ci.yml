@@ -43,6 +43,8 @@ jobs:
     name: Build
     timeout-minutes: 5
     runs-on: ubuntu-latest
+    outputs:
+      wheelname: ${{ steps.wheelname.outputs.wheelname }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -53,6 +55,9 @@ jobs:
           python -m pip install -U pip
           python -m pip install -U build wheel
           python -m build --no-isolation  # this job is already super isolated
+      - name: Output wheelname
+        id: wheelname
+        run: echo "::set-output name=wheelname::$(ls ./dist/*.whl)"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
@@ -113,11 +118,11 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: Build
+          path: dist
       - name: Run tests
         run: |
-          mv ./*.whl trio_parallel.whl  # need a known name for bracket syntax below
           python -m pip install -U pip
-          python -m pip install trio_parallel.whl[test]
+          python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
           pytest --pyargs trio_parallel -W error -r a --cov-report xml --cov=trio_parallel --verbose
         shell: bash
       - name: Codecov
