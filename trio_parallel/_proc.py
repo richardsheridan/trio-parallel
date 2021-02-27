@@ -109,21 +109,24 @@ class WorkerProcBase:
             # raise our own flavor of exception and reap child
             if self._proc.is_alive():  # pragma: no cover - rare race condition
                 self.kill()
-                self._proc.join()  # this will block for ms, but it should be rare
+                self._proc.join(1)  # this will block for ms, but it should be rare
+                if self._proc.is_alive():
+                    raise RuntimeError(
+                        f"{self._proc} failed to die after failed wakeup"
+                    )
             raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
 
     def kill(self):
         self._barrier.abort()
-        try:
-            # race condition: if we kill while the proc has the underlying
-            # semaphore, we can deadlock it, so make sure we hold it.
-            with self._barrier._cond:
+        # race condition: if we kill while the proc has the underlying
+        # semaphore, we can deadlock it, so make sure we hold it.
+        with self._barrier._cond:
+            try:
                 self._proc.kill()
-        except AttributeError:
-            # cpython 3.6 uses SIGTERM which is more graceful with respect to
-            # the deadlock, but has an edge case where if this process holds
-            # the semaphore, a wait can timeout and raise an OSError unnecessarily.
-            self._proc.terminate()
+            except AttributeError:
+                # cpython 3.6 has an edge case where if this process holds
+                # the semaphore, a wait can timeout and raise an OSError.
+                self._proc.terminate()
 
     def _rehabilitate_pipes(self):  # pragma: no cover
         pass
