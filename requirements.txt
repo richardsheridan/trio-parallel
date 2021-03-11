@@ -1,0 +1,3 @@
+# Dummy requirements until things like libraries.io and github can understand PEP517/518
+trio >= 0.18.0
+outcome
