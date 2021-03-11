@@ -63,11 +63,9 @@ class WorkerProcBase:
                 return
             # We got a job, and we are "woken"
             fn, args = loads(recv_pipe.recv_bytes())
+            # Do the CPU bound work
             result = outcome.capture(coroutine_checker, fn, args)
-            # Tell the cache that we're done and available for a job
-            # Unlike the thread cache, it's impossible to deliver the
-            # result from the worker process. So shove it onto the queue
-            # and hope the receiver delivers the result and marks us idle
+            # Send result and go back to idling
             send_pipe.send_bytes(dumps(result, protocol=-1))
 
             del fn
@@ -111,9 +109,7 @@ class WorkerProcBase:
                 self.kill()
                 self._proc.join(1)  # this will block for ms, but it should be rare
                 if self._proc.is_alive():
-                    raise RuntimeError(
-                        f"{self._proc} failed to die after failed wakeup"
-                    )
+                    raise RuntimeError(f"{self._proc} alive after failed wakeup")
             raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
 
     def kill(self):
@@ -240,12 +236,12 @@ class PosixWorkerProc(WorkerProcBase):
 class PypyWorkerProc(WorkerProcBase):
     async def run_sync(self, sync_fn, *args):
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(self.child_monitor)
+            nursery.start_soon(self._child_monitor)
             result = await super().run_sync(sync_fn, *args)
             nursery.cancel_scope.cancel()
         return result
 
-    async def child_monitor(self):
+    async def _child_monitor(self):
         # If this worker dies, raise a catchable error...
         await self.wait()
         # but not if another error or cancel is incoming, those take priority!

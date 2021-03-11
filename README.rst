@@ -147,10 +147,10 @@ GitHub issues and pull requests are very welcome! Please read the
    :target: `pypistats`_
    :alt: Pypi monthly downloads
 
-.. _pepy: https://pepy.tech/badge/trio-parallel
-.. |pepy badge| image:: https://pepy.tech/badge/trio-parallel
+.. _pepy: https://pepy.tech/project/trio-parallel
+.. |pepy badge| image:: https://pepy.tech/badge/trio-parallel/month
    :target: `pepy`_
-   :alt: Pypi total downloads
+   :alt: Pypi monthly downloads
 
 .. |python versions badge| image:: https://img.shields.io/pypi/pyversions/trio-parallel.svg?color=indianred&logo=PyPI&logoColor=whitesmoke
    :alt: Supported Python versions

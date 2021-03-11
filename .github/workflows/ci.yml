@@ -63,8 +63,7 @@ jobs:
         with:
           name: Build
 #         by default build puts sdist and wheel here
-          path: |
-            dist/
+          path: dist/
           if-no-files-found: error
 
   Test:
