@@ -1,7 +1,7 @@
 import os
 import platform
 import struct
-import time
+import abc
 from itertools import count
 from multiprocessing import get_context
 from pickle import dumps, loads
@@ -18,7 +18,7 @@ IDLE_TIMEOUT = 60 * 10
 _proc_counter = count()
 
 
-class WorkerProcBase:
+class WorkerProcBase(abc.ABC):
     def __init__(self, mp_context=get_context("spawn")):
         # It is almost possible to synchronize on the pipe alone but on Pypy
         # the _send_pipe doesn't raise the correct error on death. Anyway,
@@ -124,16 +124,20 @@ class WorkerProcBase:
                 # the semaphore, a wait can timeout and raise an OSError.
                 self._proc.terminate()
 
-    def _rehabilitate_pipes(self):  # pragma: no cover
+    @abc.abstractmethod
+    async def wait(self):
         pass
 
-    async def _recv(self):  # pragma: no cover
+    @abc.abstractmethod
+    def _rehabilitate_pipes(self):
         pass
 
-    async def _send(self, buf):  # pragma: no cover
+    @abc.abstractmethod
+    async def _recv(self):
         pass
 
-    async def wait(self):  # pragma: no cover
+    @abc.abstractmethod
+    async def _send(self, buf):
         pass
 
 
@@ -148,8 +152,12 @@ class WindowsWorkerProc(WorkerProcBase):
 
         self._send_chan = PipeSendChannel(self._send_pipe.fileno())
         self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
-        self._send = self._send_chan.send
-        self._recv = self._recv_chan.receive
+
+    async def _recv(self):
+        return await self._recv_chan.receive()
+
+    async def _send(self, buf):
+        return await self._send_chan.send(buf)
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767

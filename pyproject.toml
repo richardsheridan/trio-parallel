@@ -17,6 +17,7 @@ faulthandler_timeout = 60
 [tool.coverage.run]
 branch = true
 source = ["trio_parallel"]
+relative_files = true
 
 [tool.coverage.report]
 precision = 1
