@@ -113,10 +113,10 @@ class WorkerProcBase(abc.ABC):
             raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
 
     def kill(self):
-        self._barrier.abort()
         # race condition: if we kill while the proc has the underlying
         # semaphore, we can deadlock it, so make sure we hold it.
         with self._barrier._cond:
+            self._barrier.abort()
             try:
                 self._proc.kill()
             except AttributeError:
