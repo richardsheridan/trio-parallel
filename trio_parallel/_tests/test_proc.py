@@ -11,7 +11,6 @@ from .._proc import WorkerProc
 @pytest.fixture
 async def proc():
     proc = WorkerProc()
-    await trio.to_thread.run_sync(proc.wake_up)
     try:
         yield proc
     finally:
@@ -87,17 +86,46 @@ async def test_run_sync_raises_on_segfault(proc):
         pytest.fail("No error was raised on segfault.")
 
 
-async def test_exhaustively_cancel_run_sync(proc):
+async def test_exhaustively_cancel_run_sync1(proc):
     # to test that cancellation does not ever leave a living process behind
     # currently requires manually targeting all but last checkpoints
 
-    # cancel at job send
+    # cancel at startup
     with trio.fail_after(1):
         with trio.move_on_after(0):
             assert await proc.run_sync(int)  # will return zero
         await proc.wait()
 
+
+async def test_exhaustively_cancel_run_sync2(proc):
+    # to test that cancellation does not ever leave a living process behind
+    # currently requires manually targeting all but last checkpoints
+    m = multiprocessing.Manager()
+    ev = m.Event()
+    await proc.run_sync(int)
+
+    # cancel at job send if we reuse the process
+    with trio.fail_after(1):
+        with trio.move_on_after(0):
+            await proc.run_sync(_never_halts, ev)
+
     # cancel at result recv is tested elsewhere
+
+
+from .. import _proc
+
+
+def _shorten_timeout():  # pragma: no cover
+    _proc.IDLE_TIMEOUT = 0
+
+
+async def test_racing_timeout(proc):
+    await proc.run_sync(_shorten_timeout)
+    with trio.fail_after(1):
+        await proc.wait()
+    with trio.fail_after(1):
+        with pytest.raises(trio.BrokenResourceError):
+            await proc.run_sync(int)
 
 
 def _raise_ki():  # pragma: no cover

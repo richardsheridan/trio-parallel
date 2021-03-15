@@ -5,7 +5,6 @@ import abc
 from itertools import count
 from multiprocessing import get_context
 from pickle import dumps, loads
-from threading import BrokenBarrierError
 
 import trio
 
@@ -21,14 +20,12 @@ _proc_counter = count()
 class WorkerProcBase(abc.ABC):
     def __init__(self, mp_context=get_context("spawn")):
         # It is almost possible to synchronize on the pipe alone but on Pypy
-        # the _send_pipe doesn't raise the correct error on death. Anyway,
-        # this Barrier strategy is more obvious to understand.
-        self._barrier = mp_context.Barrier(2)
+        # the _send_pipe doesn't raise the correct error on death.
         child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
         self._recv_pipe, child_send_pipe = mp_context.Pipe(duplex=False)
         self._proc = mp_context.Process(
             target=self._work,
-            args=(self._barrier, child_recv_pipe, child_send_pipe),
+            args=(child_recv_pipe, child_send_pipe),
             name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
         )
@@ -37,7 +34,7 @@ class WorkerProcBase(abc.ABC):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(barrier, recv_pipe, send_pipe):  # pragma: no cover
+    def _work(recv_pipe, send_pipe):  # pragma: no cover
 
         import inspect
         import signal
@@ -59,13 +56,7 @@ class WorkerProcBase(abc.ABC):
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        while True:
-            try:
-                # Return value is party #, not whether awoken within timeout
-                barrier.wait(timeout=IDLE_TIMEOUT)
-            except BrokenBarrierError:
-                # Timeout waiting for job, so we can exit.
-                return
+        while recv_pipe.poll(IDLE_TIMEOUT):
             # We got a job, and we are "woken"
             fn, args = loads(recv_pipe.recv_bytes())
             # Do the CPU bound work
@@ -78,9 +69,10 @@ class WorkerProcBase(abc.ABC):
             del result
 
     async def run_sync(self, sync_fn, *args):
-        # Neither this nor the child process should be waiting at this point
-        assert not self._barrier.n_waiting, "Must first wake_up() the worker"
         try:
+            if not self._started:
+                await trio.to_thread.run_sync(self._proc.start)
+                self._started = True
             await self._send(dumps((sync_fn, args), protocol=-1))
             # noinspection PyTypeChecker
             result = loads(await self._recv())
@@ -102,32 +94,15 @@ class WorkerProcBase(abc.ABC):
         # call reaps zombie children on Unix.
         return self._proc.is_alive()
 
-    def wake_up(self, timeout=None):
-        if not self._started:
-            self._proc.start()
-            self._started = True
-        try:
-            self._barrier.wait(timeout)
-        except BrokenBarrierError:
-            # raise our own flavor of exception and reap child
-            if self._proc.is_alive():  # pragma: no cover - rare race condition
-                self.kill()
-                self._proc.join(1)  # this will block for ms, but it should be rare
-                if self._proc.is_alive():
-                    raise RuntimeError(f"{self._proc} alive after failed wakeup")
-            raise BrokenWorkerError(f"{self._proc} died unexpectedly") from None
-
     def kill(self):
-        # race condition: if we kill while the proc has the underlying
-        # semaphore, we can deadlock it, so make sure we hold it.
-        with self._barrier._cond:
-            self._barrier.abort()
-            try:
-                self._proc.kill()
-            except AttributeError:
-                # cpython 3.6 has an edge case where if this process holds
-                # the semaphore, a wait can timeout and raise an OSError.
-                self._proc.terminate()
+        if not self._started:
+            return
+        try:
+            self._proc.kill()
+        except AttributeError:
+            # cpython 3.6 has an edge case where if this process holds
+            # the semaphore, a wait can timeout and raise an OSError.
+            self._proc.terminate()
 
     @abc.abstractmethod
     async def wait(self):
@@ -148,6 +123,8 @@ class WorkerProcBase(abc.ABC):
 
 class WindowsWorkerProc(WorkerProcBase):
     async def wait(self):
+        if not self._started:
+            return
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
         return self._proc.exitcode
 
@@ -176,6 +153,8 @@ class WindowsWorkerProc(WorkerProcBase):
 
 class PosixWorkerProc(WorkerProcBase):
     async def wait(self):
+        if not self._started:
+            return
         await trio.lowlevel.wait_readable(self._proc.sentinel)
         e = self._proc.exitcode
         if e is not None:
