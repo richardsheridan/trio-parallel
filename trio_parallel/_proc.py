@@ -230,7 +230,10 @@ class PosixWorkerProc(WorkerProcBase):
     async def run_sync(self, sync_fn, *args):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(self._child_monitor)
-            result = await super().run_sync(sync_fn, *args)
+            try:
+                result = await super().run_sync(sync_fn, *args)
+            except BrokenWorkerError:
+                await trio.sleep_forever()  # let the monitor reap and raise
             nursery.cancel_scope.cancel()
         return result
 
