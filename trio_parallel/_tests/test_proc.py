@@ -122,7 +122,7 @@ def _shorten_timeout():  # pragma: no cover
 async def test_racing_timeout(proc):
     await proc.run_sync(_shorten_timeout)
     with trio.fail_after(1):
-        await proc.wait()
+        assert not await proc.wait()  # should get a zero exit code
     with trio.fail_after(1):
         with pytest.raises(trio.BrokenResourceError):
             await proc.run_sync(int)
