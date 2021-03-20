@@ -95,6 +95,9 @@ class WorkerProcBase(abc.ABC):
         return self._proc.is_alive()
 
     def kill(self):
+        if self._proc.pid is None:
+            self._started.set()  # unblock self.wait()
+            return
         try:
             self._proc.kill()
         except AttributeError:
@@ -104,7 +107,7 @@ class WorkerProcBase(abc.ABC):
 
     @abc.abstractmethod
     async def wait(self):
-        await self._started.wait()
+        pass
 
     @abc.abstractmethod
     def _rehabilitate_pipes(self):
@@ -121,7 +124,9 @@ class WorkerProcBase(abc.ABC):
 
 class WindowsWorkerProc(WorkerProcBase):
     async def wait(self):
-        await super().wait()
+        await self._started.wait()
+        if self._proc.pid is None:
+            return None  # killed
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
         return self._proc.exitcode
 
@@ -150,7 +155,9 @@ class WindowsWorkerProc(WorkerProcBase):
 
 class PosixWorkerProc(WorkerProcBase):
     async def wait(self):
-        await super().wait()
+        await self._started.wait()
+        if self._proc.pid is None:
+            return None  # killed
         await trio.lowlevel.wait_readable(self._proc.sentinel)
         e = self._proc.exitcode
         if e is not None:
