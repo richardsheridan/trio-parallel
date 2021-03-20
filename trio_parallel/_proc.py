@@ -224,8 +224,6 @@ class PosixWorkerProc(WorkerProcBase):
         else:  # pragma: no cover
             pass
 
-
-class PypyWorkerProc(WorkerProcBase):
     async def run_sync(self, sync_fn, *args):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(self._child_monitor)
@@ -244,12 +242,6 @@ class PypyWorkerProc(WorkerProcBase):
 if os.name == "nt":
 
     class WorkerProc(WindowsWorkerProc):
-        pass
-
-
-elif platform.python_implementation() == "PyPy":
-
-    class WorkerProc(PypyWorkerProc, PosixWorkerProc):
         pass
 
 
