@@ -10,7 +10,7 @@ from ._util import BrokenWorkerError
 _limiter_local = trio.lowlevel.RunVar("proc_limiter")
 
 # Sane default might be to expect cpu-bound work
-DEFAULT_LIMIT = os.cpu_count()
+DEFAULT_LIMIT = os.cpu_count() or 1
 
 
 def current_default_worker_limiter():
