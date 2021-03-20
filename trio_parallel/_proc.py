@@ -30,7 +30,7 @@ class WorkerProcBase(abc.ABC):
             daemon=True,
         )
         # keep our own state flag for quick checks
-        self._started = False
+        self._started = trio.Event()
         self._rehabilitate_pipes()
 
     @staticmethod
@@ -70,9 +70,9 @@ class WorkerProcBase(abc.ABC):
 
     async def run_sync(self, sync_fn, *args):
         try:
-            if not self._started:
+            if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
-                self._started = True
+                self._started.set()
             await self._send(dumps((sync_fn, args), protocol=-1))
             # noinspection PyTypeChecker
             result = loads(await self._recv())
@@ -95,7 +95,7 @@ class WorkerProcBase(abc.ABC):
         return self._proc.is_alive()
 
     def kill(self):
-        if not self._started:
+        if not self._started.is_set():
             return
         try:
             self._proc.kill()
@@ -106,7 +106,7 @@ class WorkerProcBase(abc.ABC):
 
     @abc.abstractmethod
     async def wait(self):
-        pass
+        await self._started.wait()
 
     @abc.abstractmethod
     def _rehabilitate_pipes(self):
@@ -123,8 +123,7 @@ class WorkerProcBase(abc.ABC):
 
 class WindowsWorkerProc(WorkerProcBase):
     async def wait(self):
-        if not self._started:
-            return
+        await super().wait()
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
         return self._proc.exitcode
 
@@ -153,8 +152,7 @@ class WindowsWorkerProc(WorkerProcBase):
 
 class PosixWorkerProc(WorkerProcBase):
     async def wait(self):
-        if not self._started:
-            return
+        await super().wait()
         await trio.lowlevel.wait_readable(self._proc.sentinel)
         e = self._proc.exitcode
         if e is not None:
