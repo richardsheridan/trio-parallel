@@ -95,8 +95,6 @@ class WorkerProcBase(abc.ABC):
         return self._proc.is_alive()
 
     def kill(self):
-        if not self._started.is_set():
-            return
         try:
             self._proc.kill()
         except AttributeError:
