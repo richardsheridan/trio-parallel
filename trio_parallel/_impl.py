@@ -128,6 +128,7 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
                 # as we popped it. Just retry. But reap zombie child first.
                 if proc.is_alive():
                     await proc.wait()
+                continue
             finally:
                 if proc.is_alive():
                     WORKER_CACHE.push(proc)
