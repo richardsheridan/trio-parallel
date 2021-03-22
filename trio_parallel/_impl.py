@@ -1,11 +1,11 @@
 import os
 import contextvars
 from collections import deque
-from contextlib import contextmanager
 from multiprocessing import get_context
 from multiprocessing.context import BaseContext
 
 import trio
+from async_generator import asynccontextmanager
 
 from ._proc import WorkerProc
 from ._util import BrokenWorkerError
@@ -67,16 +67,15 @@ class WorkerCache:
             else:
                 return proc
 
-    def clear(self):
-        try:
-            while True:
-                proc = self._cache.pop()
-                proc.kill()
-                trio.lowlevel.start_thread_soon(
-                    lambda: proc._proc.join(1), lambda x: x.unwrap()
-                )
-        except IndexError:
-            pass
+    async def clear(self):
+        async with trio.open_nursery() as nursery:
+            try:
+                while True:
+                    proc = self._cache.pop()
+                    proc.kill()
+                    nursery.start_soon(proc.wait)
+            except IndexError:
+                pass
 
     def __len__(self):
         return len(self._cache)
@@ -92,8 +91,8 @@ _worker_context = contextvars.ContextVar(
 )
 
 
-@contextmanager
-def cache_scope(
+@asynccontextmanager
+async def cache_scope(
     mp_context=get_context("spawn"), idle_timeout=10, max_jobs=float("inf")
 ):
     if not isinstance(mp_context, BaseContext):
@@ -105,7 +104,8 @@ def cache_scope(
         yield
     finally:
         _worker_context.reset(token)
-        worker_cache.clear()
+        with trio.CancelScope(shield=True):
+            await worker_cache.clear()
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):

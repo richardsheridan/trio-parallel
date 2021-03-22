@@ -9,8 +9,7 @@ from .._impl import DEFAULT_CACHE, run_sync, cache_scope
 
 @pytest.fixture(autouse=True)
 def empty_proc_cache():
-    yield
-    DEFAULT_CACHE.clear()
+    trio.run(DEFAULT_CACHE.clear)
 
 
 def _echo_and_pid(x):  # pragma: no cover
@@ -142,7 +141,7 @@ async def test_run_sync_large_job():
 
 async def test_cache_scope():
     _, pid1 = await run_sync(_echo_and_pid, None)
-    with cache_scope(mp_context="spawn", max_jobs=2):
+    async with cache_scope(mp_context="spawn", max_jobs=2):
         _, pid2 = await run_sync(_echo_and_pid, None)
         assert pid1 != pid2
         _, pid3 = await run_sync(_echo_and_pid, None)
@@ -151,7 +150,7 @@ async def test_cache_scope():
         assert pid4 != pid2
     _, pid5 = await run_sync(_echo_and_pid, None)
     assert pid5 == pid1
-    with cache_scope(idle_timeout=0):
+    async with cache_scope(idle_timeout=0):
         _, pid6 = await run_sync(_echo_and_pid, None)
         await trio.sleep(0.01)
         _, pid7 = await run_sync(_echo_and_pid, None)
