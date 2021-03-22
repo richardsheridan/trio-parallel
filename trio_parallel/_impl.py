@@ -86,7 +86,9 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
     - Protect the main process from untrusted/unstable code without leaks
 
     Other :mod:`multiprocessing` features may work but are not officially
-    supported, and all the normal :mod:`multiprocessing` caveats apply.
+    supported, and all the normal :mod:`multiprocessing` caveats apply. The
+    underlying worker processes are cached LIFO and reused to minimize latency.
+    Global state cannot be considered stable between and across calls.
 
     Args:
       sync_fn: An importable or pickleable synchronous callable. See the
@@ -96,17 +98,18 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
           arguments, use :func:`functools.partial`.
       cancellable (bool): Whether to allow cancellation of this operation.
           Cancellation always involves abrupt termination of the worker process
-          with SIGKILL/TerminateProcess.
+          with SIGKILL/TerminateProcess. To obtain correct semantics with CTRL+C,
+          SIGINT is ignored when raised in workers.
       limiter (None, or trio.CapacityLimiter):
           An object used to limit the number of simultaneous processes. Most
           commonly this will be a `~trio.CapacityLimiter`, but any async
           context manager will succeed.
 
     Returns:
-      Whatever ``sync_fn(*args)`` returns.
+      Any: Whatever ``sync_fn(*args)`` returns.
 
     Raises:
-      Exception: Whatever ``sync_fn(*args)`` raises.
+      BaseException: Whatever ``sync_fn(*args)`` raises.
       BrokenWorkerError: Indicates the worker died unexpectedly. Not encountered
         in normal use.
 

@@ -40,6 +40,7 @@ class WorkerProcBase(abc.ABC):
     def _work(barrier, recv_pipe, send_pipe):  # pragma: no cover
 
         import inspect
+        import signal
         import outcome
 
         def coroutine_checker(fn, args):
@@ -53,6 +54,10 @@ class WorkerProcBase(abc.ABC):
                 )
 
             return ret
+
+        # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
+        # between processes. (Trio will take charge via cancellation.)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         while True:
             try:
