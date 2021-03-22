@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+import signal
 
 import trio
 import pytest
@@ -13,6 +14,7 @@ async def proc():
     proc = WorkerProc()
     await trio.to_thread.run_sync(proc.wake_up)
     yield proc
+    proc.kill()
     with trio.fail_after(1):
         await proc.wait()
 
@@ -101,3 +103,11 @@ async def test_exhaustively_cancel_run_sync(proc):
         await proc.wait()
 
     # cancel at result recv is tested elsewhere
+
+
+def _raise_ki():  # pragma: no cover
+    trio._util.signal_raise(signal.SIGINT)
+
+
+async def test_ki_does_not_propagate(proc):
+    await proc.run_sync(_raise_ki)
