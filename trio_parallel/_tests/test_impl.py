@@ -36,7 +36,7 @@ async def test_run_in_worker():
 
     with pytest.raises(ValueError) as excinfo:
         await to_process_run_sync(_raise_pid, limiter=limiter)
-    print(excinfo.value.args)
+
     assert excinfo.value.args[0] != trio_pid
 
 

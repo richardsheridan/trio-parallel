@@ -1,5 +1,4 @@
 import multiprocessing
-import os
 import signal
 
 import trio
@@ -13,14 +12,12 @@ from .._proc import WorkerProc
 async def proc():
     proc = WorkerProc()
     await trio.to_thread.run_sync(proc.wake_up)
-    yield proc
-    proc.kill()
-    with trio.fail_after(1):
-        await proc.wait()
-
-
-def _echo_and_pid(x):  # pragma: no cover
-    return (x, os.getpid())
+    try:
+        yield proc
+    finally:
+        proc.kill()
+        with trio.fail_after(1):
+            await proc.wait()
 
 
 def _never_halts(ev):  # pragma: no cover
@@ -93,13 +90,11 @@ async def test_run_sync_raises_on_segfault(proc):
 async def test_exhaustively_cancel_run_sync(proc):
     # to test that cancellation does not ever leave a living process behind
     # currently requires manually targeting all but last checkpoints
-    m = multiprocessing.Manager()
-    ev = m.Event()
 
     # cancel at job send
     with trio.fail_after(1):
         with trio.move_on_after(0):
-            await proc.run_sync(_never_halts, ev)
+            assert await proc.run_sync(int)  # will return zero
         await proc.wait()
 
     # cancel at result recv is tested elsewhere
