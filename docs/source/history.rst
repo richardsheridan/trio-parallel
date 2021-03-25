@@ -5,6 +5,22 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 0.4.0 (2021-03-25)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Correctly handle the case where `os.cpu_count` returns `None`. (`#32 <https://github.com/richardsheridan/trio-parallel/issues/32>`__)
+- Ignore keyboard interrupt (SIGINT) in workers to ensure correct cancellation semantics and clean shutdown on CTRL+C. (`#35 <https://github.com/richardsheridan/trio-parallel/issues/35>`__)
+
+
+Misc
+~~~~
+
+- `#27 <https://github.com/richardsheridan/trio-parallel/issues/27>`__
+
+
 trio-parallel 0.3.0 (2021-02-21)
 --------------------------------
 

@@ -1,1 +1,0 @@
-By avoiding ForkingPickler and use latest pickle protocol for IPC, unlock automatic performance improvements over time.
