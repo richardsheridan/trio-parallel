@@ -43,14 +43,16 @@ To make a release
 
 * Review your release notes.
 
-* Check everything in.
-
 * Double-check it all works, docs build, etc.
 
-* Build your sdist and wheel: ``python setup.py sdist bdist_wheel``
+* Check everything in.
+
+* Make a release PR on GitHub. Checks should pass.
+
+* Build your sdist and wheel: ``python -m build``
 
 * Upload to PyPI: ``twine upload dist/*``
 
-* Use ``git tag`` to tag your version.
+* Use GitHub release mechanism to tag the release in git and upload sdist and wheel.
 
-* Don't forget to ``git push --tags``.
+* add "+dev" to version and commit to main.
