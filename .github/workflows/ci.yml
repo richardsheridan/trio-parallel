@@ -71,9 +71,11 @@ jobs:
     needs: Build
     timeout-minutes: 10
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
+        experimental: [ false ]
         os:
           - windows-latest
           - ubuntu-latest
@@ -90,6 +92,11 @@ jobs:
           - os: ubuntu-latest
             python: 'pypy-3.7-nightly'
             arch: x64
+            experimental: true
+          - os: ubuntu-latest
+            python: '3.10-dev'
+            arch: x64
+            experimental: true
         exclude:
           - os: windows-latest
             python: 'pypy-3.6'
