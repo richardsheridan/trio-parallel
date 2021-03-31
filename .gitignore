@@ -1,4 +1,7 @@
 # Add any project-specific files here:
+trio_parallel/_version.py
+
+# IDEs
 .idea/
 
 # Sphinx docs
