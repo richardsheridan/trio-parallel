@@ -2,3 +2,5 @@ include CHEATSHEET* CODE_OF_CONDUCT* CONTRIBUTING*
 include *requirements.txt
 recursive-include docs *
 prune docs/build
+include versioneer.py
+include trio_parallel/_version.py
