@@ -39,7 +39,7 @@ To make a release
 
 * Run ``towncrier`` to collect your release notes.
 
-* Review your release notes.
+* Review your release notes and update version in the new history header.
 
 * Double-check it all works, docs build, etc.
 
