@@ -41,8 +41,6 @@ To make a release
 
 * Review your release notes.
 
-  * Correct the version number!
-
 * Double-check it all works, docs build, etc.
 
 * Check everything in.
