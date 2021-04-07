@@ -1,5 +1,4 @@
 import os
-import platform
 import struct
 import abc
 from itertools import count
@@ -8,7 +7,16 @@ from pickle import dumps, loads
 
 import trio
 
-from ._util import BrokenWorkerError
+
+class BrokenWorkerError(RuntimeError):
+    """Raised when a worker process fails or dies unexpectedly.
+
+    This error is not typically encountered in normal use, and indicates a severe
+    failure of either trio-parallel or the code that was executing in the worker.
+    """
+
+    pass
+
 
 # How long a process will idle waiting for new work before gives up and exits.
 # This should be longer than a thread timeout proportionately to startup time.

@@ -1,12 +1,10 @@
 import multiprocessing
-import platform
 import signal
 
 import trio
 import pytest
 
-from .._util import BrokenWorkerError
-from .._proc import WorkerProc
+from .._proc import WorkerProc, BrokenWorkerError
 
 
 @pytest.fixture
