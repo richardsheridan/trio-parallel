@@ -1,6 +1,9 @@
 """Top-level package for trio-parallel."""
 
-from ._version import __version__
+from importlib_metadata import version
+
+__version__ = version("trio-parallel")
+del version
 
 from ._impl import (
     to_process_run_sync as run_sync,
