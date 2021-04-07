@@ -240,8 +240,6 @@ class PosixWorkerProc(WorkerProcBase):
     async def _child_monitor(self):
         # If this worker dies, raise a catchable error...
         await self.wait()
-        # but not if another error or cancel is incoming, those take priority!
-        await trio.lowlevel.checkpoint_if_cancelled()
         raise BrokenWorkerError(f"{self._proc} died unexpectedly")
 
 
