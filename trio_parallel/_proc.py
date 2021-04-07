@@ -19,8 +19,6 @@ _proc_counter = count()
 
 class WorkerProcBase(abc.ABC):
     def __init__(self, mp_context=get_context("spawn")):
-        # It is almost possible to synchronize on the pipe alone but on Pypy
-        # the _send_pipe doesn't raise the correct error on death.
         self._child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = mp_context.Pipe(duplex=False)
         self._proc = mp_context.Process(
@@ -72,7 +70,7 @@ class WorkerProcBase(abc.ABC):
         try:
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
-                # for nondeterministic GC (PyPy) we must explicitly close these
+                # XXX: for nondeterministic GC (PyPy) we must explicitly close these
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
                 self._started.set()
