@@ -4,7 +4,6 @@ import trio
 from collections import deque
 
 from ._proc import WorkerProc
-from ._util import BrokenWorkerError
 
 
 _limiter_local = trio.lowlevel.RunVar("proc_limiter")
@@ -56,15 +55,10 @@ class WorkerCache:
         self._cache.append(proc)
 
     def pop(self):
-        # Get live, WOKEN worker process or raise IndexError
+        # Get live worker process or raise IndexError
         while True:
             proc = self._cache.pop()
-            try:
-                proc.wake_up(0)
-            except BrokenWorkerError:
-                # proc must have died in the cache, just try again
-                continue
-            else:
+            if proc.is_alive():
                 return proc
 
     def __len__(self):
@@ -120,15 +114,21 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
     async with limiter:
         WORKER_CACHE.prune()
 
-        try:
-            proc = WORKER_CACHE.pop()
-        except IndexError:
-            proc = WorkerProc()
-            await trio.to_thread.run_sync(proc.wake_up)
+        while True:
+            try:
+                proc = WORKER_CACHE.pop()
+            except IndexError:
+                proc = WorkerProc()
 
-        try:
-            with trio.CancelScope(shield=not cancellable):
-                return await proc.run_sync(sync_fn, *args)
-        finally:
-            if proc.is_alive():
-                WORKER_CACHE.push(proc)
+            try:
+                with trio.CancelScope(shield=not cancellable):
+                    return await proc.run_sync(sync_fn, *args)
+            except trio.BrokenResourceError:  # pragma: no cover
+                # Rare case where proc timed out even though it was still alive
+                # as we popped it. Just retry. But reap zombie child first.
+                if proc.is_alive():
+                    await proc.wait()
+                continue
+            finally:
+                if proc.is_alive():
+                    WORKER_CACHE.push(proc)
