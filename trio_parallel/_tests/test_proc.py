@@ -120,10 +120,10 @@ def _shorten_timeout():  # pragma: no cover
     _proc.IDLE_TIMEOUT = 0
 
 
-@pytest.mark.xfail(
-    platform.python_implementation() == "PyPy",
-    reason="Pipe closed by worker on PyPy does not raise OSError",
-)
+# @pytest.mark.xfail(
+#     platform.python_implementation() == "PyPy",
+#     reason="Pipe closed by worker on PyPy does not raise OSError",
+# )
 async def test_racing_timeout(proc):
     await proc.run_sync(_shorten_timeout)
     with trio.fail_after(1):

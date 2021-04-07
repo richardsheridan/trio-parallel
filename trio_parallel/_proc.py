@@ -21,11 +21,11 @@ class WorkerProcBase(abc.ABC):
     def __init__(self, mp_context=get_context("spawn")):
         # It is almost possible to synchronize on the pipe alone but on Pypy
         # the _send_pipe doesn't raise the correct error on death.
-        child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
-        self._recv_pipe, child_send_pipe = mp_context.Pipe(duplex=False)
+        self._child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
+        self._recv_pipe, self._child_send_pipe = mp_context.Pipe(duplex=False)
         self._proc = mp_context.Process(
             target=self._work,
-            args=(child_recv_pipe, child_send_pipe),
+            args=(self._child_recv_pipe, self._child_send_pipe),
             name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
         )
@@ -72,6 +72,9 @@ class WorkerProcBase(abc.ABC):
         try:
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
+                # for nondeterministic GC (PyPy) we must explicitly close these
+                self._child_send_pipe.close()
+                self._child_recv_pipe.close()
                 self._started.set()
             await self._send(dumps((sync_fn, args), protocol=-1))
             # noinspection PyTypeChecker
