@@ -35,7 +35,6 @@ class WorkerProcBase(abc.ABC):
             name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
         )
-        # keep our own state flag for quick checks
         self._started = trio.Event()
         self._rehabilitate_pipes()
 
@@ -83,7 +82,6 @@ class WorkerProcBase(abc.ABC):
                 self._child_recv_pipe.close()
                 self._started.set()
             await self._send(dumps((sync_fn, args), protocol=-1))
-            # noinspection PyTypeChecker
             result = loads(await self._recv())
         except trio.EndOfChannel:
             # Likely the worker died while we were waiting on a pipe
@@ -99,8 +97,7 @@ class WorkerProcBase(abc.ABC):
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
-        # dying, but the the barrier should be broken at that time. This
-        # call reaps zombie children on Unix.
+        # dying. This call reaps zombie children on Unix.
         return self._proc.is_alive()
 
     def kill(self):
@@ -110,8 +107,6 @@ class WorkerProcBase(abc.ABC):
         try:
             self._proc.kill()
         except AttributeError:
-            # cpython 3.6 has an edge case where if this process holds
-            # the semaphore, a wait can timeout and raise an OSError.
             self._proc.terminate()
 
     @abc.abstractmethod
@@ -135,7 +130,7 @@ class WindowsWorkerProc(WorkerProcBase):
     async def wait(self):
         await self._started.wait()
         if self._proc.pid is None:
-            return None  # killed
+            return None  # killed before started
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
         return self._proc.exitcode
 
@@ -166,7 +161,7 @@ class PosixWorkerProc(WorkerProcBase):
     async def wait(self):
         await self._started.wait()
         if self._proc.pid is None:
-            return None  # killed
+            return None  # killed before started
         await trio.lowlevel.wait_readable(self._proc.sentinel)
         e = self._proc.exitcode
         if e is not None:
