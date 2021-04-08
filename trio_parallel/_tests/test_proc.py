@@ -39,16 +39,15 @@ async def test_run_sync_raises_on_kill(proc):
     m = multiprocessing.Manager()
     ev = m.Event()
 
-    with pytest.raises(BrokenWorkerError):
-        with trio.move_on_after(10):
-            async with trio.open_nursery() as nursery:
-                nursery.start_soon(proc.run_sync, _never_halts, ev)
-                try:
-                    await trio.to_thread.run_sync(ev.wait, cancellable=True)
-                finally:
-                    # if something goes wrong, free the thread
-                    ev.set()
-                proc.kill()  # also tests multiple calls to proc.kill
+    with pytest.raises(BrokenWorkerError), trio.move_on_after(10):
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(proc.run_sync, _never_halts, ev)
+            try:
+                await trio.to_thread.run_sync(ev.wait, cancellable=True)
+            finally:
+                # if something goes wrong, free the thread
+                ev.set()
+            proc.kill()  # also tests multiple calls to proc.kill
 
 
 def _segfault_out_of_bounds_pointer():  # pragma: no cover
@@ -59,7 +58,7 @@ def _segfault_out_of_bounds_pointer():  # pragma: no cover
     j = ctypes.pointer(i)
     c = 0
     while True:
-        j[c] = b"a"
+        j[c] = i
         c += 1
 
 
@@ -85,10 +84,11 @@ async def test_run_sync_raises_on_segfault(proc):
         pytest.fail("No error was raised on segfault.")
 
 
-async def test_exhaustively_cancel_run_sync1(proc):
-    # to test that cancellation does not ever leave a living process behind
-    # currently requires manually targeting all but last checkpoints
+# to test that cancellation does not ever leave a living process behind
+# currently requires manually targeting all but last checkpoints
 
+
+async def test_exhaustively_cancel_run_sync1(proc):
     # cancel at startup
     with trio.fail_after(1):
         with trio.move_on_after(0):
@@ -97,13 +97,10 @@ async def test_exhaustively_cancel_run_sync1(proc):
 
 
 async def test_exhaustively_cancel_run_sync2(proc):
-    # to test that cancellation does not ever leave a living process behind
-    # currently requires manually targeting all but last checkpoints
+    # cancel at job send if we reuse the process
     m = multiprocessing.Manager()
     ev = m.Event()
     await proc.run_sync(int)
-
-    # cancel at job send if we reuse the process
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await proc.run_sync(_never_halts, ev)
@@ -111,10 +108,9 @@ async def test_exhaustively_cancel_run_sync2(proc):
     # cancel at result recv is tested elsewhere
 
 
-from .. import _proc
-
-
 def _shorten_timeout():  # pragma: no cover
+    from .. import _proc
+
     _proc.IDLE_TIMEOUT = 0
 
 
