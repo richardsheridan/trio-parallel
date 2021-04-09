@@ -1,0 +1,2 @@
+Apply minor cleanups to tests. Mostly just renames and comment shuffles, but also remove a barrier synchronization case.
+
