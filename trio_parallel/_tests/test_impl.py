@@ -156,3 +156,12 @@ async def test_cache_timeout():
             pid0 = await run_sync(os.getpid)
             while pid0 == await run_sync(os.getpid):
                 pass
+
+
+@pytest.mark.parametrize(
+    "method",
+    multiprocessing.get_all_start_methods(),
+)
+async def test_cache_type(method):
+    async with cache_scope(mp_context=method):
+        assert 0 == await run_sync(int)
