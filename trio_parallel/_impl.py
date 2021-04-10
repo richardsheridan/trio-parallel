@@ -12,9 +12,7 @@ from ._proc import WorkerProc
 
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
-_limiter_local = trio.lowlevel.RunVar(
-    "proc_limiter", default=trio.CapacityLimiter(DEFAULT_LIMIT)
-)
+_limiter_local = trio.lowlevel.RunVar("proc_limiter")
 
 
 def current_default_worker_limiter():
@@ -26,7 +24,12 @@ def current_default_worker_limiter():
     is initialized to the number of CPUs reported by :func:`os.cpu_count`.
 
     """
-    return _limiter_local.get()
+    try:
+        return _limiter_local.get()
+    except LookupError:
+        limiter = trio.CapacityLimiter(DEFAULT_LIMIT)
+        _limiter_local.set(limiter)
+        return limiter
 
 
 class WorkerCache:
@@ -87,7 +90,9 @@ _worker_context = contextvars.ContextVar(
 
 @asynccontextmanager
 async def cache_scope(
-    mp_context=get_context("spawn"), idle_timeout=10, max_jobs=float("inf")
+    mp_context=DEFAULT_MP_CONTEXT,
+    idle_timeout=DEFAULT_IDLE_TIMEOUT,
+    max_jobs=DEFAULT_MAX_JOBS,
 ):
     if not isinstance(mp_context, BaseContext):
         # noinspection PyTypeChecker

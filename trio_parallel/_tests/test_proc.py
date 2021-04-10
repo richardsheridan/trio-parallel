@@ -108,12 +108,6 @@ async def test_exhaustively_cancel_run_sync2(proc):
     # cancel at result recv is tested elsewhere
 
 
-def _shorten_timeout():  # pragma: no cover
-    from .. import _proc
-
-    _proc.IDLE_TIMEOUT = 0
-
-
 async def test_racing_timeout():
     proc = WorkerProc(multiprocessing.get_context("spawn"), 0, float("inf"))
     assert 0 == await proc.run_sync(int)
