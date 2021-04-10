@@ -69,7 +69,15 @@ class WorkerProcBase(abc.ABC):
                 del args
                 del result
         finally:
+            # Clean idle shutdown: close recv_pipe first to minimize subsequent race.
             recv_pipe.close()
+            # Race condition: it is possible to sneak a write through in the main process
+            # between the recv_pipe poll timeout and close. Naively, this would
+            # make a clean shutdown look like a broken worker. By sending a sentinel
+            # value, we can indicate to a waiting main process that we have hit this
+            # race condition and need a restart. However, the send MUST be non-blocking
+            # to free this process's resources in a timely manner. Therefore, this message
+            # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
             send_pipe.send_bytes(dumps(None, protocol=-1))
             send_pipe.close()
 
