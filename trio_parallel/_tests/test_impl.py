@@ -155,7 +155,7 @@ async def test_cache_timeout():
         async with cache_scope(idle_timeout=0):
             pid0 = await run_sync(os.getpid)
             while pid0 == await run_sync(os.getpid):
-                pass  # pragma: no cover
+                pass  # pragma: no cover, rare race will reuse proc once or twice
 
 
 @pytest.mark.parametrize(

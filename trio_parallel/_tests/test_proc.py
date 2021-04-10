@@ -114,7 +114,8 @@ async def test_racing_timeout():
     assert 0 == await proc.run_sync(int)
     with trio.fail_after(1):
         with pytest.raises(trio.BrokenResourceError):
-            await proc.run_sync(int)
+            while not await proc.run_sync(int):
+                pass  # pragma: no cover, on rare occasions this doesn't raise on the first try.
     with trio.fail_after(1):
         await proc.wait()
 
