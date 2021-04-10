@@ -4,8 +4,10 @@ import abc
 from itertools import count
 from multiprocessing import get_context
 from pickle import dumps, loads
+from typing import Optional
 
 import trio
+from outcome import Outcome
 
 
 class BrokenWorkerError(RuntimeError):
@@ -61,19 +63,32 @@ class WorkerProcBase(abc.ABC):
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        while recv_pipe.poll(IDLE_TIMEOUT):
-            # We got a job, and we are "woken"
-            fn, args = loads(recv_pipe.recv_bytes())
-            # Do the CPU bound work
-            result = outcome.capture(coroutine_checker, fn, args)
-            # Send result and go back to idling
-            send_pipe.send_bytes(dumps(result, protocol=-1))
+        try:
+            while recv_pipe.poll(IDLE_TIMEOUT):
+                # We got a job, and we are "woken"
+                fn, args = loads(recv_pipe.recv_bytes())
+                # Do the CPU bound work
+                result = outcome.capture(coroutine_checker, fn, args)
+                # Send result and go back to idling
+                send_pipe.send_bytes(dumps(result, protocol=-1))
 
-            del fn
-            del args
-            del result
+                del fn
+                del args
+                del result
+        finally:
+            # Clean idle shutdown: close recv_pipe first to minimize subsequent race.
+            recv_pipe.close()
+            # Race condition: it is possible to sneak a write through in the main process
+            # between the recv_pipe poll timeout and close. Naively, this would
+            # make a clean shutdown look like a broken worker. By sending a sentinel
+            # value, we can indicate to a waiting main process that we have hit this
+            # race condition and need a restart. However, the send MUST be non-blocking
+            # to free this process's resources in a timely manner. Therefore, this message
+            # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
+            send_pipe.send_bytes(dumps(None, protocol=-1))
+            send_pipe.close()
 
-    async def run_sync(self, sync_fn, *args):
+    async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
         try:
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
@@ -82,18 +97,20 @@ class WorkerProcBase(abc.ABC):
                 self._child_recv_pipe.close()
                 self._started.set()
             await self._send(dumps((sync_fn, args), protocol=-1))
-            result = loads(await self._recv())
+            return loads(await self._recv())
         except trio.EndOfChannel:
-            # Likely the worker died while we were waiting on a pipe
+            # Likely the worker died while we were waiting on _recv
             self.kill()  # NOTE: must reap zombie child elsewhere
             raise BrokenWorkerError(f"{self._proc} died unexpectedly")
+        except trio.BrokenResourceError:
+            # Likely the worker died while we were waiting on _send
+            self.kill()  # NOTE: must reap zombie child elsewhere
+            return None
         except BaseException:
             # Cancellation or other unknown errors leave the process in an
             # unknown state, so there is no choice but to kill.
             self.kill()  # NOTE: must reap zombie child elsewhere
             raise
-        else:
-            return result.unwrap()
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
