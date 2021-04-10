@@ -17,11 +17,6 @@ class BrokenWorkerError(RuntimeError):
     pass
 
 
-# How long a process will idle waiting for new work before gives up and exits.
-# This should be longer than a thread timeout proportionately to startup time.
-IDLE_TIMEOUT = 60 * 10
-
-
 class WorkerProcBase(abc.ABC):
     _proc_counter = count()
 

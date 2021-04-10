@@ -5,11 +5,12 @@ import trio
 import pytest
 
 from .._proc import WorkerProc, BrokenWorkerError
+from .._impl import DEFAULT_MP_CONTEXT, DEFAULT_IDLE_TIMEOUT, DEFAULT_MAX_JOBS
 
 
 @pytest.fixture
 async def proc():
-    proc = WorkerProc(multiprocessing.get_context("spawn"), 10, float("inf"))
+    proc = WorkerProc(DEFAULT_MP_CONTEXT, DEFAULT_IDLE_TIMEOUT, DEFAULT_MAX_JOBS)
     try:
         yield proc
     finally:
