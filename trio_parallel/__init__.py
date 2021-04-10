@@ -1,6 +1,12 @@
 """Top-level package for trio-parallel."""
 
-from ._version import __version__
+from importlib_metadata import version
 
-from ._impl import run_sync, current_default_worker_limiter, cache_scope
-from ._util import BrokenWorkerError
+__version__ = version("trio-parallel")
+del version
+
+from ._impl import (
+    run_sync,
+    current_default_worker_limiter,
+)
+from ._proc import BrokenWorkerError

@@ -37,22 +37,22 @@ To run black
 To make a release
 -----------------
 
-* Update the version in ``trio_parallel/_version.py``
-
 * Run ``towncrier`` to collect your release notes.
 
-* Review your release notes.
+* Review your release notes and update version in the new history header.
 
 * Double-check it all works, docs build, etc.
 
 * Check everything in.
 
-* Make a release PR on GitHub. Checks should pass.
+* Make a release PR on GitHub. Checks must pass.
+
+* Use GitHub release mechanism to tag the release commit: ``hub release create {version}``
 
 * Build your sdist and wheel: ``python -m build``
 
+* Check wheel and sdist, especially version in filenames.
+
 * Upload to PyPI: ``twine upload dist/*``
 
-* Use GitHub release mechanism to tag the release in git and upload sdist and wheel.
-
-* add "+dev" to version and commit to main.
+* Upload to GitHub: ``hub release edit -a dist/*.whl``

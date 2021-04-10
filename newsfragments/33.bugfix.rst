@@ -1,0 +1,1 @@
+Workers are now fully synchronized with only pipe/channel-like objects, making it impossible to leak semaphores.
