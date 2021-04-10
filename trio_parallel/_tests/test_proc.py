@@ -112,10 +112,10 @@ async def test_racing_timeout():
     proc = WorkerProc(multiprocessing.get_context("spawn"), 0, float("inf"))
     assert 0 == await proc.run_sync(int)
     with trio.fail_after(1):
-        assert not await proc.wait()  # should get a zero exit code
-    with trio.fail_after(1):
         with pytest.raises(trio.BrokenResourceError):
             await proc.run_sync(int)
+    with trio.fail_after(1):
+        await proc.wait()
 
 
 def _raise_ki():  # pragma: no cover
