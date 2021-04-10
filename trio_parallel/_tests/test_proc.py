@@ -93,7 +93,7 @@ async def test_exhaustively_cancel_run_sync1(proc):
     # cancel at startup
     with trio.fail_after(1):
         with trio.move_on_after(0):
-            assert await proc.run_sync(int)  # will return zero
+            assert (await proc.run_sync(int)).unwrap()  # will return zero
         await proc.wait()
 
 
@@ -111,11 +111,10 @@ async def test_exhaustively_cancel_run_sync2(proc):
 
 async def test_racing_timeout():
     proc = WorkerProc(multiprocessing.get_context("spawn"), 0, float("inf"))
-    assert 0 == await proc.run_sync(int)
+    assert 0 == (await proc.run_sync(int)).unwrap()
     with trio.fail_after(1):
-        with pytest.raises(trio.BrokenResourceError):
-            while not await proc.run_sync(int):
-                pass  # pragma: no cover, on rare occasions this doesn't raise on the first try.
+        while (await proc.run_sync(int)) is not None:
+            pass  # pragma: no cover, on rare occasions this takes more than one iteration.
     with trio.fail_after(1):
         await proc.wait()
 

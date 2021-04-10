@@ -3,7 +3,9 @@ import struct
 import abc
 from itertools import count
 from pickle import dumps, loads
+from typing import Optional
 
+import outcome
 import trio
 
 
@@ -37,7 +39,6 @@ class WorkerProcBase(abc.ABC):
 
         import inspect
         import signal
-        import outcome
 
         def coroutine_checker(fn, args):
             ret = fn(*args)
@@ -69,9 +70,10 @@ class WorkerProcBase(abc.ABC):
                 del result
         finally:
             recv_pipe.close()
+            send_pipe.send_bytes(dumps(None, protocol=-1))
             send_pipe.close()
 
-    async def run_sync(self, sync_fn, *args):
+    async def run_sync(self, sync_fn, *args) -> Optional[outcome.Outcome]:
         try:
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
@@ -80,18 +82,20 @@ class WorkerProcBase(abc.ABC):
                 self._child_recv_pipe.close()
                 self._started.set()
             await self._send(dumps((sync_fn, args), protocol=-1))
-            result = loads(await self._recv())
+            return loads(await self._recv())
         except trio.EndOfChannel:
-            # Likely the worker died while we were waiting on a pipe
+            # Likely the worker died while we were waiting on self._recv
             self.kill()  # NOTE: must reap zombie child elsewhere
             raise BrokenWorkerError(f"{self._proc} died unexpectedly")
+        except trio.BrokenResourceError:
+            # Likely the worker died while we were waiting on self._send
+            self.kill()  # NOTE: must reap zombie child elsewhere
+            return None
         except BaseException:
             # Cancellation or other unknown errors leave the process in an
             # unknown state, so there is no choice but to kill.
             self.kill()  # NOTE: must reap zombie child elsewhere
             raise
-        else:
-            return result.unwrap()
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be

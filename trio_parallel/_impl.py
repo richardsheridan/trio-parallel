@@ -163,13 +163,14 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
 
             try:
                 with trio.CancelScope(shield=not cancellable):
-                    return await proc.run_sync(sync_fn, *args)
-            except trio.BrokenResourceError:  # pragma: no cover
-                # Rare case where proc timed out even though it was still alive
-                # as we popped it. Just retry. But reap zombie child first.
-                if proc.is_alive():
-                    await proc.wait()
-                continue
+                    result = await proc.run_sync(sync_fn, *args)
+                if result is None:
+                    # Rare case where proc timed out even though it was still alive
+                    # as we popped it. Just retry. But reap zombie child first.
+                    if proc.is_alive():
+                        await proc.wait()
+                else:
+                    return result.unwrap()
             finally:
                 if proc.is_alive():
                     worker_cache.push(proc)
