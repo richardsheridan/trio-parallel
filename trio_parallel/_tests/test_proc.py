@@ -92,7 +92,7 @@ async def test_exhaustively_cancel_run_sync1(proc):
     # cancel at startup
     with trio.fail_after(1):
         with trio.move_on_after(0):
-            assert await proc.run_sync(int)  # will return zero
+            assert (await proc.run_sync(int)).unwrap()  # will return zero
         await proc.wait()
 
 
@@ -117,10 +117,10 @@ def _shorten_timeout():  # pragma: no cover
 async def test_racing_timeout(proc):
     await proc.run_sync(_shorten_timeout)
     with trio.fail_after(1):
-        assert not await proc.wait()  # should get a zero exit code
+        while (await proc.run_sync(int)) is not None:
+            pass  # pragma: no cover, this rarely takes more than one iteration.
     with trio.fail_after(1):
-        with pytest.raises(trio.BrokenResourceError):
-            await proc.run_sync(int)
+        await proc.wait()
 
 
 def _raise_ki():  # pragma: no cover
