@@ -39,7 +39,7 @@ async def test_run_sync_raises_on_kill(proc):
     m = multiprocessing.Manager()
     ev = m.Event()
 
-    with pytest.raises(BrokenWorkerError), trio.move_on_after(10):
+    with pytest.raises(BrokenWorkerError), trio.fail_after(5):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(proc.run_sync, _never_halts, ev)
             try:
@@ -48,6 +48,10 @@ async def test_run_sync_raises_on_kill(proc):
                 # if something goes wrong, free the thread
                 ev.set()
             proc.kill()  # also tests multiple calls to proc.kill
+            with trio.fail_after(1):
+                await proc.wait()
+            # check consistency of wait and is_alive
+            assert not proc.is_alive()
 
 
 def _segfault_out_of_bounds_pointer():  # pragma: no cover
