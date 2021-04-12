@@ -180,7 +180,8 @@ class PosixWorkerProc(WorkerProcBase):
         await self._started.wait()
         if self._proc.pid is None:
             return None  # killed before started
-        await trio.lowlevel.wait_readable(self._proc.sentinel)
+        async with self._wait_lock:
+            await trio.lowlevel.wait_readable(self._proc.sentinel)
         e = self._proc.exitcode
         if e is not None:
             return e
@@ -194,6 +195,7 @@ class PosixWorkerProc(WorkerProcBase):
         # These must be created in an async context
         self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
         self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
+        self._wait_lock = trio.Lock()
 
     async def _recv(self):
         buf = await self._recv_exactly(4)
