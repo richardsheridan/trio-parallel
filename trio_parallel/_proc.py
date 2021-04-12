@@ -251,21 +251,6 @@ class PosixWorkerProc(WorkerProcBase):
         else:  # pragma: no cover
             pass
 
-    async def run_sync(self, sync_fn, *args):
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(self._child_monitor)
-            try:
-                result = await super().run_sync(sync_fn, *args)
-            except BrokenWorkerError:
-                await trio.sleep_forever()  # let the monitor reap and raise
-            nursery.cancel_scope.cancel()
-        return result
-
-    async def _child_monitor(self):
-        # If this worker dies, raise a catchable error...
-        await self.wait()
-        raise BrokenWorkerError(f"{self._proc} died unexpectedly")
-
 
 if os.name == "nt":
 
