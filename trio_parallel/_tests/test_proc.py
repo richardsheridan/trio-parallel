@@ -1,5 +1,6 @@
 import multiprocessing
 import signal
+import time
 
 import trio
 import pytest
@@ -41,22 +42,14 @@ async def test_run_sync_cancel_infinite_loop(proc, manager):
         nursery.cancel_scope.cancel()
 
 
-async def test_run_sync_raises_on_kill(proc, manager):
-    ev = manager.Event()
-
+# TODO: debug manager interaction with pipes on PyPy GH#44
+async def test_run_sync_raises_on_kill(proc):
+    await proc.run_sync(int)  # running start so actual test is less racy
     with pytest.raises(BrokenWorkerError), trio.fail_after(5):
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(proc.run_sync, _never_halts, ev)
-            try:
-                await trio.to_thread.run_sync(ev.wait, cancellable=True)
-            finally:
-                # if something goes wrong, free the thread
-                ev.set()
+            nursery.start_soon(proc.run_sync, time.sleep, 5)
+            await trio.sleep(0.1)
             proc.kill()  # also tests multiple calls to proc.kill
-            with trio.fail_after(1):
-                await proc.wait()
-            # check consistency of wait and is_alive
-            assert not proc.is_alive()
 
 
 def _segfault_out_of_bounds_pointer():  # pragma: no cover
