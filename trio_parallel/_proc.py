@@ -104,13 +104,13 @@ class WorkerProcBase(abc.ABC):
         except trio.BrokenResourceError:
             # Likely the worker died while we were waiting on _send
             return None
+        else:
+            return result
         finally:
             if result is None:
                 self.kill()
                 with trio.CancelScope(shield=True):
                     await self.wait()
-            else:
-                return result
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
