@@ -89,6 +89,7 @@ class WorkerProcBase(abc.ABC):
             send_pipe.close()
 
     async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
+        result = None
         try:
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
@@ -97,20 +98,20 @@ class WorkerProcBase(abc.ABC):
                 self._child_recv_pipe.close()
                 self._started.set()
             await self._send(dumps((sync_fn, args), protocol=-1))
-            return loads(await self._recv())
+            result = loads(await self._recv())
         except trio.EndOfChannel:
             # Likely the worker died while we were waiting on _recv
-            self.kill()  # NOTE: must reap zombie child elsewhere
             raise BrokenWorkerError(f"{self._proc} died unexpectedly")
         except trio.BrokenResourceError:
             # Likely the worker died while we were waiting on _send
-            self.kill()  # NOTE: must reap zombie child elsewhere
             return None
-        except BaseException:
-            # Cancellation or other unknown errors leave the process in an
-            # unknown state, so there is no choice but to kill.
-            self.kill()  # NOTE: must reap zombie child elsewhere
-            raise
+        finally:
+            if result is None:
+                self.kill()
+                with trio.CancelScope(shield=True):
+                    await self.wait()
+            else:
+                return result
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -179,7 +180,8 @@ class PosixWorkerProc(WorkerProcBase):
         await self._started.wait()
         if self._proc.pid is None:
             return None  # killed before started
-        await trio.lowlevel.wait_readable(self._proc.sentinel)
+        async with self._wait_lock:
+            await trio.lowlevel.wait_readable(self._proc.sentinel)
         e = self._proc.exitcode
         if e is not None:
             return e
@@ -193,6 +195,7 @@ class PosixWorkerProc(WorkerProcBase):
         # These must be created in an async context
         self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
         self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
+        self._wait_lock = trio.Lock()
 
     async def _recv(self):
         buf = await self._recv_exactly(4)
@@ -247,21 +250,6 @@ class PosixWorkerProc(WorkerProcBase):
             self._recv_stream._fd_holder.fd = -1
         else:  # pragma: no cover
             pass
-
-    async def run_sync(self, sync_fn, *args):
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(self._child_monitor)
-            try:
-                result = await super().run_sync(sync_fn, *args)
-            except BrokenWorkerError:
-                await trio.sleep_forever()  # let the monitor reap and raise
-            nursery.cancel_scope.cancel()
-        return result
-
-    async def _child_monitor(self):
-        # If this worker dies, raise a catchable error...
-        await self.wait()
-        raise BrokenWorkerError(f"{self._proc} died unexpectedly")
 
 
 if os.name == "nt":

@@ -1,5 +1,6 @@
 import multiprocessing
 import signal
+import time
 
 import trio
 import pytest
@@ -18,6 +19,13 @@ async def proc():
             await proc.wait()
 
 
+@pytest.fixture(scope="module")
+def manager():
+    m = multiprocessing.get_context("spawn").Manager()
+    with m:
+        yield m
+
+
 def _never_halts(ev):  # pragma: no cover
     # important difference from blocking call is cpu usage
     ev.set()
@@ -25,9 +33,8 @@ def _never_halts(ev):  # pragma: no cover
         pass
 
 
-async def test_run_sync_cancel_infinite_loop(proc):
-    m = multiprocessing.Manager()
-    ev = m.Event()
+async def test_run_sync_cancel_infinite_loop(proc, manager):
+    ev = manager.Event()
 
     async with trio.open_nursery() as nursery:
         nursery.start_soon(proc.run_sync, _never_halts, ev)
@@ -35,18 +42,13 @@ async def test_run_sync_cancel_infinite_loop(proc):
         nursery.cancel_scope.cancel()
 
 
+# TODO: debug manager interaction with pipes on PyPy GH#44
 async def test_run_sync_raises_on_kill(proc):
-    m = multiprocessing.Manager()
-    ev = m.Event()
-
-    with pytest.raises(BrokenWorkerError), trio.move_on_after(10):
+    await proc.run_sync(int)  # running start so actual test is less racy
+    with pytest.raises(BrokenWorkerError), trio.fail_after(5):
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(proc.run_sync, _never_halts, ev)
-            try:
-                await trio.to_thread.run_sync(ev.wait, cancellable=True)
-            finally:
-                # if something goes wrong, free the thread
-                ev.set()
+            nursery.start_soon(proc.run_sync, time.sleep, 5)
+            await trio.sleep(0.1)
             proc.kill()  # also tests multiple calls to proc.kill
 
 
@@ -96,10 +98,9 @@ async def test_exhaustively_cancel_run_sync1(proc):
         await proc.wait()
 
 
-async def test_exhaustively_cancel_run_sync2(proc):
+async def test_exhaustively_cancel_run_sync2(proc, manager):
     # cancel at job send if we reuse the process
-    m = multiprocessing.Manager()
-    ev = m.Event()
+    ev = manager.Event()
     await proc.run_sync(int)
     with trio.fail_after(1):
         with trio.move_on_after(0):

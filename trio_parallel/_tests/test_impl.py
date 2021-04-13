@@ -18,6 +18,13 @@ def empty_proc_cache():
             return
 
 
+@pytest.fixture(scope="module")
+def manager():
+    m = multiprocessing.get_context("spawn").Manager()
+    with m:
+        yield m
+
+
 def _echo_and_pid(x):  # pragma: no cover
     return x, os.getpid()
 
@@ -47,7 +54,7 @@ def _block_proc(block, start, done):  # pragma: no cover
     done.set()
 
 
-async def test_cancellation(capfd):
+async def test_cancellation(capfd, manager):
     async def child(cancellable):
         print("start")
         try:
@@ -57,8 +64,7 @@ async def test_cancellation(capfd):
         finally:
             print("exit")
 
-    m = multiprocessing.Manager()
-    block, start, done = m.Event(), m.Event(), m.Event()
+    block, start, done = manager.Event(), manager.Event(), manager.Event()
 
     # This one can't be cancelled
     async with trio.open_nursery() as nursery:
