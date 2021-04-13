@@ -18,6 +18,13 @@ async def proc():
             await proc.wait()
 
 
+@pytest.fixture(scope="module")
+def manager():
+    m = multiprocessing.get_context("spawn").Manager()
+    with m:
+        yield m
+
+
 def _never_halts(ev):  # pragma: no cover
     # important difference from blocking call is cpu usage
     ev.set()
@@ -25,9 +32,8 @@ def _never_halts(ev):  # pragma: no cover
         pass
 
 
-async def test_run_sync_cancel_infinite_loop(proc):
-    m = multiprocessing.Manager()
-    ev = m.Event()
+async def test_run_sync_cancel_infinite_loop(proc, manager):
+    ev = manager.Event()
 
     async with trio.open_nursery() as nursery:
         nursery.start_soon(proc.run_sync, _never_halts, ev)
@@ -35,9 +41,8 @@ async def test_run_sync_cancel_infinite_loop(proc):
         nursery.cancel_scope.cancel()
 
 
-async def test_run_sync_raises_on_kill(proc):
-    m = multiprocessing.Manager()
-    ev = m.Event()
+async def test_run_sync_raises_on_kill(proc, manager):
+    ev = manager.Event()
 
     with pytest.raises(BrokenWorkerError), trio.fail_after(5):
         async with trio.open_nursery() as nursery:
@@ -100,10 +105,9 @@ async def test_exhaustively_cancel_run_sync1(proc):
         await proc.wait()
 
 
-async def test_exhaustively_cancel_run_sync2(proc):
+async def test_exhaustively_cancel_run_sync2(proc, manager):
     # cancel at job send if we reuse the process
-    m = multiprocessing.Manager()
-    ev = m.Event()
+    ev = manager.Event()
     await proc.run_sync(int)
     with trio.fail_after(1):
         with trio.move_on_after(0):
