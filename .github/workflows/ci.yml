@@ -62,7 +62,7 @@ jobs:
         run: echo "::set-output name=wheelname::$(ls ./dist/*.whl)"
       - name: Output settings
         id: settings
-        run: echo "::set-output name=settings::$(cat pyproject.toml | base64)"
+        run: echo "::set-output name=settings::$(cat pyproject.toml | base64 -w 0)"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
