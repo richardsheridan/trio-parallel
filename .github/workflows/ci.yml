@@ -109,8 +109,6 @@ jobs:
           - os: macos-latest
             arch: x86
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
       - name: Setup python
         uses: actions/setup-python@v2
         with:
@@ -131,12 +129,29 @@ jobs:
           path: dist
       - name: Run tests
         run: |
-          rm -rf trio_parallel
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
-          pytest --pyargs trio_parallel -W error -r a --cov-report xml --cov=trio_parallel --verbose
+          pytest --pyargs trio_parallel -W error -r a --cov-report xml:cov-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml --cov=trio_parallel --verbose
         shell: bash
-      - name: Codecov
+      - name: Upload coverage
+        uses: actions/upload-artifact@v2
+        with:
+          name: Coverage
+          path: ./cov-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
+          if-no-files-found: error
+  Codecov: # Codecov is naughty and will be forever isolated
+    name: Codecov
+    if: always()
+    needs: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download coverage
+        uses: actions/download-artifact@v2
+        with:
+          name: Coverage
+      - name: Upload to Codecov
         uses: codecov/codecov-action@v1
         with:
           fail_ci_if_error: true
