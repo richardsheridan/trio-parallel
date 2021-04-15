@@ -63,8 +63,8 @@ jobs:
       - name: Output settings
         id: settings
         run: |
-          echo "$(cat pyproject.toml | gzip | base64 -w 0)"
-          echo "::set-output name=settings::$(cat pyproject.toml | gzip | base64 -w 0)"
+          echo "$(gzip -c pyproject.toml | base64 -w 0)"
+          echo "::set-output name=settings::literally anything"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
