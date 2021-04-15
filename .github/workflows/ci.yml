@@ -131,13 +131,15 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
-          pytest --pyargs trio_parallel -W error -r a --cov-report xml:cov-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml --cov=trio_parallel --verbose
+          pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
+          --cov-report xml:cov-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
         shell: bash
       - name: Upload coverage
         uses: actions/upload-artifact@v2
         with:
           name: Coverage
-          path: cov-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
+          # Codecov-bash-uploader's match is '*coverage*.*'
+          path: coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
           if-no-files-found: error
   Codecov: # Codecov is naughty and will be forever isolated
     name: Codecov
@@ -155,4 +157,4 @@ jobs:
         uses: codecov/codecov-action@v1
         with:
           fail_ci_if_error: true
-          files: "\"cov-*.xml\""
+          files: "\"coverage-*.xml\""
