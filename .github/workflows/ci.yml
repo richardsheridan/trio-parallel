@@ -45,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       wheelname: ${{ steps.wheelname.outputs.wheelname }}
+      settings: ${{ steps.settings.outputs.settings }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -60,6 +61,9 @@ jobs:
       - name: Output wheelname
         id: wheelname
         run: echo "::set-output name=wheelname::$(ls ./dist/*.whl)"
+      - name: Output settings
+        id: settings
+        run: echo "::set-output name=settings::$(base64 -w 0 pyproject.toml)"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
@@ -109,8 +113,6 @@ jobs:
           - os: macos-latest
             arch: x86
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
       - name: Setup python
         uses: actions/setup-python@v2
         with:
@@ -129,14 +131,37 @@ jobs:
         with:
           name: Build
           path: dist
+      - name: Input settings
+        run: echo "${{ needs.Build.outputs.settings }}" | base64 -d > pyproject.toml
+        shell: bash
       - name: Run tests
         run: |
-          rm -rf trio_parallel
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
-          pytest --pyargs trio_parallel -W error -r a --cov-report xml --cov=trio_parallel --verbose
+          pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
+          --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
         shell: bash
-      - name: Codecov
+      - name: Upload coverage
+        uses: actions/upload-artifact@v2
+        with:
+          name: Coverage
+          # Codecov-bash-uploader's match is '*coverage*.*'
+          path: coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
+          if-no-files-found: error
+  Codecov: # Codecov is naughty and will be forever isolated
+    name: Codecov
+    if: always()
+    needs: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: Coverage
+      - name: Upload to Codecov
         uses: codecov/codecov-action@v1
         with:
           fail_ci_if_error: true
+          files: "\"coverage-*.xml\""
