@@ -131,9 +131,11 @@ jobs:
         with:
           name: Build
           path: dist
+      - name: Input settings
+        run: echo "${{ needs.Build.outputs.settings }}" | base64 -d > pyproject.toml
+        shell: bash
       - name: Run tests
         run: |
-          echo "${{ needs.Build.outputs.settings }}" | base64 -d > pyproject.toml
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
