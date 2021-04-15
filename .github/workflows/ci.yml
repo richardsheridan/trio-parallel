@@ -62,7 +62,7 @@ jobs:
         run: echo "::set-output name=wheelname::$(ls ./dist/*.whl)"
       - name: Output settings
         id: settings
-        run: echo "::set-output name=settings::$(cat pyproject.toml)"
+        run: echo "::set-output name=settings::$(cat pyproject.toml | base64)"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
@@ -132,7 +132,7 @@ jobs:
           path: dist
       - name: Run tests
         run: |
-          echo "${{ needs.Build.outputs.settings }}" > pyproject.toml
+          echo "${{ needs.Build.outputs.settings }}" | base64 -d > pyproject.toml
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
