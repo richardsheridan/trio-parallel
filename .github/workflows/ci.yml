@@ -132,7 +132,7 @@ jobs:
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
-          --cov-report xml:cov-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
+          --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
         shell: bash
       - name: Upload coverage
         uses: actions/upload-artifact@v2
