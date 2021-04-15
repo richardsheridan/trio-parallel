@@ -45,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       wheelname: ${{ steps.wheelname.outputs.wheelname }}
+      settings: ${{ steps.settings.outputs.settings }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -62,9 +63,7 @@ jobs:
         run: echo "::set-output name=wheelname::$(ls ./dist/*.whl)"
       - name: Output settings
         id: settings
-        run: |
-          echo "$(gzip -c pyproject.toml | base64 -w 0)"
-          echo "::set-output name=settings::literally anything"
+        run: echo "::set-output name=settings::$(base64 -w 0 pyproject.toml)"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
@@ -134,7 +133,7 @@ jobs:
           path: dist
       - name: Run tests
         run: |
-          echo "${{ needs.Build.outputs.settings }}" | base64 -d | gzip -d > pyproject.toml
+          echo "${{ needs.Build.outputs.settings }}" | base64 -d > pyproject.toml
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
