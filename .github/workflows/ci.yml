@@ -60,6 +60,9 @@ jobs:
       - name: Output wheelname
         id: wheelname
         run: echo "::set-output name=wheelname::$(ls ./dist/*.whl)"
+      - name: Output settings
+        id: settings
+        run: echo "::set-output name=settings::$(cat pyproject.toml)"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
@@ -129,6 +132,7 @@ jobs:
           path: dist
       - name: Run tests
         run: |
+          echo "${{ needs.Build.outputs.settings }}" > pyproject.toml
           python -m pip install -U pip
           python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
@@ -149,7 +153,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Download coverage
+      - name: Download coverage artifact
         uses: actions/download-artifact@v2
         with:
           name: Coverage
