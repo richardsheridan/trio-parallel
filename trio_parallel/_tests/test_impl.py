@@ -25,10 +25,6 @@ def manager():
         yield m
 
 
-def _echo_and_pid(x):  # pragma: no cover
-    return x, os.getpid()
-
-
 def _raise_pid():  # pragma: no cover
     raise ValueError(os.getpid())
 
@@ -37,8 +33,7 @@ async def test_run_in_worker():
     trio_pid = os.getpid()
     limiter = trio.CapacityLimiter(1)
 
-    x, child_pid = await to_process_run_sync(_echo_and_pid, 1, limiter=limiter)
-    assert x == 1
+    child_pid = await to_process_run_sync(os.getpid, limiter=limiter)
     assert child_pid != trio_pid
 
     with pytest.raises(ValueError) as excinfo:
@@ -121,7 +116,7 @@ async def test_raises_on_async_fn():
 
 async def test_prune_cache():
     # take proc's number and kill it for the next test
-    _, pid1 = await to_process_run_sync(_echo_and_pid, None)
+    pid1 = await to_process_run_sync(os.getpid)
     proc = WORKER_CACHE.pop()
     proc.kill()
     with trio.fail_after(1):
@@ -133,12 +128,12 @@ async def test_prune_cache():
         WORKER_CACHE.pop()
     WORKER_CACHE.push(proc)
     # should spawn a new worker and remove the dead one
-    _, pid2 = await to_process_run_sync(_echo_and_pid, None)
+    pid2 = await to_process_run_sync(os.getpid)
     assert len(WORKER_CACHE) == 1
     assert pid1 != pid2
 
 
 async def test_large_job():
     n = 2 ** 20
-    x, _ = await to_process_run_sync(_echo_and_pid, bytearray(n))
+    x = await to_process_run_sync(bytes, bytearray(n))
     assert len(x) == n
