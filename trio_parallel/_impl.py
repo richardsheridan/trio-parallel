@@ -155,22 +155,15 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     async with limiter:
         worker_cache.prune()
 
-        while True:
+        result = None
+        while result is None:
             try:
                 proc = worker_cache.pop()
             except IndexError:
                 proc = WorkerProc(mp_context, idle_timeout, max_jobs)
 
-            try:
-                with trio.CancelScope(shield=not cancellable):
-                    result = await proc.run_sync(sync_fn, *args)
-                if result is None:
-                    # Rare case where proc timed out even though it was still alive
-                    # as we popped it. Just retry. But reap zombie child first.
-                    if proc.is_alive():
-                        await proc.wait()
-                else:
-                    return result.unwrap()
-            finally:
-                if proc.is_alive():
-                    worker_cache.push(proc)
+            with trio.CancelScope(shield=not cancellable):
+                result = await proc.run_sync(sync_fn, *args)
+
+    worker_cache.push(proc)
+    return result.unwrap()

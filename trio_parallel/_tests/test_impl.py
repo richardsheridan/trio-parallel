@@ -12,8 +12,11 @@ def empty_proc_cache():
     trio.run(DEFAULT_CACHE.clear)
 
 
-def _echo_and_pid(x):  # pragma: no cover
-    return x, os.getpid()
+@pytest.fixture(scope="module")
+def manager():
+    m = multiprocessing.get_context("spawn").Manager()
+    with m:
+        yield m
 
 
 def _raise_pid():  # pragma: no cover
@@ -24,8 +27,7 @@ async def test_run_sync():
     trio_pid = os.getpid()
     limiter = trio.CapacityLimiter(1)
 
-    x, child_pid = await run_sync(_echo_and_pid, 1, limiter=limiter)
-    assert x == 1
+    child_pid = await run_sync(os.getpid, limiter=limiter)
     assert child_pid != trio_pid
 
     with pytest.raises(ValueError) as excinfo:
@@ -41,47 +43,57 @@ def _block_proc(block, start, done):  # pragma: no cover
     done.set()
 
 
-async def test_cancellation(capfd):
+async def test_cancellation(manager):
     async def child(cancellable):
-        print("start")
+        nonlocal child_start, child_done
+        child_start = True
         try:
             return await run_sync(
-                _block_proc, block, start, done, cancellable=cancellable
+                _block_proc, block, proc_start, proc_done, cancellable=cancellable
             )
         finally:
-            print("exit")
+            child_done = True
 
-    m = multiprocessing.Manager()
-    block, start, done = m.Event(), m.Event(), m.Event()
+    block, proc_start, proc_done = manager.Event(), manager.Event(), manager.Event()
+    child_start = False
+    child_done = False
 
     # This one can't be cancelled
     async with trio.open_nursery() as nursery:
         nursery.start_soon(child, False)
-        await trio.to_thread.run_sync(start.wait, cancellable=True)
-        assert capfd.readouterr().out.rstrip() == "start"
+        await trio.to_thread.run_sync(proc_start.wait, cancellable=True)
+        assert child_start
         nursery.cancel_scope.cancel()
         with trio.CancelScope(shield=True):
             await trio.testing.wait_all_tasks_blocked(0.01)
         # It's still running
-        assert not done.is_set()
+        assert not proc_done.is_set()
         block.set()
         # Now it exits
-    assert capfd.readouterr().out.rstrip() == "exit"
+    assert child_done
+    assert proc_done.is_set()
 
     block.clear()
-    start.clear()
-    done.clear()
+    proc_start.clear()
+    proc_done.clear()
+    child_start = False
+    child_done = False
     # But if we cancel *before* it enters, the entry is itself a cancellation
     # point
     with trio.CancelScope() as scope:
         scope.cancel()
         await child(False)
-    assert capfd.readouterr().out.rstrip() == "start\nexit"
     assert scope.cancelled_caught
+    assert child_start
+    assert child_done
+    assert not proc_start.is_set()
+    assert not proc_done.is_set()
 
     block.clear()
-    start.clear()
-    done.clear()
+    proc_start.clear()
+    proc_done.clear()
+    child_start = False
+    child_done = False
     # This is truly cancellable by killing the process
     async with trio.open_nursery() as nursery:
         nursery.start_soon(child, True)
@@ -89,13 +101,15 @@ async def test_cancellation(capfd):
         # to_thread_run_sync does a checkpoint_if_cancelled before
         # blocking on the thread, and we don't want to trigger this.)
         await trio.testing.wait_all_tasks_blocked(0.01)
-        assert capfd.readouterr().out.rstrip() == "start"
-        await trio.to_thread.run_sync(start.wait, cancellable=True)
+        assert child_start
+        with trio.fail_after(1):
+            await trio.to_thread.run_sync(proc_start.wait, cancellable=True)
         # Then cancel it.
         nursery.cancel_scope.cancel()
     # The task exited, but the process died
-    assert not done.is_set()
-    assert capfd.readouterr().out.rstrip() == "exit"
+    assert not block.is_set()
+    assert not proc_done.is_set()
+    assert child_done
 
 
 async def _null_async_fn():  # pragma: no cover
@@ -109,7 +123,7 @@ async def test_run_sync_coroutine_error():
 
 async def test_prune_cache():
     # take proc's number and kill it for the next test
-    _, pid1 = await run_sync(_echo_and_pid, None)
+    pid1 = await run_sync(os.getpid)
     proc = DEFAULT_CACHE.pop()
     proc.kill()
     with trio.fail_after(1):
@@ -121,32 +135,32 @@ async def test_prune_cache():
         DEFAULT_CACHE.pop()
     DEFAULT_CACHE.push(proc)
     # should spawn a new worker and remove the dead one
-    _, pid2 = await run_sync(_echo_and_pid, None)
+    pid2 = await run_sync(os.getpid)
     assert len(DEFAULT_CACHE) == 1
     assert pid1 != pid2
 
 
 async def test_run_sync_large_job():
     n = 2 ** 20
-    x, _ = await run_sync(_echo_and_pid, bytearray(n))
+    x = await run_sync(bytes, bytearray(n))
     assert len(x) == n
 
 
 async def test_cache_scope():
-    _, pid1 = await run_sync(_echo_and_pid, None)
+    pid1 = await run_sync(os.getpid)
     async with cache_scope():
-        _, pid2 = await run_sync(_echo_and_pid, None)
+        pid2 = await run_sync(os.getpid)
         assert pid1 != pid2
-    _, pid5 = await run_sync(_echo_and_pid, None)
+    pid5 = await run_sync(os.getpid)
     assert pid5 == pid1
 
 
 async def test_cache_max_jobs():
     async with cache_scope(max_jobs=2):
-        _, pid2 = await run_sync(_echo_and_pid, None)
-        _, pid3 = await run_sync(_echo_and_pid, None)
+        pid2 = await run_sync(os.getpid)
+        pid3 = await run_sync(os.getpid)
         assert pid3 == pid2
-        _, pid4 = await run_sync(_echo_and_pid, None)
+        pid4 = await run_sync(os.getpid)
         assert pid4 != pid2
 
 
