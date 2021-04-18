@@ -64,7 +64,6 @@ class WorkerProcBase(abc.ABC):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         while recv_pipe.poll(IDLE_TIMEOUT):
-            # We got a job, and we are "woken"
             fn, args = loads(recv_pipe.recv_bytes())
             # Do the CPU bound work
             result = outcome.capture(coroutine_checker, fn, args)
@@ -88,7 +87,6 @@ class WorkerProcBase(abc.ABC):
         send_pipe.close()
 
     async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
-        result = None
         try:
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
@@ -96,21 +94,20 @@ class WorkerProcBase(abc.ABC):
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
                 self._started.set()
-            await self._send(dumps((sync_fn, args), protocol=-1))
-            result = loads(await self._recv())
-        except trio.EndOfChannel:
-            # Likely the worker died while we were waiting on _recv
-            raise BrokenWorkerError(f"{self._proc} died unexpectedly")
-        except trio.BrokenResourceError:
-            # Likely the worker died while we were waiting on _send
-            return None
-        else:
+            try:
+                await self._send(dumps((sync_fn, args), protocol=-1))
+            except trio.BrokenResourceError:
+                return None
+            try:
+                result = loads(await self._recv())
+            except trio.EndOfChannel:
+                await self.wait()
+                raise BrokenWorkerError("Worker died unexpectedly:", self)
+
             return result
-        finally:
-            if result is None:
-                self.kill()
-                with trio.CancelScope(shield=True):
-                    await self.wait()
+        except BaseException:
+            self.kill()
+            raise
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -125,6 +122,9 @@ class WorkerProcBase(abc.ABC):
             self._proc.kill()
         except AttributeError:
             self._proc.terminate()
+
+    def __repr__(self):
+        return repr(self._proc)
 
     @abc.abstractmethod
     async def wait(self):
@@ -175,6 +175,15 @@ class WindowsWorkerProc(WorkerProcBase):
 
 
 class PosixWorkerProc(WorkerProcBase):
+    async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
+        result = None
+        try:
+            result = await super().run_sync(sync_fn, *args)
+        finally:
+            if result is None:
+                trio.lowlevel.spawn_system_task(self.wait)
+        return result
+
     async def wait(self):
         await self._started.wait()
         if self._proc.pid is None:
