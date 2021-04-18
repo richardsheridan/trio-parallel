@@ -15,6 +15,9 @@ class BrokenWorkerError(RuntimeError):
 
     This error is not typically encountered in normal use, and indicates a severe
     failure of either trio-parallel or the code that was executing in the worker.
+
+    The last argument of the exception is the underlying
+    :class:`multiprocessing.Process` which may be inspected for e.g. exit codes.
     """
 
     pass
@@ -104,7 +107,7 @@ class WorkerProcBase(abc.ABC):
                 return loads(await self._recv())
             except trio.EndOfChannel:
                 await self.wait()
-                raise BrokenWorkerError("Worker died unexpectedly:", self)
+                raise BrokenWorkerError("Worker died unexpectedly:", self._proc)
 
         except BaseException:
             self.kill()
@@ -123,9 +126,6 @@ class WorkerProcBase(abc.ABC):
             self._proc.kill()
         except AttributeError:
             self._proc.terminate()
-
-    def __repr__(self):
-        return repr(self._proc)  # pragma: no cover
 
     @abc.abstractmethod
     async def wait(self):
