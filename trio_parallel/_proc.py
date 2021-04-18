@@ -124,7 +124,7 @@ class WorkerProcBase(abc.ABC):
             self._proc.terminate()
 
     def __repr__(self):
-        return repr(self._proc)
+        return repr(self._proc)  # pragma: no cover
 
     @abc.abstractmethod
     async def wait(self):
