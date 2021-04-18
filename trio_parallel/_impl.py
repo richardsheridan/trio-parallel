@@ -29,40 +29,17 @@ def current_default_worker_limiter():
     return limiter
 
 
-class WorkerCache:
-    def __init__(self):
-        # The cache is a deque rather than dict here since processes can't remove
-        # themselves anyways, so we don't need O(1) lookups
-        self._cache = deque()
-        # NOTE: avoid thread races between Trio runs by only interacting with
-        # self._cache via thread-atomic actions like append, pop, del
-
+class WorkerCache(deque):
     def prune(self):
-        # take advantage of the oldest proc being on the left to
-        # keep iteration O(dead workers)
-        try:
-            while True:
-                proc = self._cache.popleft()
-                if proc.is_alive():
-                    self._cache.appendleft(proc)
-                    return
-        except IndexError:
-            # Thread safety: it's necessary to end the iteration using this error
-            # when the cache is empty, as opposed to `while self._cache`.
-            pass
-
-    def push(self, proc):
-        self._cache.append(proc)
-
-    def pop(self):
-        # Get live worker process or raise IndexError
+        # remove procs that have died from the idle timeout
         while True:
-            proc = self._cache.pop()
+            try:
+                proc = self.popleft()
+            except IndexError:
+                return
             if proc.is_alive():
-                return proc
-
-    def __len__(self):
-        return len(self._cache)
+                self.appendleft(proc)
+                return
 
 
 WORKER_CACHE = WorkerCache()
@@ -113,7 +90,6 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
 
     async with limiter:
         WORKER_CACHE.prune()
-
         result = None
         while result is None:
             try:
@@ -124,5 +100,5 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)
 
-    WORKER_CACHE.push(proc)
+    WORKER_CACHE.append(proc)
     return result.unwrap()
