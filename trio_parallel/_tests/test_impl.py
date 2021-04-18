@@ -144,6 +144,10 @@ async def test_prune_cache():
     pid2 = await to_process_run_sync(os.getpid)
     assert len(WORKER_CACHE) == 1
     assert pid1 != pid2
+    # pruning should also work if it's on the left side of the cache
+    WORKER_CACHE._cache.appendleft(proc)
+    pid2 = await to_process_run_sync(os.getpid)
+    assert len(WORKER_CACHE) == 1
 
 
 async def test_large_job():
