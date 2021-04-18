@@ -94,17 +94,18 @@ class WorkerProcBase(abc.ABC):
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
                 self._started.set()
+
             try:
                 await self._send(dumps((sync_fn, args), protocol=-1))
             except trio.BrokenResourceError:
                 return None
+
             try:
-                result = loads(await self._recv())
+                return loads(await self._recv())
             except trio.EndOfChannel:
                 await self.wait()
                 raise BrokenWorkerError("Worker died unexpectedly:", self)
 
-            return result
         except BaseException:
             self.kill()
             raise
