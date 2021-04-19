@@ -46,7 +46,7 @@ jobs:
     outputs:
       wheelname: ${{ steps.wheelname.outputs.wheelname }}
       settings: ${{ steps.settings.outputs.settings }}
-      cachehash: hashFiles('**/setup.cfg')
+      cachehash: ${{ hashFiles('**/setup.cfg') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
