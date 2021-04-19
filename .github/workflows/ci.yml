@@ -44,8 +44,9 @@ jobs:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
-      wheelname: ${{ steps.wheelname.outputs.wheelname }}
-      settings: ${{ steps.settings.outputs.settings }}
+      wheelname: ${{ steps.outputs.outputs.wheelname }}
+      settings: ${{ steps.outputs.outputs.settings }}
+      cachehash: ${{ steps.outputs.outputs.cachehash }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -58,12 +59,12 @@ jobs:
           python -m pip install -U pip
           python -m pip install -U build
           python -m build  # Isolation seems redundant, but helps pull dependencies
-      - name: Output wheelname
-        id: wheelname
-        run: echo "::set-output name=wheelname::$(ls ./dist/*.whl)"
-      - name: Output settings
-        id: settings
-        run: echo "::set-output name=settings::$(base64 -w 0 pyproject.toml)"
+      - name: Set outputs
+        id: outputs
+        run: |
+          echo "::set-output name=wheelname::$( echo ./dist/*.whl )"
+          echo "::set-output name=settings::$( base64 -w 0 pyproject.toml )"
+          echo "::set-output name=cachehash::${{ hashFiles('**/setup.cfg') }}"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
@@ -125,7 +126,7 @@ jobs:
             ~/AppData/Local/pip/Cache
             ~/.cache/pip
             ~/Library/Caches/pip
-          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/setup.cfg') }}
+          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ needs.Build.outputs.cachehash }}
       - name: Download build artifact
         uses: actions/download-artifact@v2
         with:
