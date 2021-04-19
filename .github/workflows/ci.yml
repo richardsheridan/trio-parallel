@@ -46,7 +46,7 @@ jobs:
     outputs:
       wheelname: ${{ steps.wheelname.outputs.wheelname }}
       settings: ${{ steps.settings.outputs.settings }}
-      cachehash: ${{ hashFiles('**/setup.cfg') }}
+      cachehash: ${{ steps.settings.outputs.cachehash }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -59,12 +59,11 @@ jobs:
           python -m pip install -U pip
           python -m pip install -U build
           python -m build  # Isolation seems redundant, but helps pull dependencies
-      - name: Output wheelname
-        id: wheelname
-        run: echo "::set-output name=wheelname::$(echo ./dist/*.whl)"
-      - name: Output settings
-        id: settings
-        run: echo "::set-output name=settings::$(base64 -w 0 pyproject.toml)"
+      - name: Set outputs
+        run: |
+          echo "::set-output name=wheelname::$( echo ./dist/*.whl )"
+          echo "::set-output name=settings::$( base64 -w 0 pyproject.toml )"
+          echo "::set-output name=cachehash::${{ hashFiles('**/setup.cfg') }}"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
