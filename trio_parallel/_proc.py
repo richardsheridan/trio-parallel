@@ -40,7 +40,8 @@ class WorkerProcBase(abc.ABC):
             name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
         )
-        self._started = trio.Event()
+        self._started = trio.Event()  # Allow waiting before startup
+        self._wait_lock = trio.Lock()  # Efficiently multiplex waits
         self._rehabilitate_pipes()
 
     @staticmethod
@@ -127,10 +128,18 @@ class WorkerProcBase(abc.ABC):
         except AttributeError:
             self._proc.terminate()
 
-    @abc.abstractmethod
     async def wait(self):
-        pass
+        await self._started.wait()
+        if self._proc.pid is None:
+            return None  # killed before started
+        async with self._wait_lock:
+            await self._wait()
+        # redundant wait, but also fix a macos race and do Process cleanup
+        self._proc.join()
+        # unfortunately join does not return exitcode
+        return self._proc.exitcode
 
+    # platform-specific behavior
     @abc.abstractmethod
     def _rehabilitate_pipes(self):
         pass
@@ -143,14 +152,14 @@ class WorkerProcBase(abc.ABC):
     async def _send(self, buf):
         pass
 
+    @abc.abstractmethod
+    async def _wait(self):
+        pass
+
 
 class WindowsWorkerProc(WorkerProcBase):
-    async def wait(self):
-        await self._started.wait()
-        if self._proc.pid is None:
-            return None  # killed before started
+    async def _wait(self):
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
-        return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context
@@ -185,26 +194,13 @@ class PosixWorkerProc(WorkerProcBase):
                 trio.lowlevel.spawn_system_task(self.wait)
         return result
 
-    async def wait(self):
-        await self._started.wait()
-        if self._proc.pid is None:
-            return None  # killed before started
-        async with self._wait_lock:
-            await trio.lowlevel.wait_readable(self._proc.sentinel)
-        e = self._proc.exitcode
-        if e is not None:
-            return e
-        else:  # pragma: no cover # to avoid flaky CI, but it happens regularly
-            # race on macOS, see comment in trio.Process._wait
-            self._proc.join()
-            # unfortunately join does not return exitcode
-            return self._proc.exitcode
+    async def _wait(self):
+        await trio.lowlevel.wait_readable(self._proc.sentinel)
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context
         self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
         self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
-        self._wait_lock = trio.Lock()
 
     async def _recv(self):
         buf = await self._recv_exactly(4)
