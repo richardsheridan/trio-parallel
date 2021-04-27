@@ -146,36 +146,3 @@ async def test_clean_exit_on_pipe_close(proc, capfd):
     out, err = capfd.readouterr()
     assert not out
     assert not err
-
-
-def host_subprocess():  # pragma: no cover
-    import trio_parallel
-    import trio
-
-    async def amain():
-        await trio_parallel.run_sync(int)
-        await trio.sleep_forever()
-
-    trio.run(amain)
-
-
-execute = """
-if __name__ == '__main__':
-    host_subprocess()
-"""
-
-
-def test_clean_exit_on_main_kill(capfd):
-    import subprocess, sys, inspect
-
-    source = inspect.getsource(host_subprocess) + execute
-
-    proc = subprocess.Popen([sys.executable, "-c", source])
-    with pytest.raises(subprocess.TimeoutExpired):
-        proc.wait(1)
-    proc.kill()
-    proc.wait(1)
-
-    out, err = capfd.readouterr()
-    assert not out
-    assert not err
