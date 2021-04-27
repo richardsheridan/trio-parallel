@@ -131,3 +131,18 @@ def _raise_ki():  # pragma: no cover
 
 async def test_ki_does_not_propagate(proc):
     await proc.run_sync(_raise_ki)
+
+
+async def test_clean_exit_on_pipe_close(proc, capfd):
+    # This could happen on weird __del__/weakref/atexit situations.
+    # It was not visible on normal, clean exits because multiprocessing
+    # would call terminate before pipes were GC'd.
+    x = await proc.run_sync(int)
+    x.unwrap()
+    proc._send_pipe.close()
+    proc._recv_pipe.close()
+    await proc.wait()
+
+    out, err = capfd.readouterr()
+    assert not out
+    assert not err

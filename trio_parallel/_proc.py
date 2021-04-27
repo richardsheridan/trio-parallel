@@ -7,7 +7,7 @@ from pickle import dumps, loads
 from typing import Optional
 
 import trio
-from outcome import Outcome
+from outcome import Outcome, capture
 
 
 class BrokenWorkerError(RuntimeError):
@@ -49,7 +49,6 @@ class WorkerProcBase(abc.ABC):
 
         import inspect
         import signal
-        import outcome
 
         def coroutine_checker(fn, args):
             ret = fn(*args)
@@ -67,16 +66,21 @@ class WorkerProcBase(abc.ABC):
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        while recv_pipe.poll(IDLE_TIMEOUT):
-            fn, args = loads(recv_pipe.recv_bytes())
-            # Do the CPU bound work
-            result = outcome.capture(coroutine_checker, fn, args)
-            # Send result and go back to idling
-            send_pipe.send_bytes(dumps(result, protocol=-1))
+        try:
+            while recv_pipe.poll(IDLE_TIMEOUT):
+                fn, args = loads(recv_pipe.recv_bytes())
+                # Do the CPU bound work
+                result = capture(coroutine_checker, fn, args)
+                # Send result and go back to idling
+                send_pipe.send_bytes(dumps(result, protocol=-1))
 
-            del fn
-            del args
-            del result
+                del fn
+                del args
+                del result
+        except (BrokenPipeError, EOFError):
+            # If the main process ends but this one is still alive, we will
+            # observe one of these exceptions and can simply exit quietly.
+            return
 
         # Clean idle shutdown: close recv_pipe first to minimize subsequent race.
         recv_pipe.close()
