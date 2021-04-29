@@ -95,10 +95,12 @@ class WorkerProcBase(abc.ABC):
         send_pipe.close()
 
     async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
+        result = None
         try:
+
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
-                # XXX: for nondeterministic GC (PyPy) we must explicitly close these
+                # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
                 self._started.set()
@@ -109,14 +111,20 @@ class WorkerProcBase(abc.ABC):
                 return None
 
             try:
-                return loads(await self._recv())
+                result = loads(await self._recv())
             except trio.EndOfChannel:
-                await self.wait()
-                raise BrokenWorkerError("Worker died unexpectedly:", self._proc)
+                result = await self.wait()  # skip kill/wait in finally block
+                raise BrokenWorkerError(
+                    "Worker died unexpectedly:", self._proc
+                ) from None
 
-        except BaseException:
-            self.kill()
-            raise
+            return result
+
+        finally:  # pragma: no cover convoluted branching, but the concept is simple
+            if result is None:  # that is, if anything interrupted a normal result
+                self.kill()  # maybe redundant
+                # do cleanup soon, but no need to block here
+                trio.lowlevel.spawn_system_task(self.wait)
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -189,15 +197,6 @@ class WindowsWorkerProc(WorkerProcBase):
 
 
 class PosixWorkerProc(WorkerProcBase):
-    async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
-        result = None
-        try:
-            result = await super().run_sync(sync_fn, *args)
-        finally:
-            if result is None:
-                trio.lowlevel.spawn_system_task(self.wait)
-        return result
-
     async def _wait(self):
         await trio.lowlevel.wait_readable(self._proc.sentinel)
 
