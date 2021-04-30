@@ -92,6 +92,9 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
         WORKER_CACHE.prune()
         result = None
         while result is None:
+            # Prevent uninterruptible loop when KI & cancellable=False
+            await trio.lowlevel.checkpoint_if_cancelled()
+
             try:
                 proc = WORKER_CACHE.pop()
             except IndexError:
