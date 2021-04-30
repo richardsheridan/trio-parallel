@@ -134,20 +134,12 @@ async def test_prune_cache():
     proc.kill()
     with trio.fail_after(1):
         await proc.wait()
+    pid2 = await to_process_run_sync(os.getpid)
     # put dead proc into the cache (normal code never does this)
-    WORKER_CACHE.push(proc)
-    # dead procs shouldn't pop out
-    with pytest.raises(IndexError):
-        WORKER_CACHE.pop()
-    WORKER_CACHE.push(proc)
-    # should spawn a new worker and remove the dead one
+    WORKER_CACHE.appendleft(proc)
     pid2 = await to_process_run_sync(os.getpid)
     assert len(WORKER_CACHE) == 1
     assert pid1 != pid2
-    # pruning should also work if it's on the left side of the cache
-    WORKER_CACHE._cache.appendleft(proc)
-    pid2 = await to_process_run_sync(os.getpid)
-    assert len(WORKER_CACHE) == 1
 
 
 async def test_large_job():
