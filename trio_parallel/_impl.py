@@ -5,7 +5,7 @@ from multiprocessing import get_context
 from multiprocessing.context import BaseContext
 
 import trio
-from async_generator import asynccontextmanager
+from contextlib import contextmanager
 
 from ._proc import WorkerProc
 
@@ -32,50 +32,26 @@ def current_default_worker_limiter():
         return limiter
 
 
-class WorkerCache:
-    def __init__(self):
-        # The cache is a deque rather than dict here since processes can't remove
-        # themselves anyways, so we don't need O(1) lookups
-        self._cache = deque()
-        # NOTE: avoid thread races between Trio runs by only interacting with
-        # self._cache via thread-atomic actions like append, pop, del
-
+class WorkerCache(deque):
     def prune(self):
-        # take advantage of the oldest proc being on the left to
-        # keep iteration O(dead workers)
+        # remove procs that have died from the idle timeout
+        while True:
+            try:
+                proc = self.popleft()
+            except IndexError:
+                return
+            if proc.is_alive():
+                self.appendleft(proc)
+                return
+
+    def clear(self):
         try:
             while True:
-                proc = self._cache.popleft()
-                if proc.is_alive():
-                    self._cache.appendleft(proc)
-                    return
+                proc = self.pop()
+                proc.kill()
+                trio.lowlevel.spawn_system_task(proc.wait)
         except IndexError:
-            # Thread safety: it's necessary to end the iteration using this error
-            # when the cache is empty, as opposed to `while self._cache`.
             pass
-
-    def push(self, proc):
-        self._cache.append(proc)
-
-    def pop(self):
-        # Get live worker process or raise IndexError
-        while True:
-            proc = self._cache.pop()
-            if proc.is_alive():
-                return proc
-
-    async def clear(self):
-        async with trio.open_nursery() as nursery:
-            try:
-                while True:
-                    proc = self._cache.pop()
-                    proc.kill()
-                    nursery.start_soon(proc.wait)
-            except IndexError:
-                pass
-
-    def __len__(self):
-        return len(self._cache)
 
 
 DEFAULT_CACHE = WorkerCache()
@@ -88,8 +64,8 @@ _worker_context = contextvars.ContextVar(
 )
 
 
-@asynccontextmanager
-async def cache_scope(
+@contextmanager
+def cache_scope(
     mp_context=DEFAULT_MP_CONTEXT,
     idle_timeout=DEFAULT_IDLE_TIMEOUT,
     max_jobs=DEFAULT_MAX_JOBS,
@@ -103,8 +79,7 @@ async def cache_scope(
         yield
     finally:
         _worker_context.reset(token)
-        with trio.CancelScope(shield=True):
-            await worker_cache.clear()
+        worker_cache.clear()
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
@@ -154,9 +129,11 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
 
     async with limiter:
         worker_cache.prune()
-
         result = None
         while result is None:
+            # Prevent uninterruptible loop when KI & cancellable=False
+            await trio.lowlevel.checkpoint_if_cancelled()
+
             try:
                 proc = worker_cache.pop()
             except IndexError:
@@ -165,5 +142,5 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)
 
-    worker_cache.push(proc)
+    worker_cache.append(proc)
     return result.unwrap()

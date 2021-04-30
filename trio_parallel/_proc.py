@@ -14,6 +14,9 @@ class BrokenWorkerError(RuntimeError):
 
     This error is not typically encountered in normal use, and indicates a severe
     failure of either trio-parallel or the code that was executing in the worker.
+
+    The last argument of the exception is the underlying
+    :class:`multiprocessing.Process` which may be inspected for e.g. exit codes.
     """
 
     pass
@@ -31,7 +34,8 @@ class WorkerProcBase(abc.ABC):
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
-        self._started = trio.Event()
+        self._started = trio.Event()  # Allow waiting before startup
+        self._wait_lock = trio.Lock()  # Efficiently multiplex waits
         self._rehabilitate_pipes()
 
     @staticmethod
@@ -57,16 +61,22 @@ class WorkerProcBase(abc.ABC):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         num_jobs = 0
 
-        while (num_jobs < max_jobs) and recv_pipe.poll(idle_timeout):
-            fn, args = loads(recv_pipe.recv_bytes())
-            # Do the CPU bound work
-            result = capture(coroutine_checker, fn, args)
-            send_pipe.send_bytes(dumps(result, protocol=-1))
-            num_jobs += 1
+        try:
+            while (num_jobs < max_jobs) and recv_pipe.poll(idle_timeout):
+                fn, args = loads(recv_pipe.recv_bytes())
+                # Do the CPU bound work
+                result = capture(coroutine_checker, fn, args)
+                # Send result and go back to idling
+                send_pipe.send_bytes(dumps(result, protocol=-1))
+                num_jobs += 1
 
-            del fn
-            del args
-            del result
+                del fn
+                del args
+                del result
+        except (BrokenPipeError, EOFError):
+            # If the main process ends but this one is still alive, we will
+            # observe one of these exceptions and can simply exit quietly.
+            return
 
         # Clean idle shutdown: close recv_pipe first to minimize subsequent race.
         recv_pipe.close()
@@ -83,27 +93,34 @@ class WorkerProcBase(abc.ABC):
     async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
         result = None
         try:
+
             if not self._started.is_set():
                 await trio.to_thread.run_sync(self._proc.start)
-                # XXX: for nondeterministic GC (PyPy) we must explicitly close these
+                # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
                 self._started.set()
-            await self._send(dumps((sync_fn, args), protocol=-1))
-            result = loads(await self._recv())
-        except trio.EndOfChannel:
-            # Likely the worker died while we were waiting on _recv
-            raise BrokenWorkerError(f"{self._proc} died unexpectedly")
-        except trio.BrokenResourceError:
-            # Likely the worker died while we were waiting on _send
-            return None
-        else:
+
+            try:
+                await self._send(dumps((sync_fn, args), protocol=-1))
+            except trio.BrokenResourceError:
+                return None
+
+            try:
+                result = loads(await self._recv())
+            except trio.EndOfChannel:
+                result = await self.wait()  # skip kill/wait in finally block
+                raise BrokenWorkerError(
+                    "Worker died unexpectedly:", self._proc
+                ) from None
+
             return result
-        finally:
-            if result is None:
-                self.kill()
-                with trio.CancelScope(shield=True):
-                    await self.wait()
+
+        finally:  # pragma: no cover convoluted branching, but the concept is simple
+            if result is None:  # that is, if anything interrupted a normal result
+                self.kill()  # maybe redundant
+                # do cleanup soon, but no need to block here
+                trio.lowlevel.spawn_system_task(self.wait)
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -119,10 +136,18 @@ class WorkerProcBase(abc.ABC):
         except AttributeError:
             self._proc.terminate()
 
-    @abc.abstractmethod
     async def wait(self):
-        pass
+        await self._started.wait()
+        if self._proc.pid is None:
+            return None  # killed before started
+        async with self._wait_lock:
+            await self._wait()
+        # redundant wait, but also fix a macos race and do Process cleanup
+        self._proc.join()
+        # unfortunately join does not return exitcode
+        return self._proc.exitcode
 
+    # platform-specific behavior
     @abc.abstractmethod
     def _rehabilitate_pipes(self):
         pass
@@ -135,14 +160,14 @@ class WorkerProcBase(abc.ABC):
     async def _send(self, buf):
         pass
 
+    @abc.abstractmethod
+    async def _wait(self):
+        pass
+
 
 class WindowsWorkerProc(WorkerProcBase):
-    async def wait(self):
-        await self._started.wait()
-        if self._proc.pid is None:
-            return None  # killed before started
+    async def _wait(self):
         await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
-        return self._proc.exitcode
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context
@@ -168,26 +193,13 @@ class WindowsWorkerProc(WorkerProcBase):
 
 
 class PosixWorkerProc(WorkerProcBase):
-    async def wait(self):
-        await self._started.wait()
-        if self._proc.pid is None:
-            return None  # killed before started
-        async with self._wait_lock:
-            await trio.lowlevel.wait_readable(self._proc.sentinel)
-        e = self._proc.exitcode
-        if e is not None:
-            return e
-        else:  # pragma: no cover # to avoid flaky CI, but it happens regularly
-            # race on macOS, see comment in trio.Process._wait
-            self._proc.join()
-            # unfortunately join does not return exitcode
-            return self._proc.exitcode
+    async def _wait(self):
+        await trio.lowlevel.wait_readable(self._proc.sentinel)
 
     def _rehabilitate_pipes(self):
         # These must be created in an async context
         self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
         self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
-        self._wait_lock = trio.Lock()
 
     async def _recv(self):
         buf = await self._recv_exactly(4)

@@ -9,7 +9,13 @@ from .._impl import DEFAULT_CACHE, run_sync, cache_scope
 
 @pytest.fixture(autouse=True)
 def empty_proc_cache():
-    trio.run(DEFAULT_CACHE.clear)
+    while True:
+        try:
+            proc = DEFAULT_CACHE.pop()
+            proc.kill()
+            proc._proc.join()
+        except IndexError:
+            return
 
 
 @pytest.fixture(scope="module")
@@ -128,13 +134,9 @@ async def test_prune_cache():
     proc.kill()
     with trio.fail_after(1):
         await proc.wait()
+    pid2 = await run_sync(os.getpid)
     # put dead proc into the cache (normal code never does this)
-    DEFAULT_CACHE.push(proc)
-    # dead procs shouldn't pop out
-    with pytest.raises(IndexError):
-        DEFAULT_CACHE.pop()
-    DEFAULT_CACHE.push(proc)
-    # should spawn a new worker and remove the dead one
+    DEFAULT_CACHE.appendleft(proc)
     pid2 = await run_sync(os.getpid)
     assert len(DEFAULT_CACHE) == 1
     assert pid1 != pid2
@@ -148,7 +150,7 @@ async def test_run_sync_large_job():
 
 async def test_cache_scope():
     pid1 = await run_sync(os.getpid)
-    async with cache_scope():
+    with cache_scope():
         pid2 = await run_sync(os.getpid)
         assert pid1 != pid2
     pid5 = await run_sync(os.getpid)
@@ -156,7 +158,7 @@ async def test_cache_scope():
 
 
 async def test_cache_max_jobs():
-    async with cache_scope(max_jobs=2):
+    with cache_scope(max_jobs=2):
         pid2 = await run_sync(os.getpid)
         pid3 = await run_sync(os.getpid)
         assert pid3 == pid2
@@ -166,7 +168,7 @@ async def test_cache_max_jobs():
 
 async def test_cache_timeout():
     with trio.fail_after(20):
-        async with cache_scope(idle_timeout=0):
+        with cache_scope(idle_timeout=0):
             pid0 = await run_sync(os.getpid)
             while pid0 == await run_sync(os.getpid):
                 pass  # pragma: no cover, rare race will reuse proc once or twice
@@ -177,5 +179,5 @@ async def test_cache_timeout():
     multiprocessing.get_all_start_methods(),
 )
 async def test_cache_type(method):
-    async with cache_scope(mp_context=method):
+    with cache_scope(mp_context=method):
         assert 0 == await run_sync(int)

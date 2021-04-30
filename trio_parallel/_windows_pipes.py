@@ -55,7 +55,7 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
                 del buffer[received:]
                 return buffer
 
-    async def _receive_some_into(self, buffer) -> bytes:
+    async def _receive_some_into(self, buffer):
         if self._handle_holder.closed:  # pragma: no cover
             raise trio.ClosedResourceError("this pipe is already closed")
         try:
@@ -72,8 +72,8 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
             # whenever the other end closes, regardless of direction.
             # Convert this to EndOfChannel.
             #
-            # Do we have to checkpoint manually? Copied from PipeReceiveStream
-            await trio.lowlevel.checkpoint()
+            # We are raising an exception so we don't need to checkpoint,
+            # in contrast to PipeReceiveStream.
             raise trio.EndOfChannel
 
     async def aclose(self):  # pragma: no cover
