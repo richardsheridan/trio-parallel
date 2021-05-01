@@ -35,19 +35,10 @@ def current_default_worker_limiter():
 
 @attr.s(auto_attribs=True, slots=True)
 class WorkerContext:
-    mp_context: str = "spawn"
+    mp_context: BaseContext = get_context("spawn")
     idle_timeout: float = 600.0
     max_jobs: float = float("inf")
     worker_cache: WorkerCache = attr.ib(factory=WorkerProcCache)
-
-    def __attrs_post_init__(self):
-        if not isinstance(self.mp_context, BaseContext):
-            # noinspection PyTypeChecker
-            self.mp_context = get_context(self.mp_context)
-        if self.idle_timeout < 0:
-            raise ValueError("idle_timeout must be non-negative")
-        if self.max_jobs <= 0:
-            raise ValueError("max_jobs must be positive")
 
     def new_worker(self):
         return WorkerProc(self.mp_context, self.idle_timeout, self.max_jobs)
@@ -81,6 +72,13 @@ def cache_scope(
 
     """
     trio.lowlevel.current_task()  # assert early we are in an async context
+    if not isinstance(mp_context, BaseContext):
+        # noinspection PyTypeChecker
+        mp_context = get_context(mp_context)
+    if idle_timeout < 0:
+        raise ValueError("idle_timeout must be non-negative")
+    if max_jobs <= 0:
+        raise ValueError("max_jobs must be positive")
     worker_context = WorkerContext(mp_context, idle_timeout, max_jobs)
     token = _worker_context_var.set(worker_context)
     try:
