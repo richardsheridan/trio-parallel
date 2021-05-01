@@ -4,7 +4,6 @@ from collections import deque
 from functools import wraps
 from multiprocessing import get_context
 from multiprocessing.context import BaseContext
-from numbers import Number
 
 import attr
 import trio
@@ -68,6 +67,10 @@ class WorkerContext:
         if not isinstance(self.mp_context, BaseContext):
             # noinspection PyTypeChecker
             self.mp_context = get_context(self.mp_context)
+        if self.idle_timeout < 0:
+            raise ValueError("idle_timeout must be non-negative")
+        if self.max_jobs <= 0:
+            raise ValueError("max_jobs must be positive")
 
     def new_worker(self):
         return WorkerProc(self.mp_context, self.idle_timeout, self.max_jobs)
