@@ -7,6 +7,7 @@ del version
 
 from ._impl import (
     run_sync,
+    cache_scope,
     current_default_worker_limiter,
 )
 from ._proc import BrokenWorkerError

@@ -58,10 +58,10 @@ class WorkerCache(deque):
 
 @attr.s(auto_attribs=True, slots=True)
 class WorkerContext:
-    worker_cache: WorkerCache = attr.ib(factory=WorkerCache)
-    mp_context: BaseContext = get_context("spawn")
+    mp_context: str = "spawn"
     idle_timeout: float = 600.0
     max_jobs: float = float("inf")
+    worker_cache: WorkerCache = attr.ib(factory=WorkerCache)
 
     def __attrs_post_init__(self):
         if not isinstance(self.mp_context, BaseContext):
@@ -81,10 +81,30 @@ _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_C
 
 
 @contextmanager
-@wraps(WorkerContext)
-def cache_scope(*args, **kwargs):
+def cache_scope(
+    mp_context=DEFAULT_CONTEXT.mp_context,
+    idle_timeout=DEFAULT_CONTEXT.idle_timeout,
+    max_jobs=DEFAULT_CONTEXT.max_jobs,
+):
+    """Create a new, customized worker cache with a scoped lifetime.
+
+    Args:
+      mp_context (str): The :mod:`multiprocessing` context to create workers with.
+      idle_timeout (float): The time in seconds an idle worker will wait before
+          shutting down and releasing its own resources. Must be non-negative.
+      max_jobs (float):
+          The maximum number of jobs a worker will accept before shutting down
+          and releasing its own resources. Must be positive.
+
+    Raises:
+      RuntimeError: if you attempt to open a scope outside an async context,
+          that is, outside of a :func:`trio.run`.
+      ValueError: if an invalid value is passed for an argument, such as a negative
+          timeout or a job limit less than one.
+
+    """
     trio.lowlevel.current_task()  # assert early we are in an async context
-    worker_context = WorkerContext(*args, **kwargs)
+    worker_context = WorkerContext(mp_context, idle_timeout, max_jobs)
     token = _worker_context_var.set(worker_context)
     try:
         yield
@@ -96,17 +116,20 @@ def cache_scope(*args, **kwargs):
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     """Run sync_fn in a separate process
 
-    This is a wrapping of :class:`multiprocessing.Process` that follows the API of
-    :func:`trio.to_thread.run_sync`. The intended use of this function is limited:
+    The intended use of this function is limited:
 
     - Circumvent the GIL to run CPU-bound functions in parallel
     - Make blocking APIs or infinite loops truly cancellable through
       SIGKILL/TerminateProcess without leaking resources
     - Protect the main process from untrusted/unstable code without leaks
 
+    By default, this is a wrapping of :class:`multiprocessing.Process` that
+    follows the API of :func:`trio.to_thread.run_sync`.
     Other :mod:`multiprocessing` features may work but are not officially
-    supported, and all the normal :mod:`multiprocessing` caveats apply. The
-    underlying worker processes are cached LIFO and reused to minimize latency.
+    supported, and all the normal :mod:`multiprocessing` caveats apply.
+    To customize this, use the :func:`cache_scope` context manager.
+
+    The underlying workers are cached LIFO and reused to minimize latency.
     Global state cannot be considered stable between and across calls.
 
     Args:
