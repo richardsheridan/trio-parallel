@@ -5,9 +5,10 @@ from importlib_metadata import version
 __version__ = version("trio-parallel")
 del version
 
+from . import abc
 from ._impl import (
     run_sync,
     cache_scope,
     current_default_worker_limiter,
 )
-from ._proc import BrokenWorkerError
+from ._abc import BrokenWorkerError

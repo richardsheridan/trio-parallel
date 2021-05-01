@@ -1,15 +1,19 @@
 import os
 import struct
-import abc
+
+# noinspection PyUnresolvedReferences
+from abc import abstractmethod
 from itertools import count
 from pickle import dumps, loads
-from typing import Optional
+from typing import Optional, Callable
 
 import trio
 from outcome import Outcome, capture
 
+from ._abc import WorkerCache, AbstractWorker, BrokenWorkerError
 
-class BrokenWorkerError(RuntimeError):
+
+class BrokenWorkerProcessError(BrokenWorkerError):
     """Raised when a worker process fails or dies unexpectedly.
 
     This error is not typically encountered in normal use, and indicates a severe
@@ -22,7 +26,29 @@ class BrokenWorkerError(RuntimeError):
     pass
 
 
-class WorkerProcBase(abc.ABC):
+class WorkerProcCache(WorkerCache):
+    def prune(self):
+        # remove procs that have died from the idle timeout
+        while True:
+            try:
+                proc = self.popleft()
+            except IndexError:
+                return
+            if proc.is_alive():
+                self.appendleft(proc)
+                return
+
+    def clear(self):
+        try:
+            while True:
+                proc = self.pop()
+                proc.kill()
+                trio.lowlevel.spawn_system_task(proc.wait)
+        except IndexError:
+            pass
+
+
+class WorkerProcBase(AbstractWorker):
     _proc_counter = count()
 
     def __init__(self, mp_context, idle_timeout, max_jobs):
@@ -90,7 +116,7 @@ class WorkerProcBase(abc.ABC):
         send_pipe.send_bytes(dumps(None, protocol=-1))
         send_pipe.close()
 
-    async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
+    async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         result = None
         try:
 
@@ -148,19 +174,19 @@ class WorkerProcBase(abc.ABC):
         return self._proc.exitcode
 
     # platform-specific behavior
-    @abc.abstractmethod
+    @abstractmethod
     def _rehabilitate_pipes(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _recv(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _send(self, buf):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _wait(self):
         pass
 

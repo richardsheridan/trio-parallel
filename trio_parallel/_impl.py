@@ -1,7 +1,5 @@
 import os
 import contextvars
-from collections import deque
-from functools import wraps
 from multiprocessing import get_context
 from multiprocessing.context import BaseContext
 
@@ -9,7 +7,8 @@ import attr
 import trio
 from contextlib import contextmanager
 
-from ._proc import WorkerProc
+from ._proc import WorkerProc, WorkerProcCache
+from ._abc import WorkerCache
 
 
 # Sane default might be to expect cpu-bound work
@@ -34,34 +33,12 @@ def current_default_worker_limiter():
         return limiter
 
 
-class WorkerCache(deque):
-    def prune(self):
-        # remove procs that have died from the idle timeout
-        while True:
-            try:
-                proc = self.popleft()
-            except IndexError:
-                return
-            if proc.is_alive():
-                self.appendleft(proc)
-                return
-
-    def clear(self):
-        try:
-            while True:
-                proc = self.pop()
-                proc.kill()
-                trio.lowlevel.spawn_system_task(proc.wait)
-        except IndexError:
-            pass
-
-
 @attr.s(auto_attribs=True, slots=True)
 class WorkerContext:
     mp_context: str = "spawn"
     idle_timeout: float = 600.0
     max_jobs: float = float("inf")
-    worker_cache: WorkerCache = attr.ib(factory=WorkerCache)
+    worker_cache: WorkerCache = attr.ib(factory=WorkerProcCache)
 
     def __attrs_post_init__(self):
         if not isinstance(self.mp_context, BaseContext):
