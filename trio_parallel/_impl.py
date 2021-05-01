@@ -1,9 +1,12 @@
 import os
 import contextvars
 from collections import deque
+from functools import wraps
 from multiprocessing import get_context
 from multiprocessing.context import BaseContext
+from numbers import Number
 
+import attr
 import trio
 from contextlib import contextmanager
 
@@ -54,32 +57,36 @@ class WorkerCache(deque):
             pass
 
 
-DEFAULT_CACHE = WorkerCache()
-DEFAULT_MP_CONTEXT = get_context("spawn")
-DEFAULT_IDLE_TIMEOUT = 600
-DEFAULT_MAX_JOBS = float("inf")
-_worker_context = contextvars.ContextVar(
-    "worker_context",
-    default=(DEFAULT_CACHE, DEFAULT_MP_CONTEXT, DEFAULT_IDLE_TIMEOUT, DEFAULT_MAX_JOBS),
-)
+@attr.s(auto_attribs=True, slots=True)
+class WorkerContext:
+    worker_cache: WorkerCache = attr.ib(factory=WorkerCache)
+    mp_context: BaseContext = get_context("spawn")
+    idle_timeout: float = 600.0
+    max_jobs: float = float("inf")
+
+    def __attrs_post_init__(self):
+        if not isinstance(self.mp_context, BaseContext):
+            # noinspection PyTypeChecker
+            self.mp_context = get_context(self.mp_context)
+
+    def new_worker(self):
+        return WorkerProc(self.mp_context, self.idle_timeout, self.max_jobs)
+
+
+DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
+_worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
 
 
 @contextmanager
-def cache_scope(
-    mp_context=DEFAULT_MP_CONTEXT,
-    idle_timeout=DEFAULT_IDLE_TIMEOUT,
-    max_jobs=DEFAULT_MAX_JOBS,
-):
-    if not isinstance(mp_context, BaseContext):
-        # noinspection PyTypeChecker
-        mp_context = get_context(mp_context)
-    worker_cache = WorkerCache()
-    token = _worker_context.set((worker_cache, mp_context, idle_timeout, max_jobs))
+@wraps(WorkerContext)
+def cache_scope(*args, **kwargs):
+    worker_context = WorkerContext(*args, **kwargs)
+    token = _worker_context_var.set(worker_context)
     try:
         yield
     finally:
-        _worker_context.reset(token)
-        worker_cache.clear()
+        _worker_context_var.reset(token)
+        worker_context.worker_cache.clear()
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
@@ -125,22 +132,22 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     if limiter is None:
         limiter = current_default_worker_limiter()
 
-    worker_cache, mp_context, idle_timeout, max_jobs = _worker_context.get()
+    worker_context = _worker_context_var.get()
 
     async with limiter:
-        worker_cache.prune()
+        worker_context.worker_cache.prune()
         result = None
         while result is None:
             # Prevent uninterruptible loop when KI & cancellable=False
             await trio.lowlevel.checkpoint_if_cancelled()
 
             try:
-                proc = worker_cache.pop()
+                proc = worker_context.worker_cache.pop()
             except IndexError:
-                proc = WorkerProc(mp_context, idle_timeout, max_jobs)
+                proc = worker_context.new_worker()
 
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)
 
-    worker_cache.append(proc)
+    worker_context.worker_cache.append(proc)
     return result.unwrap()

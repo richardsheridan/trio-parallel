@@ -4,14 +4,14 @@ import os
 import pytest
 import trio
 
-from .._impl import DEFAULT_CACHE, run_sync, cache_scope
+from .._impl import DEFAULT_CONTEXT, run_sync, cache_scope
 
 
 @pytest.fixture(autouse=True)
 def empty_proc_cache():
     while True:
         try:
-            proc = DEFAULT_CACHE.pop()
+            proc = DEFAULT_CONTEXT.worker_cache.pop()
             proc.kill()
             proc._proc.join()
         except IndexError:
@@ -130,15 +130,15 @@ async def test_run_sync_coroutine_error():
 async def test_prune_cache():
     # take proc's number and kill it for the next test
     pid1 = await run_sync(os.getpid)
-    proc = DEFAULT_CACHE.pop()
+    proc = DEFAULT_CONTEXT.worker_cache.pop()
     proc.kill()
     with trio.fail_after(1):
         await proc.wait()
     pid2 = await run_sync(os.getpid)
     # put dead proc into the cache (normal code never does this)
-    DEFAULT_CACHE.appendleft(proc)
+    DEFAULT_CONTEXT.worker_cache.appendleft(proc)
     pid2 = await run_sync(os.getpid)
-    assert len(DEFAULT_CACHE) == 1
+    assert len(DEFAULT_CONTEXT.worker_cache) == 1
     assert pid1 != pid2
 
 
