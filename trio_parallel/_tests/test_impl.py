@@ -183,7 +183,7 @@ async def test_cache_type(method):
         assert 0 == await run_sync(int)
 
 
-async def test_erronius_scope_inputs():
+async def test_erroneous_scope_inputs():
     with pytest.raises(ValueError):
         with cache_scope(idle_timeout=-1):
             pass
