@@ -83,6 +83,7 @@ _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_C
 @contextmanager
 @wraps(WorkerContext)
 def cache_scope(*args, **kwargs):
+    trio.lowlevel.current_task()  # assert early we are in an async context
     worker_context = WorkerContext(*args, **kwargs)
     token = _worker_context_var.set(worker_context)
     try:
