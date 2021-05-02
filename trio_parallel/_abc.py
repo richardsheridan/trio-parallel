@@ -38,4 +38,9 @@ class AbstractWorker(ABC):
         Returns:
           Optional[Outcome]: The outcome of the CPU bound job performed in the
               worker, or ``None``, indicating the work should be submitted again.
+
+        Raises:
+          BrokenWorkerError: Indicates the worker died unexpectedly. Not encountered
+              in normal use.
+
         """
