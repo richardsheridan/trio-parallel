@@ -172,7 +172,7 @@ jobs:
 
   Publish:
     name: Publish
-    if: ${{ github.event_name }} == "released"
+    if: github.event_name == 'release'
     needs: [ Blacken, Build, Test, Codecov ]
     runs-on: ubuntu-latest
     steps:
