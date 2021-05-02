@@ -1,1 +1,0 @@
-:exc:`trio_parallel.BrokenWorkerError` now contains a reference to the underlying worker process which can be inspected e.g. to handle specific exit codes.

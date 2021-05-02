@@ -5,6 +5,29 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 0.5.0 (2021-05-02)
+---------------------------------------------------------
+
+Features
+~~~~~~~~
+
+- :exc:`trio_parallel.BrokenWorkerError` now contains a reference to the underlying worker process which can be inspected e.g. to handle specific exit codes. (`#48 <https://github.com/richardsheridan/trio-parallel/issues/48>`__)
+
+
+Bugfixes
+~~~~~~~~
+
+- Workers are now fully synchronized with only pipe/channel-like objects, making it impossible to leak semaphores. (`#33 <https://github.com/richardsheridan/trio-parallel/issues/33>`__)
+- Fix a regression of a rare race condition where idle workers shut down cleanly but appear broken. (`#43 <https://github.com/richardsheridan/trio-parallel/issues/43>`__)
+- Ensure a clean worker shutdown if IPC pipes are closed (`#51 <https://github.com/richardsheridan/trio-parallel/issues/51>`__)
+
+
+Misc
+~~~~
+
+- `#40 <https://github.com/richardsheridan/trio-parallel/issues/40>`__, `#42 <https://github.com/richardsheridan/trio-parallel/issues/42>`__, `#44 <https://github.com/richardsheridan/trio-parallel/issues/44>`__
+
+
 trio-parallel 0.4.0 (2021-03-25)
 --------------------------------
 

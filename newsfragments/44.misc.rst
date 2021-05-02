@@ -1,1 +1,0 @@
-Revised run_sync error semantics, leading potentially to a clean AbstractWorker interface, but exposing weird interactions with forked subprocesses and synchronization on pipes.
