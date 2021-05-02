@@ -5,6 +5,8 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  release:
+    types: [ published ]
 
 jobs:
   Blacken:
@@ -149,6 +151,7 @@ jobs:
           # Codecov-bash-uploader's match is '*coverage*.*'
           path: coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
           if-no-files-found: error
+
   Codecov: # Codecov is naughty and will be forever isolated
     name: Codecov
     if: always()
@@ -166,3 +169,20 @@ jobs:
         with:
           fail_ci_if_error: true
           files: "\"coverage-*.xml\""
+
+  Publish:
+    name: Publish
+    if: github.event_name == 'release'
+    needs: [ Blacken, Build, Test, Codecov ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: Build
+          path: dist
+      - name: Publish to Pypi
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
