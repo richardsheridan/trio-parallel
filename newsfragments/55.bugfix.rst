@@ -1,1 +1,0 @@
-Remove __version__ attribute to avoid crash on import when metadata is not available

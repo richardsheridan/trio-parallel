@@ -5,6 +5,15 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 0.5.1 (2021-05-05)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Remove ``__version__`` attribute to avoid crash on import when metadata is not available (`#55 <https://github.com/richardsheridan/trio-parallel/issues/55>`__)
+
+
 trio-parallel 0.5.0 (2021-05-02)
 ---------------------------------------------------------
 
