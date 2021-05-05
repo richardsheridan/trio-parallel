@@ -103,8 +103,8 @@ author = 'Richard J. Sheridan'
 # built documents.
 #
 # The short X.Y version.
-import trio_parallel
-version = trio_parallel.__version__
+from importlib.metadata import version
+version = version('trio-parallel')
 # The full version, including alpha/beta/rc tags.
 release = version
 
