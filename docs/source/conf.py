@@ -104,7 +104,7 @@ if "READTHEDOCS" in os.environ:
         print("-- Found newsfragments; running towncrier --", flush=True)
         import subprocess
         subprocess.run(
-            ["towncrier", "build", "--yes", f"--version={version}"],
+            ["towncrier", "build", "--yes", "--version", version],
             cwd="../..",
             check=True,
         )
