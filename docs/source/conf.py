@@ -22,17 +22,6 @@ import sys
 # So autodoc can import our package
 sys.path.insert(0, os.path.abspath('../..'))
 
-# https://docs.readthedocs.io/en/stable/builds.html#build-environment
-if "READTHEDOCS" in os.environ:
-    import glob
-    if glob.glob("../../newsfragments/*.*.rst"):
-        print("-- Found newsfragments; running towncrier --", flush=True)
-        import subprocess
-        subprocess.run(
-            ["towncrier", "--yes", "--date", "not released yet"],
-            cwd="../..",
-            check=True,
-        )
 
 # Warn about all references to unknown targets
 nitpicky = True
@@ -107,6 +96,18 @@ from importlib.metadata import version
 version = version('trio-parallel')
 # The full version, including alpha/beta/rc tags.
 release = version
+
+# https://docs.readthedocs.io/en/stable/builds.html#build-environment
+if "READTHEDOCS" in os.environ:
+    import glob
+    if glob.glob("../../newsfragments/*.*.rst"):
+        print("-- Found newsfragments; running towncrier --", flush=True)
+        import subprocess
+        subprocess.run(
+            ["towncrier", "build", "--yes", f"--version={version}"],
+            cwd="../..",
+            check=True,
+        )
 
 # html_favicon = "_static/favicon-32.png"
 # html_logo = "../../logo/wordmark-transparent.svg"
