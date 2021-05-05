@@ -37,9 +37,9 @@ To run black
 To make a release
 -----------------
 
-* Run ``towncrier`` to collect your release notes.
+* Run ``towncrier build --version {version}`` to collect your release notes.
 
-* Review your release notes and MANUALLY update version in the new history header.
+* Review your release notes.
 
 * Double-check it all works, docs build, etc.
 
@@ -47,7 +47,7 @@ To make a release
 
 * Make a release PR on GitHub. Checks must pass.
 
-* Use GitHub release mechanism to tag the release commit:
+* Use GitHub release mechanism to tag the release PR merge commit:
   ``hub release create {version}``
 
   * This triggers an action to release on Pypi as well.
