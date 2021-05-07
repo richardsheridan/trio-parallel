@@ -37,9 +37,9 @@ To run black
 To make a release
 -----------------
 
-* Run ``towncrier`` to collect your release notes.
+* Run ``towncrier build --version {version}`` to collect your release notes.
 
-* Review your release notes and update version in the new history header.
+* Review your release notes.
 
 * Double-check it all works, docs build, etc.
 
@@ -47,12 +47,12 @@ To make a release
 
 * Make a release PR on GitHub. Checks must pass.
 
-* Use GitHub release mechanism to tag the release commit: ``hub release create {version}``
+* Use GitHub release mechanism to tag the release PR merge commit:
+  ``hub release create {version}``
 
-* Build your sdist and wheel: ``python -m build``
+  * This triggers an action to release on Pypi as well.
 
-* Check wheel and sdist, especially version in filenames.
+* Download the canonical wheel from Pypi:
+  ``pip download --no-deps -d dist trio-parallel=={version}``
 
-* Upload to PyPI: ``twine upload dist/*``
-
-* Upload to GitHub: ``hub release edit -a dist/*.whl``
+* Upload to GitHub: ``hub release edit -a dist/*.whl {version}``

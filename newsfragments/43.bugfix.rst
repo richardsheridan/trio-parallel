@@ -1,1 +1,0 @@
-Fix a regression of a rare race condition where idle workers shut down cleanly but appear broken.

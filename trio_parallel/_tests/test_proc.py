@@ -138,7 +138,7 @@ async def test_clean_exit_on_pipe_close(proc, capfd):
     proc._send_pipe.close()
     proc._recv_pipe.close()
     with trio.fail_after(1):
-        await proc.wait()
+        assert 0 == await proc.wait()
 
     out, err = capfd.readouterr()
     assert not out
