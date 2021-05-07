@@ -1,16 +1,18 @@
 import os
 import struct
-import abc
+
+from abc import abstractmethod
 from itertools import count
-from multiprocessing import get_context
 from pickle import dumps, loads
-from typing import Optional
+from typing import Optional, Callable
 
 import trio
 from outcome import Outcome, capture
 
+from ._abc import WorkerCache, AbstractWorker, BrokenWorkerError
 
-class BrokenWorkerError(RuntimeError):
+
+class BrokenWorkerProcessError(BrokenWorkerError):
     """Raised when a worker process fails or dies unexpectedly.
 
     This error is not typically encountered in normal use, and indicates a severe
@@ -23,21 +25,38 @@ class BrokenWorkerError(RuntimeError):
     pass
 
 
-# How long a process will idle waiting for new work before gives up and exits.
-# This should be longer than a thread timeout proportionately to startup time.
-IDLE_TIMEOUT = 60 * 10
+class WorkerProcCache(WorkerCache):
+    def prune(self):
+        # remove procs that have died from the idle timeout
+        while True:
+            try:
+                proc = self.popleft()
+            except IndexError:
+                return
+            if proc.is_alive():
+                self.appendleft(proc)
+                return
 
-_proc_counter = count()
+    def clear(self):
+        try:
+            while True:
+                proc = self.pop()
+                proc.kill()
+                trio.lowlevel.spawn_system_task(proc.wait)
+        except IndexError:
+            pass
 
 
-class WorkerProcBase(abc.ABC):
-    def __init__(self, mp_context=get_context("spawn")):
+class WorkerProcBase(AbstractWorker):
+    _proc_counter = count()
+
+    def __init__(self, mp_context, idle_timeout, max_jobs):
         self._child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = mp_context.Pipe(duplex=False)
         self._proc = mp_context.Process(
             target=self._work,
-            args=(self._child_recv_pipe, self._child_send_pipe),
-            name=f"trio-parallel worker process {next(_proc_counter)}",
+            args=(self._child_recv_pipe, self._child_send_pipe, idle_timeout, max_jobs),
+            name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
         self._started = trio.Event()  # Allow waiting before startup
@@ -45,7 +64,7 @@ class WorkerProcBase(abc.ABC):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(recv_pipe, send_pipe):  # pragma: no cover
+    def _work(recv_pipe, send_pipe, idle_timeout, max_jobs):  # pragma: no cover
 
         import inspect
         import signal
@@ -65,14 +84,16 @@ class WorkerProcBase(abc.ABC):
         # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
+        num_jobs = 0
 
         try:
-            while recv_pipe.poll(IDLE_TIMEOUT):
+            while (num_jobs < max_jobs) and recv_pipe.poll(idle_timeout):
                 fn, args = loads(recv_pipe.recv_bytes())
                 # Do the CPU bound work
                 result = capture(coroutine_checker, fn, args)
                 # Send result and go back to idling
                 send_pipe.send_bytes(dumps(result, protocol=-1))
+                num_jobs += 1
 
                 del fn
                 del args
@@ -94,7 +115,7 @@ class WorkerProcBase(abc.ABC):
         send_pipe.send_bytes(dumps(None, protocol=-1))
         send_pipe.close()
 
-    async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
+    async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         result = None
         try:
 
@@ -152,19 +173,19 @@ class WorkerProcBase(abc.ABC):
         return self._proc.exitcode
 
     # platform-specific behavior
-    @abc.abstractmethod
+    @abstractmethod
     def _rehabilitate_pipes(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _recv(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _send(self, buf):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _wait(self):
         pass
 

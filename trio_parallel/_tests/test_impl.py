@@ -4,14 +4,14 @@ import os
 import pytest
 import trio
 
-from .._impl import WORKER_CACHE, to_process_run_sync
+from .._impl import DEFAULT_CONTEXT, run_sync, cache_scope
 
 
 @pytest.fixture(autouse=True)
 def empty_proc_cache():
     while True:
         try:
-            proc = WORKER_CACHE.pop()
+            proc = DEFAULT_CONTEXT.worker_cache.pop()
             proc.kill()
             proc._proc.join()
         except IndexError:
@@ -29,15 +29,15 @@ def _raise_pid():  # pragma: no cover
     raise ValueError(os.getpid())
 
 
-async def test_run_in_worker():
+async def test_run_sync():
     trio_pid = os.getpid()
     limiter = trio.CapacityLimiter(1)
 
-    child_pid = await to_process_run_sync(os.getpid, limiter=limiter)
+    child_pid = await run_sync(os.getpid, limiter=limiter)
     assert child_pid != trio_pid
 
     with pytest.raises(ValueError) as excinfo:
-        await to_process_run_sync(_raise_pid, limiter=limiter)
+        await run_sync(_raise_pid, limiter=limiter)
 
     assert excinfo.value.args[0] != trio_pid
 
@@ -54,7 +54,7 @@ async def test_cancellation(manager):
         nonlocal child_start, child_done
         child_start = True
         try:
-            return await to_process_run_sync(
+            return await run_sync(
                 _block_proc, block, proc_start, proc_done, cancellable=cancellable
             )
         finally:
@@ -122,27 +122,74 @@ async def _null_async_fn():  # pragma: no cover
     pass
 
 
-async def test_raises_on_async_fn():
+async def test_run_sync_coroutine_error():
     with pytest.raises(TypeError, match="expected a sync function"):
-        await to_process_run_sync(_null_async_fn)
+        await run_sync(_null_async_fn)
 
 
 async def test_prune_cache():
     # take proc's number and kill it for the next test
-    pid1 = await to_process_run_sync(os.getpid)
-    proc = WORKER_CACHE.pop()
+    pid1 = await run_sync(os.getpid)
+    proc = DEFAULT_CONTEXT.worker_cache.pop()
     proc.kill()
     with trio.fail_after(1):
         await proc.wait()
-    pid2 = await to_process_run_sync(os.getpid)
+    pid2 = await run_sync(os.getpid)
     # put dead proc into the cache (normal code never does this)
-    WORKER_CACHE.appendleft(proc)
-    pid2 = await to_process_run_sync(os.getpid)
-    assert len(WORKER_CACHE) == 1
+    DEFAULT_CONTEXT.worker_cache.appendleft(proc)
+    pid2 = await run_sync(os.getpid)
+    assert len(DEFAULT_CONTEXT.worker_cache) == 1
     assert pid1 != pid2
 
 
-async def test_large_job():
+async def test_run_sync_large_job():
     n = 2 ** 20
-    x = await to_process_run_sync(bytes, bytearray(n))
+    x = await run_sync(bytes, bytearray(n))
     assert len(x) == n
+
+
+async def test_cache_scope():
+    pid1 = await run_sync(os.getpid)
+    with cache_scope():
+        pid2 = await run_sync(os.getpid)
+        assert pid1 != pid2
+    pid5 = await run_sync(os.getpid)
+    assert pid5 == pid1
+
+
+async def test_cache_max_jobs():
+    with cache_scope(max_jobs=2):
+        pid2 = await run_sync(os.getpid)
+        pid3 = await run_sync(os.getpid)
+        assert pid3 == pid2
+        pid4 = await run_sync(os.getpid)
+        assert pid4 != pid2
+
+
+async def test_cache_timeout():
+    with trio.fail_after(20):
+        with cache_scope(idle_timeout=0):
+            pid0 = await run_sync(os.getpid)
+            while pid0 == await run_sync(os.getpid):
+                pass  # pragma: no cover, rare race will reuse proc once or twice
+
+
+@pytest.mark.parametrize(
+    "method",
+    multiprocessing.get_all_start_methods(),
+)
+async def test_cache_type(method):
+    with cache_scope(mp_context=method):
+        assert 0 == await run_sync(int)
+
+
+async def test_erroneous_scope_inputs():
+    with pytest.raises(ValueError):
+        with cache_scope(idle_timeout=-1):
+            pass
+    with pytest.raises(ValueError):
+        with cache_scope(max_jobs=0):
+            pass
+    with pytest.raises(ValueError):
+        with cache_scope(mp_context="wrong"):
+            pass

@@ -6,11 +6,12 @@ import trio
 import pytest
 
 from .._proc import WorkerProc, BrokenWorkerError
+from .._impl import DEFAULT_CONTEXT
 
 
 @pytest.fixture
 async def proc():
-    proc = WorkerProc()
+    proc = DEFAULT_CONTEXT.new_worker()
     try:
         yield proc
     finally:
@@ -110,14 +111,9 @@ async def test_exhaustively_cancel_run_sync2(proc, manager):
     # cancel at result recv is tested elsewhere
 
 
-def _shorten_timeout():  # pragma: no cover
-    from .. import _proc
-
-    _proc.IDLE_TIMEOUT = 0
-
-
-async def test_racing_timeout(proc):
-    await proc.run_sync(_shorten_timeout)
+async def test_racing_timeout():
+    proc = WorkerProc(multiprocessing.get_context("spawn"), 0, float("inf"))
+    assert 0 == (await proc.run_sync(int)).unwrap()
     with trio.fail_after(1):
         while (await proc.run_sync(int)) is not None:
             pass  # pragma: no cover, this rarely takes more than one iteration.
