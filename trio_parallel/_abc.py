@@ -1,4 +1,9 @@
-# noinspection PyUnresolvedReferences
+"""Abstract base classes for internal use when implementing future workers
+
+The idea is that if we keep the interface between the implementation of the
+trio-parallel API minimal, we can put in new workers and options without needing
+frontend rewrites."""
+
 from abc import ABC, abstractmethod
 from collections import deque
 from typing import Optional, Callable
@@ -37,7 +42,8 @@ class AbstractWorker(ABC):
 
         Returns:
           Optional[Outcome]: The outcome of the CPU bound job performed in the
-              worker, or ``None``, indicating the work should be submitted again.
+              worker, or ``None``, indicating the work should be submitted again,
+              but to a different worker.
 
         Raises:
           BrokenWorkerError: Indicates the worker died unexpectedly. Not encountered

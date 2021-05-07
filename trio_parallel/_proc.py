@@ -1,7 +1,6 @@
 import os
 import struct
 
-# noinspection PyUnresolvedReferences
 from abc import abstractmethod
 from itertools import count
 from pickle import dumps, loads

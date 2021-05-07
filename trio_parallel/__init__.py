@@ -5,7 +5,6 @@ from importlib_metadata import version
 __version__ = version("trio-parallel")
 del version
 
-from . import abc
 from ._impl import (
     run_sync,
     cache_scope,
