@@ -57,7 +57,14 @@ class WorkerProcBase(AbstractWorker):
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
         self._proc = self.mp_context.Process(
             target=self._work,
-            args=(self._child_recv_pipe, self._child_send_pipe, idle_timeout, max_jobs),
+            args=(
+                self._child_recv_pipe,
+                self._child_send_pipe,
+                self._recv_pipe,
+                self._send_pipe,
+                idle_timeout,
+                max_jobs,
+            ),
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
@@ -66,7 +73,13 @@ class WorkerProcBase(AbstractWorker):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(recv_pipe, send_pipe, idle_timeout, max_jobs):  # pragma: no cover
+    def _work(
+        recv_pipe, send_pipe, parent_recv_pipe, parent_send_pipe, idle_timeout, max_jobs
+    ):  # pragma: no cover
+
+        # This is just busywork on spawn backends, but is proper bookkeeping on fork
+        parent_recv_pipe.close()
+        parent_send_pipe.close()
 
         import inspect
         import signal
