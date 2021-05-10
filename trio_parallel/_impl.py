@@ -1,15 +1,14 @@
 import os
 import contextvars
-from multiprocessing import get_context
-from multiprocessing.context import BaseContext
+from enum import Enum
+from typing import Type
 
 import attr
 import trio
 from contextlib import contextmanager
 
-from ._proc import WorkerProc, WorkerProcCache
-from ._abc import WorkerCache
-
+from ._proc import WORKER_PROC_MAP
+from ._abc import WorkerCache, AbstractWorker
 
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
@@ -33,15 +32,23 @@ def current_default_worker_limiter():
         return limiter
 
 
+WORKER_MAP = {**WORKER_PROC_MAP}
+
+WorkerType = Enum(
+    "WorkerType", ((x.upper(), x) for x in WORKER_MAP), type=str, module=__name__
+)
+WorkerType.__doc__ = """An Enum of available kinds of workers.
+
+Currently, these correspond to the values of
+:func:`multiprocessing.get_all_start_methods`."""
+
+
 @attr.s(auto_attribs=True, slots=True)
 class WorkerContext:
-    mp_context: BaseContext = get_context("spawn")
     idle_timeout: float = 600.0
     max_jobs: float = float("inf")
-    worker_cache: WorkerCache = attr.ib(factory=WorkerProcCache)
-
-    def new_worker(self):
-        return WorkerProc(self.mp_context, self.idle_timeout, self.max_jobs)
+    worker_class: Type[AbstractWorker] = WORKER_MAP[WorkerType.SPAWN][0]
+    worker_cache: WorkerCache = attr.ib(factory=WORKER_MAP[WorkerType.SPAWN][1])
 
 
 DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
@@ -50,19 +57,19 @@ _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_C
 
 @contextmanager
 def cache_scope(
-    mp_context=DEFAULT_CONTEXT.mp_context,
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
     max_jobs=DEFAULT_CONTEXT.max_jobs,
+    worker_type=WorkerType.SPAWN,
 ):
     """Create a new, customized worker cache with a scoped lifetime.
 
     Args:
-      mp_context (str): The :mod:`multiprocessing` context to create workers with.
       idle_timeout (float): The time in seconds an idle worker will wait before
           shutting down and releasing its own resources. Must be non-negative.
       max_jobs (float):
           The maximum number of jobs a worker will accept before shutting down
           and releasing its own resources. Must be positive.
+      worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
       RuntimeError: if you attempt to open a scope outside an async context,
@@ -72,14 +79,15 @@ def cache_scope(
 
     """
     trio.lowlevel.current_task()  # assert early we are in an async context
-    if not isinstance(mp_context, BaseContext):
-        # noinspection PyTypeChecker
-        mp_context = get_context(mp_context)
-    if idle_timeout < 0:
+    if not isinstance(worker_type, WorkerType):
+        raise ValueError("Invalid worker_type")
+    elif idle_timeout < 0:
         raise ValueError("idle_timeout must be non-negative")
-    if max_jobs <= 0:
+    elif max_jobs <= 0:
         raise ValueError("max_jobs must be positive")
-    worker_context = WorkerContext(mp_context, idle_timeout, max_jobs)
+    worker_class, worker_cache = WORKER_MAP[worker_type]
+    worker_cache = worker_cache()
+    worker_context = WorkerContext(idle_timeout, max_jobs, worker_class, worker_cache)
     token = _worker_context_var.set(worker_context)
     try:
         yield
@@ -146,7 +154,9 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
             try:
                 proc = worker_context.worker_cache.pop()
             except IndexError:
-                proc = worker_context.new_worker()
+                proc = worker_context.worker_class(
+                    worker_context.idle_timeout, worker_context.max_jobs
+                )
 
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)

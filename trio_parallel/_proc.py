@@ -3,6 +3,7 @@ import struct
 
 from abc import abstractmethod
 from itertools import count
+from multiprocessing import get_context, get_all_start_methods
 from pickle import dumps, loads
 from typing import Optional, Callable
 
@@ -49,11 +50,12 @@ class WorkerProcCache(WorkerCache):
 
 class WorkerProcBase(AbstractWorker):
     _proc_counter = count()
+    mp_context = get_context("spawn")
 
-    def __init__(self, mp_context, idle_timeout, max_jobs):
-        self._child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
-        self._recv_pipe, self._child_send_pipe = mp_context.Pipe(duplex=False)
-        self._proc = mp_context.Process(
+    def __init__(self, idle_timeout, max_jobs):
+        self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
+        self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
+        self._proc = self.mp_context.Process(
             target=self._work,
             args=(self._child_recv_pipe, self._child_send_pipe, idle_timeout, max_jobs),
             name=f"trio-parallel worker process {next(self._proc_counter)}",
@@ -283,11 +285,32 @@ class PosixWorkerProc(WorkerProcBase):
 
 if os.name == "nt":
 
-    class WorkerProc(WindowsWorkerProc):
+    class WorkerSpawnProc(WindowsWorkerProc):
         pass
+
+    WORKER_PROC_MAP = {"spawn": (WorkerSpawnProc, WorkerProcCache)}
 
 
 else:
 
-    class WorkerProc(PosixWorkerProc):
-        pass
+    WORKER_PROC_MAP = {}
+    if "spawn" in get_all_start_methods():
+
+        class WorkerSpawnProc(PosixWorkerProc):
+            pass
+
+        WORKER_PROC_MAP["spawn"] = WorkerSpawnProc, WorkerProcCache
+
+    if "forkserver" in get_all_start_methods():
+
+        class WorkerForkserverProc(PosixWorkerProc):
+            mp_context = get_context("forkserver")
+
+        WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
+
+    if "fork" in get_all_start_methods():
+
+        class WorkerForkProc(PosixWorkerProc):
+            mp_context = get_context("fork")
+
+        WORKER_PROC_MAP["fork"] = WorkerForkProc, WorkerProcCache

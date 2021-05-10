@@ -32,6 +32,10 @@ class WorkerCache(deque, ABC):
 
 class AbstractWorker(ABC):
     @abstractmethod
+    def __init__(self, idle_timeout, max_jobs):
+        pass
+
+    @abstractmethod
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         """Run the sync_fn in a worker.
 

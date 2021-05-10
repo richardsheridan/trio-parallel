@@ -4,7 +4,7 @@ import os
 import pytest
 import trio
 
-from .._impl import DEFAULT_CONTEXT, run_sync, cache_scope
+from .._impl import DEFAULT_CONTEXT, WorkerType, run_sync, cache_scope
 
 
 @pytest.fixture(autouse=True)
@@ -174,12 +174,9 @@ async def test_cache_timeout():
                 pass  # pragma: no cover, rare race will reuse proc once or twice
 
 
-@pytest.mark.parametrize(
-    "method",
-    multiprocessing.get_all_start_methods(),
-)
+@pytest.mark.parametrize("method", list(WorkerType))
 async def test_cache_type(method):
-    with cache_scope(mp_context=method):
+    with cache_scope(worker_type=method):
         assert 0 == await run_sync(int)
 
 
@@ -191,5 +188,5 @@ async def test_erroneous_scope_inputs():
         with cache_scope(max_jobs=0):
             pass
     with pytest.raises(ValueError):
-        with cache_scope(mp_context="wrong"):
+        with cache_scope(worker_type="wrong"):
             pass

@@ -5,13 +5,12 @@ import time
 import trio
 import pytest
 
-from .._proc import WorkerProc, BrokenWorkerError
-from .._impl import DEFAULT_CONTEXT
+from .._proc import WORKER_PROC_MAP, BrokenWorkerError
 
 
-@pytest.fixture
-async def proc():
-    proc = DEFAULT_CONTEXT.new_worker()
+@pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))
+async def proc(request):
+    proc = request.param[0](600, float("inf"))
     try:
         yield proc
     finally:
@@ -109,16 +108,6 @@ async def test_exhaustively_cancel_run_sync2(proc, manager):
             await proc.run_sync(_never_halts, ev)
 
     # cancel at result recv is tested elsewhere
-
-
-async def test_racing_timeout():
-    proc = WorkerProc(multiprocessing.get_context("spawn"), 0, float("inf"))
-    assert 0 == (await proc.run_sync(int)).unwrap()
-    with trio.fail_after(1):
-        while (await proc.run_sync(int)) is not None:
-            pass  # pragma: no cover, this rarely takes more than one iteration.
-    with trio.fail_after(1):
-        await proc.wait()
 
 
 def _raise_ki():  # pragma: no cover
