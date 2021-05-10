@@ -156,11 +156,12 @@ class WorkerProcBase(AbstractWorker):
 
             return result
 
-        finally:  # pragma: no cover convoluted branching, but the concept is simple
-            if result is None:  # that is, if anything interrupted a normal result
+        finally:  # Convoluted branching, but the concept is simple
+            if result is None:  # pragma: no branch
+                # that is, if anything interrupted a normal result
                 self.kill()  # maybe redundant
                 # do cleanup soon, but no need to block here
-                trio.lowlevel.spawn_system_task(self.wait)
+                trio.lowlevel.spawn_system_task(self.wait)  # pragma: no branch
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -225,11 +226,9 @@ class WindowsWorkerProc(WorkerProcBase):
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
         # multiprocessing will close them for us
-        if hasattr(self, "_send_chan"):
+        if hasattr(self, "_send_chan"):  # pragma: no branch
             self._send_chan._handle_holder.handle = -1
             self._recv_chan._handle_holder.handle = -1
-        else:  # pragma: no cover
-            pass
 
 
 class PosixWorkerProc(WorkerProcBase):
@@ -289,11 +288,9 @@ class PosixWorkerProc(WorkerProcBase):
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
         # multiprocessing will close them for us
-        if hasattr(self, "_send_stream"):
+        if hasattr(self, "_send_stream"):  # pragma: no branch
             self._send_stream._fd_holder.fd = -1
             self._recv_stream._fd_holder.fd = -1
-        else:  # pragma: no cover
-            pass
 
 
 if os.name == "nt":
@@ -307,21 +304,21 @@ if os.name == "nt":
 else:
 
     WORKER_PROC_MAP = {}
-    if "spawn" in get_all_start_methods():
+    if "spawn" in get_all_start_methods():  # pragma: no branch
 
         class WorkerSpawnProc(PosixWorkerProc):
             pass
 
         WORKER_PROC_MAP["spawn"] = WorkerSpawnProc, WorkerProcCache
 
-    if "forkserver" in get_all_start_methods():
+    if "forkserver" in get_all_start_methods():  # pragma: no branch
 
         class WorkerForkserverProc(PosixWorkerProc):
             mp_context = get_context("forkserver")
 
         WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
 
-    if "fork" in get_all_start_methods():
+    if "fork" in get_all_start_methods():  # pragma: no branch
 
         class WorkerForkProc(PosixWorkerProc):
             mp_context = get_context("fork")
