@@ -3,8 +3,13 @@ import multiprocessing
 import time
 
 from itertools import count
-from pickle import dumps, loads, HIGHEST_PROTOCOL
+from pickle import HIGHEST_PROTOCOL
 from typing import Optional, Callable
+
+try:
+    from cloudpickle import dumps, loads
+except ImportError:
+    from pickle import dumps, loads
 
 import trio
 from outcome import Outcome, capture
