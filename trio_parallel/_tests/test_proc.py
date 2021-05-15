@@ -5,7 +5,8 @@ import time
 import trio
 import pytest
 
-from .._proc import WORKER_PROC_MAP, BrokenWorkerError
+from .._proc import WORKER_PROC_MAP
+from .._abc import BrokenWorkerError
 
 
 @pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))

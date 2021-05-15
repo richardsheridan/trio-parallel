@@ -80,14 +80,13 @@ def cache_scope(
     """
     trio.lowlevel.current_task()  # assert early we are in an async context
     if not isinstance(worker_type, WorkerType):
-        raise ValueError("Invalid worker_type")
+        raise ValueError("worker_type must be a member of WorkerType")
     elif idle_timeout < 0:
         raise ValueError("idle_timeout must be non-negative")
     elif max_jobs <= 0:
         raise ValueError("max_jobs must be positive")
     worker_class, worker_cache = WORKER_MAP[worker_type]
-    worker_cache = worker_cache()
-    worker_context = WorkerContext(idle_timeout, max_jobs, worker_class, worker_cache)
+    worker_context = WorkerContext(idle_timeout, max_jobs, worker_class, worker_cache())
     token = _worker_context_var.set(worker_context)
     try:
         yield

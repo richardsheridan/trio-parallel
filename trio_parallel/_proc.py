@@ -23,8 +23,6 @@ class BrokenWorkerProcessError(BrokenWorkerError):
     :class:`multiprocessing.Process` which may be inspected for e.g. exit codes.
     """
 
-    pass
-
 
 class WorkerProcCache(WorkerCache):
     def prune(self):
