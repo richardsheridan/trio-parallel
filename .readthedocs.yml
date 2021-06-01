@@ -10,8 +10,8 @@ python:
   install:
     - method: pip
       path: .
-#      extra_requirements:
-#        - docs
+      extra_requirements:
+        - docs
     - requirements: requirements/docs.txt
 sphinx:
   fail_on_warning: true
