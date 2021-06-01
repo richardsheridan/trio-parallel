@@ -30,7 +30,7 @@ colorama==0.4.4
     # via
     #   click
     #   sphinx
-docutils==0.16
+docutils==0.17.1
     # via
     #   sphinx
     #   sphinx-rtd-theme
