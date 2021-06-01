@@ -24,11 +24,11 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-black-${{ hashFiles('**/setup.cfg') }}
+          key: ${{ runner.os }}-pip-black-${{ hashFiles('**/requirements/lint.txt') }}
       - name: Install tools
         run: |
           python -m pip install -U pip
-          python -m pip install .[blacken]
+          python -m pip install -r requirements/lint.txt
       - name: Run Black
         id: black
         run: black --check trio_parallel
@@ -59,8 +59,9 @@ jobs:
       - name: Build sdist wheel
         run: |
           python -m pip install -U pip
-          python -m pip install -U build
-          python -m build  # Isolation seems redundant, but helps pull dependencies
+          python -m pip install -r requirements/build.txt
+          python -m piptools sync requirements/build.txt
+          python -m build --no-isolation
       - name: Set outputs
         id: outputs
         run: |
@@ -140,7 +141,8 @@ jobs:
       - name: Run tests
         run: |
           python -m pip install -U pip
-          python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
+          python -m pip install -r requirements/install.txt
+          python -m pip install ${{ needs.Build.outputs.wheelname }}
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
           --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
         shell: bash
