@@ -70,7 +70,7 @@ Example
         trio.run(amain)
 
 
-The full API is documented at `<https://trio-parallel.readthedocs.io/>`__
+Additional examples and the full API are at `<https://trio-parallel.readthedocs.io/>`__
 
 Features
 --------
@@ -123,6 +123,7 @@ How should I map a function over a collection of arguments?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is fully possible but we leave the implementation of that up to you.
+Some examples of this can be found in the documentation_.
 Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
 
 Contributing
