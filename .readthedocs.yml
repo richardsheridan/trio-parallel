@@ -8,9 +8,10 @@ formats:
 python:
   version: 3.8
   install:
+    - requirements: requirements/docs.txt
     - method: pip
       path: .
-      extra_requirements:
-        - docs
+#      extra_requirements:
+#        - docs
 sphinx:
   fail_on_warning: true
