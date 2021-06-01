@@ -15,7 +15,7 @@ async def parallel_map(fn, inputs, *args):
     results = [None] * len(inputs)
 
     async def worker(j, inp):
-        results[j] = (j, (await trio_parallel.run_sync(fn, inp, *args)))
+        results[j] = await trio_parallel.run_sync(fn, inp, *args)
         if DISP:
             print(j, "done")
 

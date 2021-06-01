@@ -45,11 +45,11 @@ async def data_generator(*, task_status, limiter=None):
         limiter = trio_parallel.current_default_worker_limiter()
     async with send_chan:
         for j in range(100):
+            # Just pretend this is coming from disk or network
+            data = secrets.token_hex()
             # Inputs MUST be throttled with the SAME limiter as
             # the rest of the steps of the pipeline
             async with limiter:
-                # Just pretend this is coming from disk or network
-                data = secrets.token_hex()
                 await send_chan.send((j, data))
 
 
@@ -98,7 +98,7 @@ async def amain():
                 print("Winner! after ", trio.current_time() - t0, "seconds")
                 nursery.cancel_scope.cancel()
             i += 1
-        print("No extra-even bytestrings! after ", trio.current_time() - t0, "seconds")
+        print("No extra-even bytestrings after ", trio.current_time() - t0, "seconds")
 
 
 if __name__ == "__main__":
