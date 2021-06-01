@@ -66,8 +66,8 @@ jobs:
         id: outputs
         run: |
           echo "::set-output name=wheelname::$( echo ./dist/*.whl )"
-          echo "::set-output name=settings::$( tar cz pyproject.toml requirements/install.txt | base64 -w 0 )"
-          echo "::set-output name=cachehash::${{ hashFiles('**/requirements/install.txt') }}"
+          echo "::set-output name=settings::$( tar cz pyproject.toml requirements/test.txt | base64 -w 0 )"
+          echo "::set-output name=cachehash::${{ hashFiles('**/requirements/test.txt') }}"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2
         with:
@@ -141,7 +141,7 @@ jobs:
       - name: Run tests
         run: |
           python -m pip install -U pip
-          python -m pip install -r requirements/install.txt
+          python -m pip install -r requirements/test.txt
           python -m pip install ${{ needs.Build.outputs.wheelname }}
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
           --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
