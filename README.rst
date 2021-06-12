@@ -2,7 +2,8 @@
 trio-parallel: CPU parallelism for Trio
 =======================================
 
-Do you have CPU bound work that just keeps slowing down your Trio event loop
+Do you have CPU bound work that just keeps slowing down your
+`Trio <https://github.com/python-trio/trio>`_ event loop
 no matter what you try? Do you need to get all those cores humming at once?
 This is the library for you!
 
@@ -69,13 +70,13 @@ Example
         trio.run(amain)
 
 
-The full API is documented at `<https://trio-parallel.readthedocs.io/>`__
+Additional examples and the full API are at `<https://trio-parallel.readthedocs.io/>`__
 
 Features
 --------
 
 - Bypasses the GIL for CPU bound work
-- Minimal API complexity (looks and feels like Trio threads)
+- Minimal API complexity (looks and feels like `Trio threads <https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync>`_)
 - Cross-platform
 - Automatic LIFO caching of subprocesses
 - Cancel seriously misbehaving code
@@ -91,7 +92,9 @@ How does trio-parallel run Python code in parallel?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Currently, this project is based on ``multiprocessing`` subprocesses and
-has all the usual multiprocessing caveats (``freeze_support``, pickleable objects only).
+has all the usual `multiprocessing caveats
+<https://docs.python.org/3/library/multiprocessing.html#programming-guidelines>`_
+(``freeze_support``, pickleable objects only).
 The case for basing these workers on
 multiprocessing is that it keeps a lot of complexity outside of the project while
 offering a set of quirks that users are likely already familiar with.
@@ -100,9 +103,15 @@ Can I have my workers talk to each other?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is currently possible through the use of ``multiprocessing.Manager``,
-but we don't and will not support it. Instead, try using ``trio.run_process`` and
-having the various Trio runs talk to each other over sockets. Also, look into
-`tractor <https://github.com/goodboy/tractor>`_?
+but we don't and will not officially support it.
+
+This package focuses on providing
+a flat hierarchy of worker subprocesses to run synchronous, CPU-bound functions.
+If you are looking to create a nested hierarchy of processes communicating
+asynchronously with each other, while preserving the power, safety, and convenience of
+structured concurrency, look into `tractor <https://github.com/goodboy/tractor>`_.
+Or, if you are looking for a more customized solution, try using ``trio.run_process``
+to spawn additional Trio runs and have them talk to each other over sockets.
 
 Can I let my workers outlive the main Trio process?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -114,12 +123,13 @@ How should I map a function over a collection of arguments?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is fully possible but we leave the implementation of that up to you.
+Some examples of this can be found in the documentation_.
 Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
 
 Contributing
 ------------
 If you notice any bugs, need any help, or want to contribute any code,
-GitHub issues and pull requests are very welcome! Please read the
+GitHub issues_ and pull requests are very welcome! Please read the
 `code of conduct <https://trio.readthedocs.io/en/stable/code-of-conduct.html>`_.
 
 .. _chat: https://gitter.im/python-trio/general

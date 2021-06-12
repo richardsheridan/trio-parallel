@@ -14,6 +14,7 @@
    :maxdepth: 2
 
    motivation.rst
+   examples.rst
    reference.rst
    history.rst
 
