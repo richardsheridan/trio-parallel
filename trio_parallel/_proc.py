@@ -40,7 +40,7 @@ class WorkerProcCache(WorkerCache):
         try:
             while True:
                 proc = self.pop()
-                proc.kill()
+                proc._send_pipe.close()
                 trio.lowlevel.spawn_system_task(proc.wait)
         except IndexError:
             pass
@@ -50,7 +50,7 @@ class WorkerProcBase(AbstractWorker):
     _proc_counter = count()
     mp_context = get_context("spawn")
 
-    def __init__(self, idle_timeout, reuse):
+    def __init__(self, idle_timeout, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
         self._proc = self.mp_context.Process(
@@ -61,7 +61,7 @@ class WorkerProcBase(AbstractWorker):
                 self._recv_pipe,
                 self._send_pipe,
                 idle_timeout,
-                reuse,
+                retire,
             ),
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
@@ -77,7 +77,7 @@ class WorkerProcBase(AbstractWorker):
         parent_recv_pipe,
         parent_send_pipe,
         idle_timeout,
-        reuse,
+        retire,
     ):  # pragma: no cover
 
         # This is just busywork on spawn backends, but is proper bookkeeping on fork
@@ -104,7 +104,7 @@ class WorkerProcBase(AbstractWorker):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         try:
-            while reuse() and recv_pipe.poll(idle_timeout):
+            while not retire() and recv_pipe.poll(idle_timeout):
                 fn, args = loads(recv_pipe.recv_bytes())
                 # Do the CPU bound work
                 result = capture(coroutine_checker, fn, args)
@@ -124,7 +124,7 @@ class WorkerProcBase(AbstractWorker):
 
             sys.stderr.write(f"Process {current_process().name}:\n")
             traceback.print_exc()
-            # ensure BrokenWorkerError error in the main proc
+            # ensure BrokenWorkerError raised in the main proc
             send_pipe.close()
             while recv_pipe.poll():
                 recv_pipe.recv_bytes()

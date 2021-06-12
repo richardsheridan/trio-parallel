@@ -46,7 +46,7 @@ Currently, these correspond to the values of
 @attr.s(auto_attribs=True, slots=True)
 class WorkerContext:
     idle_timeout: float = 600.0
-    reuse: Callable[[], bool] = type(Ellipsis)  # always truthy singleton
+    retire: Callable[[], bool] = bool  # always falsey singleton
     worker_class: Type[AbstractWorker] = WORKER_MAP[WorkerType.SPAWN][0]
     worker_cache: WorkerCache = attr.ib(factory=WORKER_MAP[WorkerType.SPAWN][1])
 
@@ -58,7 +58,7 @@ _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_C
 @contextmanager
 def cache_scope(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
-    reuse=DEFAULT_CONTEXT.reuse,
+    retire=DEFAULT_CONTEXT.retire,
     worker_type=WorkerType.SPAWN,
 ):
     """Create a new, customized worker cache with a scoped lifetime.
@@ -66,10 +66,13 @@ def cache_scope(
     Args:
       idle_timeout (float): The time in seconds an idle worker will wait before
           shutting down and releasing its own resources. Must be non-negative.
-      reuse (Callable[[], bool]):
-          A function to call within the worker each time before checking for
-          jobs to decide if the worker should be reused. By default they are
-          always reused.
+      retire (Callable[[], bool]):
+          An object to call within the worker BEFORE running each CPU-bound job
+          that returns a value indicating whether worker should be retired
+          BEFORE accepting that job. By default, workers are never retired.
+          Note that this function MUST return a falsey value on the first call
+          otherwise :func:`run_sync` will get caught in an infinite loop trying
+          to find a valid worker.
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
@@ -84,10 +87,11 @@ def cache_scope(
         raise ValueError("worker_type must be a member of WorkerType")
     elif idle_timeout < 0:
         raise ValueError("idle_timeout must be non-negative")
-    elif not callable(reuse):
-        raise ValueError("reuse must be callable (with no arguments)")
+    elif not callable(retire):
+        raise ValueError("retire must be callable (with no arguments)")
+    # TODO: better ergonomics for truthy first call to retire()
     worker_class, worker_cache = WORKER_MAP[worker_type]
-    worker_context = WorkerContext(idle_timeout, reuse, worker_class, worker_cache())
+    worker_context = WorkerContext(idle_timeout, retire, worker_class, worker_cache())
     token = _worker_context_var.set(worker_context)
     try:
         yield
@@ -154,7 +158,7 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
             try:
                 proc = ctx.worker_cache.pop()
             except IndexError:
-                proc = ctx.worker_class(ctx.idle_timeout, ctx.reuse)
+                proc = ctx.worker_class(ctx.idle_timeout, ctx.retire)
 
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)

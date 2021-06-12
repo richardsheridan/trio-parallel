@@ -161,17 +161,17 @@ async def test_cache_scope():
 _NUM_RUNS = 0
 
 
-def _reuse_run_twice():  # pragma: no cover
+def _retire_run_twice():  # pragma: no cover
     global _NUM_RUNS
     if _NUM_RUNS >= 2:
-        return False
+        return True
     else:
         _NUM_RUNS += 1
-        return True
+        return False
 
 
-async def test_cache_reuse():
-    with cache_scope(reuse=_reuse_run_twice):
+async def test_cache_retire():
+    with cache_scope(retire=_retire_run_twice):
         pid2 = await run_sync(os.getpid)
         pid3 = await run_sync(os.getpid)
         assert pid3 == pid2
@@ -198,7 +198,7 @@ async def test_erroneous_scope_inputs():
         with cache_scope(idle_timeout=-1):
             pass
     with pytest.raises(ValueError):
-        with cache_scope(reuse=0):
+        with cache_scope(retire=0):
             pass
     with pytest.raises(ValueError):
         with cache_scope(worker_type="wrong"):
@@ -211,14 +211,23 @@ def test_not_in_async_context():
             assert False, "__enter__ should raise"
 
 
-def _bad_reuse_fn():
+def _bad_retire_fn():
     assert False
 
 
-async def test_bad_reuse_fn(capfd):
+async def test_bad_retire_fn(capfd):
     with pytest.raises(BrokenWorkerError):
-        with cache_scope(reuse=_bad_reuse_fn):
-            await run_sync(_null_async_fn)
+        with cache_scope(retire=_bad_retire_fn):
+            await run_sync(os.getpid)
+        # assert pid != await run_sync(os.getpid)
     out, err = capfd.readouterr()
     assert "trio-parallel worker process" in err
     assert "AssertionError" in err
+
+
+async def test_truthy_retire_fn_can_be_cancelled():
+    with trio.move_on_after(0.1) as cs:
+        with cache_scope(retire=object):
+            assert await run_sync(int)
+
+    assert cs.cancelled_caught
