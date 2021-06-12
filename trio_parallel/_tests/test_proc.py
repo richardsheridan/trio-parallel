@@ -130,7 +130,7 @@ def _raise_ki():  # pragma: no cover
 
 
 async def test_ki_does_not_propagate(proc):
-    await proc.run_sync(_raise_ki)
+    (await proc.run_sync(_raise_ki)).unwrap()
 
 
 async def test_clean_exit_on_pipe_close(proc, capfd):
