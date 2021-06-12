@@ -141,24 +141,22 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     if limiter is None:
         limiter = current_default_worker_limiter()
 
-    worker_context = _worker_context_var.get()
+    ctx = _worker_context_var.get()
 
     async with limiter:
-        worker_context.worker_cache.prune()
+        ctx.worker_cache.prune()
         result = None
         while result is None:
             # Prevent uninterruptible loop when KI & cancellable=False
             await trio.lowlevel.checkpoint_if_cancelled()
 
             try:
-                proc = worker_context.worker_cache.pop()
+                proc = ctx.worker_cache.pop()
             except IndexError:
-                proc = worker_context.worker_class(
-                    worker_context.idle_timeout, worker_context.max_jobs
-                )
+                proc = ctx.worker_class(ctx.idle_timeout, ctx.max_jobs)
 
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)
 
-    worker_context.worker_cache.append(proc)
+    ctx.worker_cache.append(proc)
     return result.unwrap()
