@@ -106,6 +106,7 @@ async def test_exhaustively_cancel_run_sync2(proc, manager):
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await proc.run_sync(_never_halts, ev)
+        await proc.wait()
 
     # cancel at result recv is tested elsewhere
 
@@ -130,7 +131,7 @@ def _raise_ki():  # pragma: no cover
 
 
 async def test_ki_does_not_propagate(proc):
-    await proc.run_sync(_raise_ki)
+    (await proc.run_sync(_raise_ki)).unwrap()
 
 
 async def test_clean_exit_on_pipe_close(proc, capfd):
