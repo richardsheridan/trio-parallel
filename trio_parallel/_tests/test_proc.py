@@ -106,6 +106,7 @@ async def test_exhaustively_cancel_run_sync2(proc, manager):
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await proc.run_sync(_never_halts, ev)
+        await proc.wait()
 
     # cancel at result recv is tested elsewhere
 
