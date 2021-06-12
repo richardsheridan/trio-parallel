@@ -1,7 +1,7 @@
 import os
 import contextvars
 from enum import Enum
-from typing import Type
+from typing import Type, Callable
 
 import attr
 import trio
@@ -46,7 +46,7 @@ Currently, these correspond to the values of
 @attr.s(auto_attribs=True, slots=True)
 class WorkerContext:
     idle_timeout: float = 600.0
-    max_jobs: float = float("inf")
+    reuse: Callable[[], bool] = type(Ellipsis)  # always truthy singleton
     worker_class: Type[AbstractWorker] = WORKER_MAP[WorkerType.SPAWN][0]
     worker_cache: WorkerCache = attr.ib(factory=WORKER_MAP[WorkerType.SPAWN][1])
 
@@ -58,7 +58,7 @@ _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_C
 @contextmanager
 def cache_scope(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
-    max_jobs=DEFAULT_CONTEXT.max_jobs,
+    reuse=DEFAULT_CONTEXT.reuse,
     worker_type=WorkerType.SPAWN,
 ):
     """Create a new, customized worker cache with a scoped lifetime.
@@ -66,16 +66,17 @@ def cache_scope(
     Args:
       idle_timeout (float): The time in seconds an idle worker will wait before
           shutting down and releasing its own resources. Must be non-negative.
-      max_jobs (float):
-          The maximum number of jobs a worker will accept before shutting down
-          and releasing its own resources. Must be positive.
+      reuse (Callable[[], bool]):
+          A function to call within the worker each time before checking for
+          jobs to decide if the worker should be reused. By default they are
+          always reused.
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
       RuntimeError: if you attempt to open a scope outside an async context,
           that is, outside of a :func:`trio.run`.
       ValueError: if an invalid value is passed for an argument, such as a negative
-          timeout or a job limit less than one.
+          timeout.
 
     """
     trio.lowlevel.current_task()  # assert early we are in an async context
@@ -83,10 +84,10 @@ def cache_scope(
         raise ValueError("worker_type must be a member of WorkerType")
     elif idle_timeout < 0:
         raise ValueError("idle_timeout must be non-negative")
-    elif max_jobs <= 0:
-        raise ValueError("max_jobs must be positive")
+    elif not callable(reuse):
+        raise ValueError("reuse must be callable (with no arguments)")
     worker_class, worker_cache = WORKER_MAP[worker_type]
-    worker_context = WorkerContext(idle_timeout, max_jobs, worker_class, worker_cache())
+    worker_context = WorkerContext(idle_timeout, reuse, worker_class, worker_cache())
     token = _worker_context_var.set(worker_context)
     try:
         yield
@@ -153,7 +154,7 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
             try:
                 proc = ctx.worker_cache.pop()
             except IndexError:
-                proc = ctx.worker_class(ctx.idle_timeout, ctx.max_jobs)
+                proc = ctx.worker_class(ctx.idle_timeout, ctx.reuse)
 
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)

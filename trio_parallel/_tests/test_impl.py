@@ -4,6 +4,7 @@ import os
 import pytest
 import trio
 
+from .._abc import BrokenWorkerError
 from .._impl import DEFAULT_CONTEXT, WorkerType, run_sync, cache_scope
 
 
@@ -157,8 +158,20 @@ async def test_cache_scope():
     assert pid5 == pid1
 
 
-async def test_cache_max_jobs():
-    with cache_scope(max_jobs=2):
+_NUM_RUNS = 0
+
+
+def _reuse_run_twice():  # pragma: no cover
+    global _NUM_RUNS
+    if _NUM_RUNS >= 2:
+        return False
+    else:
+        _NUM_RUNS += 1
+        return True
+
+
+async def test_cache_reuse():
+    with cache_scope(reuse=_reuse_run_twice):
         pid2 = await run_sync(os.getpid)
         pid3 = await run_sync(os.getpid)
         assert pid3 == pid2
@@ -185,7 +198,7 @@ async def test_erroneous_scope_inputs():
         with cache_scope(idle_timeout=-1):
             pass
     with pytest.raises(ValueError):
-        with cache_scope(max_jobs=0):
+        with cache_scope(reuse=0):
             pass
     with pytest.raises(ValueError):
         with cache_scope(worker_type="wrong"):
@@ -196,3 +209,16 @@ def test_not_in_async_context():
     with pytest.raises(RuntimeError):
         with cache_scope():
             assert False, "__enter__ should raise"
+
+
+def _bad_reuse_fn():
+    assert False
+
+
+async def test_bad_reuse_fn(capfd):
+    with pytest.raises(BrokenWorkerError):
+        with cache_scope(reuse=_bad_reuse_fn):
+            await run_sync(_null_async_fn)
+    out, err = capfd.readouterr()
+    assert "trio-parallel worker process" in err
+    assert "AssertionError" in err

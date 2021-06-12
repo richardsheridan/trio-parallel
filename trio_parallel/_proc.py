@@ -50,7 +50,7 @@ class WorkerProcBase(AbstractWorker):
     _proc_counter = count()
     mp_context = get_context("spawn")
 
-    def __init__(self, idle_timeout, max_jobs):
+    def __init__(self, idle_timeout, reuse):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
         self._proc = self.mp_context.Process(
@@ -61,7 +61,7 @@ class WorkerProcBase(AbstractWorker):
                 self._recv_pipe,
                 self._send_pipe,
                 idle_timeout,
-                max_jobs,
+                reuse,
             ),
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
@@ -72,7 +72,12 @@ class WorkerProcBase(AbstractWorker):
 
     @staticmethod
     def _work(
-        recv_pipe, send_pipe, parent_recv_pipe, parent_send_pipe, idle_timeout, max_jobs
+        recv_pipe,
+        send_pipe,
+        parent_recv_pipe,
+        parent_send_pipe,
+        idle_timeout,
+        reuse,
     ):  # pragma: no cover
 
         # This is just busywork on spawn backends, but is proper bookkeeping on fork
@@ -97,36 +102,44 @@ class WorkerProcBase(AbstractWorker):
         # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-        num_jobs = 0
 
         try:
-            while (num_jobs < max_jobs) and recv_pipe.poll(idle_timeout):
+            while reuse() and recv_pipe.poll(idle_timeout):
                 fn, args = loads(recv_pipe.recv_bytes())
                 # Do the CPU bound work
                 result = capture(coroutine_checker, fn, args)
                 # Send result and go back to idling
                 send_pipe.send_bytes(dumps(result, protocol=-1))
-                num_jobs += 1
 
                 del fn
                 del args
                 del result
         except (BrokenPipeError, EOFError):
-            # If the main process ends but this one is still alive, we will
+            # If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
             return
+        except:
+            import traceback, sys
+            from multiprocessing import current_process
 
-        # Clean idle shutdown: close recv_pipe first to minimize subsequent race.
-        recv_pipe.close()
-        # Race condition: it is possible to sneak a write through in the main process
-        # between the recv_pipe poll timeout and close. Naively, this would
-        # make a clean shutdown look like a broken worker. By sending a sentinel
-        # value, we can indicate to a waiting main process that we have hit this
-        # race condition and need a restart. However, the send MUST be non-blocking
-        # to free this process's resources in a timely manner. Therefore, this message
-        # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
-        send_pipe.send_bytes(dumps(None, protocol=-1))
-        send_pipe.close()
+            sys.stderr.write(f"Process {current_process().name}:\n")
+            traceback.print_exc()
+            # ensure BrokenWorkerError error in the main proc
+            send_pipe.close()
+            while recv_pipe.poll():
+                recv_pipe.recv_bytes()
+        else:
+            # Clean shutdown: close recv_pipe first to minimize subsequent race.
+            recv_pipe.close()
+            # Race condition: it is possible to sneak a write through in the main process
+            # between the while loop predicate and recv_pipe.close(). Naively, this would
+            # make a clean shutdown look like a broken worker. By sending a sentinel
+            # value, we can indicate to a waiting main process that we have hit this
+            # race condition and need a restart. However, the send MUST be non-blocking
+            # to free this process's resources in a timely manner. Therefore, this message
+            # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
+            send_pipe.send_bytes(dumps(None, protocol=-1))
+            send_pipe.close()
 
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         result = None

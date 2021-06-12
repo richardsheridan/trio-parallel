@@ -11,7 +11,7 @@ from .._abc import BrokenWorkerError
 
 @pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))
 async def proc(request):
-    proc = request.param[0](600, float("inf"))
+    proc = request.param[0](600, object)
     try:
         yield proc
     finally:
