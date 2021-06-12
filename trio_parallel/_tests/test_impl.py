@@ -190,3 +190,9 @@ async def test_erroneous_scope_inputs():
     with pytest.raises(ValueError):
         with cache_scope(worker_type="wrong"):
             pass
+
+
+def test_not_in_async_context():
+    with pytest.raises(RuntimeError):
+        with cache_scope():
+            assert False, "__enter__ should raise"
