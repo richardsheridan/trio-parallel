@@ -58,8 +58,6 @@ class WorkerProcBase(AbstractWorker):
             args=(
                 self._child_recv_pipe,
                 self._child_send_pipe,
-                self._recv_pipe,
-                self._send_pipe,
                 idle_timeout,
                 retire,
             ),
@@ -71,19 +69,7 @@ class WorkerProcBase(AbstractWorker):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(
-        recv_pipe,
-        send_pipe,
-        parent_recv_pipe,
-        parent_send_pipe,
-        idle_timeout,
-        retire,
-    ):  # pragma: no cover
-
-        # This is just busywork on spawn backends, but is proper bookkeeping on fork
-        parent_recv_pipe.close()
-        parent_send_pipe.close()
-
+    def _work(recv_pipe, send_pipe, idle_timeout, retire):  # pragma: no cover
         import inspect
         import signal
 
@@ -333,5 +319,23 @@ else:
 
         class WorkerForkProc(PosixWorkerProc):
             mp_context = get_context("fork")
+
+            def _work(
+                self, recv_pipe, send_pipe, idle_timeout, retire
+            ):  # pragma: no cover
+                self._send_pipe.close()
+                self._recv_pipe.close()
+                super()._work(recv_pipe, send_pipe, idle_timeout, retire)
+
+            async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
+                if not self._started.is_set():
+                    # on fork, doing start() in a thread is racy, and should be
+                    # fast enough to not be considered blocking anyway
+                    self._proc.start()
+                    # XXX: We must explicitly close these after start to see child closures
+                    self._child_send_pipe.close()
+                    self._child_recv_pipe.close()
+                    self._started.set()
+                return await super().run_sync(sync_fn, *args)
 
         WORKER_PROC_MAP["fork"] = WorkerForkProc, WorkerProcCache
