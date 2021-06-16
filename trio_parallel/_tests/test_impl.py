@@ -217,9 +217,9 @@ def _bad_retire_fn():
 
 async def test_bad_retire_fn(capfd):
     with pytest.raises(BrokenWorkerError):
-        with cache_scope(retire=_bad_retire_fn):
-            await run_sync(os.getpid)
-        # assert pid != await run_sync(os.getpid)
+        with trio.fail_after(1):
+            with cache_scope(retire=_bad_retire_fn):
+                await run_sync(os.getpid, cancellable=True)
     out, err = capfd.readouterr()
     assert "trio-parallel worker process" in err
     assert "AssertionError" in err

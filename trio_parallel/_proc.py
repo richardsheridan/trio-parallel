@@ -104,16 +104,15 @@ class WorkerProcBase(AbstractWorker):
             # If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
             return
-        except:
-            import traceback, sys
-            from multiprocessing import current_process
-
-            sys.stderr.write(f"Process {current_process().name}:\n")
-            traceback.print_exc()
-            # ensure BrokenWorkerError raised in the main proc
+        except BaseException as exc:
+            # Ensure BrokenWorkerError raised in the main proc.
             send_pipe.close()
-            while recv_pipe.poll():
-                recv_pipe.recv_bytes()
+            # recv_pipe must remain open and clear until the main proc hits _send().
+            try:
+                while True:
+                    recv_pipe.recv_bytes()
+            except EOFError:
+                raise exc from None
         else:
             # Clean shutdown: close recv_pipe first to minimize subsequent race.
             recv_pipe.close()
@@ -146,6 +145,7 @@ class WorkerProcBase(AbstractWorker):
             try:
                 result = loads(await self._recv())
             except trio.EndOfChannel:
+                self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 result = await self.wait()  # skip kill/wait in finally block
                 raise BrokenWorkerError(
                     "Worker died unexpectedly:", self._proc
