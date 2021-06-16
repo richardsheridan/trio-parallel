@@ -217,7 +217,7 @@ def _bad_retire_fn():
 
 async def test_bad_retire_fn(capfd):
     with pytest.raises(BrokenWorkerError):
-        with trio.fail_after(1):
+        with trio.fail_after(10):
             with cache_scope(retire=_bad_retire_fn):
                 await run_sync(os.getpid, cancellable=True)
     out, err = capfd.readouterr()
