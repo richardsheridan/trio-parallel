@@ -50,7 +50,9 @@ async def test_run_sync_raises_on_kill(proc):
             nursery.start_soon(proc.run_sync, time.sleep, 5)
             await trio.sleep(0.1)
             proc.kill()  # also tests multiple calls to proc.kill
-    assert exc_info.value.args[-1].exitcode is not None
+    exitcode = await proc.wait()
+    assert exitcode is not None
+    assert exc_info.value.args[-1].exitcode == exitcode
 
 
 def _segfault_out_of_bounds_pointer():  # pragma: no cover
@@ -65,7 +67,7 @@ def _segfault_out_of_bounds_pointer():  # pragma: no cover
         c += 1
 
 
-async def test_run_sync_raises_on_segfault(proc):
+async def test_run_sync_raises_on_segfault(proc, capfd):
     # This test was flaky on CI across several platforms and implementations.
     # I can reproduce it locally if there is some other process using the rest
     # of the CPU (F@H in this case) although I cannot explain why running this
@@ -80,7 +82,9 @@ async def test_run_sync_raises_on_segfault(proc):
         with trio.fail_after(55):
             await proc.run_sync(_segfault_out_of_bounds_pointer)
     except BrokenWorkerError as e:
-        assert e.args[-1].exitcode is not None
+        exitcode = await proc.wait()
+        assert exitcode is not None
+        assert e.args[-1].exitcode == exitcode
     except trio.TooSlowError:  # pragma: no cover
         pytest.xfail("Unable to cause segfault after 55 seconds.")
     else:  # pragma: no cover
