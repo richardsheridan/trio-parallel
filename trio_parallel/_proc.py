@@ -80,6 +80,9 @@ class WorkerProcBase(abc.ABC):
         except (BrokenPipeError, EOFError):
             # If the main process ends but this one is still alive, we will
             # observe one of these exceptions and can simply exit quietly.
+            # Closing pipes manually to fix some __del__ flakiness in CI
+            send_pipe.close()
+            recv_pipe.close()
             return
 
         # Clean idle shutdown: close recv_pipe first to minimize subsequent race.
