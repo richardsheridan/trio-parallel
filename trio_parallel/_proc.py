@@ -103,6 +103,9 @@ class WorkerProcBase(AbstractWorker):
         except (BrokenPipeError, EOFError):
             # If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
+            # Closing pipes manually to fix some __del__ flakiness in CI
+            send_pipe.close()
+            recv_pipe.close()
             return
         except BaseException as exc:
             # Ensure BrokenWorkerError raised in the main proc.
