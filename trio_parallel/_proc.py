@@ -69,7 +69,7 @@ class WorkerProcBase(AbstractWorker):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(recv_pipe, send_pipe, idle_timeout, retire):  # pragma: no cover
+    def _work(recv_pipe, send_pipe, idle_timeout, retire):
         import inspect
         import signal
 
@@ -156,10 +156,15 @@ class WorkerProcBase(AbstractWorker):
 
             return result
 
+        except BaseException:
+            # cancellations require kill by contract
+            # other exceptions will almost certainly leave us in an
+            # unrecoverable state requiring kill as well
+            self.kill()
+            raise
         finally:  # Convoluted branching, but the concept is simple
             if result is None:  # pragma: no branch
                 # that is, if anything interrupted a normal result
-                self.kill()  # maybe redundant
                 # do cleanup soon, but no need to block here
                 trio.lowlevel.spawn_system_task(self.wait)  # pragma: no branch
 
@@ -178,6 +183,8 @@ class WorkerProcBase(AbstractWorker):
             self._proc.terminate()
 
     async def wait(self):
+        if self._proc.exitcode is not None:
+            return self._proc.exitcode
         await self._started.wait()
         if self._proc.pid is None:
             return None  # killed before started
@@ -243,7 +250,7 @@ class PosixWorkerProc(WorkerProcBase):
     async def _recv(self):
         buf = await self._recv_exactly(4)
         (size,) = struct.unpack("!i", buf)
-        if size == -1:  # pragma: no cover # can't go this big on CI
+        if size == -1:  # pragma: no cover, can't go this big on CI
             buf = await self._recv_exactly(8)
             (size,) = struct.unpack("!Q", buf)
         return await self._recv_exactly(size)
@@ -264,7 +271,7 @@ class PosixWorkerProc(WorkerProcBase):
 
     async def _send(self, buf):
         n = len(buf)
-        if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
+        if n > 0x7FFFFFFF:  # pragma: no cover, can't go this big on CI
             pre_header = struct.pack("!i", -1)
             header = struct.pack("!Q", n)
             await self._send_stream.send_all(pre_header)
@@ -323,9 +330,7 @@ else:
         class WorkerForkProc(PosixWorkerProc):
             mp_context = get_context("fork")
 
-            def _work(
-                self, recv_pipe, send_pipe, idle_timeout, retire
-            ):  # pragma: no cover
+            def _work(self, recv_pipe, send_pipe, idle_timeout, retire):
                 self._send_pipe.close()
                 self._recv_pipe.close()
                 super()._work(recv_pipe, send_pipe, idle_timeout, retire)
