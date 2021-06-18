@@ -14,9 +14,22 @@ async def proc():
     try:
         yield proc
     finally:
-        proc.kill()
-        with trio.fail_after(1):
+        with trio.move_on_after(0.01) as cs:
             await proc.wait()
+        if not cs.cancelled_caught:
+            return
+        with trio.move_on_after(1) as cs:
+            proc._send_pipe.close()
+            await proc.wait()
+        if not cs.cancelled_caught:  # pragma: no branch, leads to failure case
+            return
+        with trio.fail_after(1):  # pragma: no cover, leads to failure case
+            proc.kill()
+            await proc.wait()
+            pytest.fail(
+                "tests should be responsible for killing and waiting if they do not lead to "
+                "a graceful shutdown state"
+            )
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +39,7 @@ def manager():
         yield m
 
 
-def _never_halts(ev):  # pragma: no cover
+def _never_halts(ev):  # pragma: no cover, proc will be killed
     # important difference from blocking call is cpu usage
     ev.set()
     while True:
@@ -40,6 +53,8 @@ async def test_run_sync_cancel_infinite_loop(proc, manager):
         nursery.start_soon(proc.run_sync, _never_halts, ev)
         await trio.to_thread.run_sync(ev.wait, cancellable=True)
         nursery.cancel_scope.cancel()
+    with trio.fail_after(1):
+        assert await proc.wait() in (-15, -9)
 
 
 # TODO: debug manager interaction with pipes on PyPy GH#44
@@ -51,11 +66,11 @@ async def test_run_sync_raises_on_kill(proc):
             await trio.sleep(0.1)
             proc.kill()  # also tests multiple calls to proc.kill
     exitcode = await proc.wait()
-    assert exitcode is not None
+    assert exitcode in (-15, -9)
     assert exc_info.value.args[-1].exitcode == exitcode
 
 
-def _segfault_out_of_bounds_pointer():  # pragma: no cover
+def _segfault_out_of_bounds_pointer():  # pragma: no cover, proc will be killed
     # https://wiki.python.org/moin/CrashingPython
     import ctypes
 
@@ -83,7 +98,7 @@ async def test_run_sync_raises_on_segfault(proc, capfd):
             await proc.run_sync(_segfault_out_of_bounds_pointer)
     except BrokenWorkerError as e:
         exitcode = await proc.wait()
-        assert exitcode is not None
+        assert exitcode  # not sure if we expect a universal value, but not 0 or None
         assert e.args[-1].exitcode == exitcode
     except trio.TooSlowError:  # pragma: no cover
         pytest.xfail("Unable to cause segfault after 55 seconds.")
@@ -98,9 +113,10 @@ async def test_run_sync_raises_on_segfault(proc, capfd):
 async def test_exhaustively_cancel_run_sync1(proc):
     # cancel at startup
     with trio.fail_after(1):
-        with trio.move_on_after(0):
+        with trio.move_on_after(0) as cs:
             assert (await proc.run_sync(int)).unwrap()  # will return zero
-        await proc.wait()
+        assert cs.cancelled_caught
+        assert await proc.wait() is None
 
 
 async def test_exhaustively_cancel_run_sync2(proc, manager):
@@ -110,12 +126,12 @@ async def test_exhaustively_cancel_run_sync2(proc, manager):
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await proc.run_sync(_never_halts, ev)
-        await proc.wait()
+        assert await proc.wait() in (-15, -9)
 
     # cancel at result recv is tested elsewhere
 
 
-def _shorten_timeout():  # pragma: no cover
+def _shorten_timeout():
     from .. import _proc
 
     _proc.IDLE_TIMEOUT = 0
@@ -127,10 +143,10 @@ async def test_racing_timeout(proc):
         while (await proc.run_sync(int)) is not None:
             pass  # pragma: no cover, this rarely takes more than one iteration.
     with trio.fail_after(1):
-        await proc.wait()
+        assert await proc.wait() == 0
 
 
-def _raise_ki():  # pragma: no cover
+def _raise_ki():
     trio._util.signal_raise(signal.SIGINT)
 
 
@@ -147,7 +163,7 @@ async def test_clean_exit_on_pipe_close(proc, capfd):
     proc._send_pipe.close()
     proc._recv_pipe.close()
     with trio.fail_after(1):
-        assert 0 == await proc.wait()
+        assert await proc.wait() == 0
 
     out, err = capfd.readouterr()
     assert not out

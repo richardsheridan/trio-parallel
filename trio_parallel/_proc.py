@@ -45,8 +45,7 @@ class WorkerProcBase(abc.ABC):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(recv_pipe, send_pipe):  # pragma: no cover
-
+    def _work(recv_pipe, send_pipe):
         import inspect
         import signal
 
@@ -123,9 +122,14 @@ class WorkerProcBase(abc.ABC):
 
             return result
 
+        except BaseException:
+            # cancellations require kill by contract
+            # other exceptions will almost certainly leave us in an
+            # unrecoverable state requiring kill as well
+            self.kill()
+            raise
         finally:  # pragma: no cover convoluted branching, but the concept is simple
             if result is None:  # that is, if anything interrupted a normal result
-                self.kill()  # maybe redundant
                 # do cleanup soon, but no need to block here
                 trio.lowlevel.spawn_system_task(self.wait)
 
@@ -144,6 +148,8 @@ class WorkerProcBase(abc.ABC):
             self._proc.terminate()
 
     async def wait(self):
+        if self._proc.exitcode is not None:
+            return self._proc.exitcode
         await self._started.wait()
         if self._proc.pid is None:
             return None  # killed before started
@@ -192,11 +198,9 @@ class WindowsWorkerProc(WorkerProcBase):
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
         # multiprocessing will close them for us
-        if hasattr(self, "_send_chan"):
+        if hasattr(self, "_send_chan"):  # pragma: no branch
             self._send_chan._handle_holder.handle = -1
             self._recv_chan._handle_holder.handle = -1
-        else:  # pragma: no cover
-            pass
 
 
 class PosixWorkerProc(WorkerProcBase):
@@ -211,7 +215,7 @@ class PosixWorkerProc(WorkerProcBase):
     async def _recv(self):
         buf = await self._recv_exactly(4)
         (size,) = struct.unpack("!i", buf)
-        if size == -1:  # pragma: no cover # can't go this big on CI
+        if size == -1:  # pragma: no cover, can't go this big on CI
             buf = await self._recv_exactly(8)
             (size,) = struct.unpack("!Q", buf)
         return await self._recv_exactly(size)
@@ -232,7 +236,7 @@ class PosixWorkerProc(WorkerProcBase):
 
     async def _send(self, buf):
         n = len(buf)
-        if n > 0x7FFFFFFF:  # pragma: no cover # can't go this big on CI
+        if n > 0x7FFFFFFF:  # pragma: no cover, can't go this big on CI
             pre_header = struct.pack("!i", -1)
             header = struct.pack("!Q", n)
             await self._send_stream.send_all(pre_header)
@@ -256,11 +260,9 @@ class PosixWorkerProc(WorkerProcBase):
     def __del__(self):
         # Avoid __del__ errors on cleanup: GH#174, GH#1767
         # multiprocessing will close them for us
-        if hasattr(self, "_send_stream"):
+        if hasattr(self, "_send_stream"):  # pragma: no branch
             self._send_stream._fd_holder.fd = -1
             self._recv_stream._fd_holder.fd = -1
-        else:  # pragma: no cover
-            pass
 
 
 if os.name == "nt":
