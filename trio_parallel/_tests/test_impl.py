@@ -12,7 +12,7 @@ def empty_proc_cache():
     while True:
         try:
             proc = WORKER_CACHE.pop()
-            proc.kill()
+            proc._send_pipe.close()
             proc._proc.join()
         except IndexError:
             return
@@ -25,7 +25,7 @@ def manager():
         yield m
 
 
-def _raise_pid():  # pragma: no cover
+def _raise_pid():
     raise ValueError(os.getpid())
 
 
@@ -42,7 +42,7 @@ async def test_run_in_worker():
     assert excinfo.value.args[0] != trio_pid
 
 
-def _block_proc(block, start, done):  # pragma: no cover
+def _block_proc(block, start, done):
     # Make the process block for a controlled amount of time
     start.set()
     block.wait()
@@ -64,27 +64,7 @@ async def test_cancellation(manager):
     child_start = False
     child_done = False
 
-    # This one can't be cancelled
-    async with trio.open_nursery() as nursery:
-        nursery.start_soon(child, False)
-        await trio.to_thread.run_sync(proc_start.wait, cancellable=True)
-        assert child_start
-        nursery.cancel_scope.cancel()
-        with trio.CancelScope(shield=True):
-            await trio.testing.wait_all_tasks_blocked(0.01)
-        # It's still running
-        assert not proc_done.is_set()
-        block.set()
-        # Now it exits
-    assert child_done
-    assert proc_done.is_set()
-
-    block.clear()
-    proc_start.clear()
-    proc_done.clear()
-    child_start = False
-    child_done = False
-    # But if we cancel *before* it enters, the entry is itself a cancellation
+    # If we cancel *before* it enters, the entry is itself a cancellation
     # point
     with trio.CancelScope() as scope:
         scope.cancel()
@@ -117,8 +97,29 @@ async def test_cancellation(manager):
     assert not proc_done.is_set()
     assert child_done
 
+    block.clear()
+    proc_start.clear()
+    proc_done.clear()
+    child_start = False
+    child_done = False
 
-async def _null_async_fn():  # pragma: no cover
+    # This one can't be cancelled
+    async with trio.open_nursery() as nursery:
+        nursery.start_soon(child, False)
+        await trio.to_thread.run_sync(proc_start.wait, cancellable=True)
+        assert child_start
+        nursery.cancel_scope.cancel()
+        with trio.CancelScope(shield=True):
+            await trio.testing.wait_all_tasks_blocked(0.01)
+        # It's still running
+        assert not proc_done.is_set()
+        block.set()
+        # Now it exits
+    assert child_done
+    assert proc_done.is_set()
+
+
+async def _null_async_fn():  # pragma: no cover, coroutine called but not run
     pass
 
 

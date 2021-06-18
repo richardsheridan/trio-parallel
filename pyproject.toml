@@ -27,3 +27,6 @@ exclude_lines = [
   "pragma: no cover",
   "abc.abstractmethod",
   ]
+
+[tool.coverage.html]
+show_contexts = true
