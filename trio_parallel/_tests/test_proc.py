@@ -113,6 +113,7 @@ async def test_run_sync_raises_on_segfault(proc, capfd):
 
 async def test_exhaustively_cancel_run_sync1(proc):
     if proc.mp_context._name == "fork":
+        proc.kill()  # satisfy fixture wait() check
         pytest.skip("Doesn't exist on WorkerForkProc")
     # cancel at startup
     with trio.fail_after(1):
