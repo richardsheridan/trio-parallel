@@ -80,6 +80,8 @@ async def test_cancellation(manager):
     proc_done.clear()
     child_start = False
     child_done = False
+    # prime worker cache so fail timeout doesn't have to be so long
+    await to_process_run_sync(bool)
     # This is truly cancellable by killing the process
     async with trio.open_nursery() as nursery:
         nursery.start_soon(child, True)
