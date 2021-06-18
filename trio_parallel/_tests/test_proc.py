@@ -55,7 +55,7 @@ async def test_run_sync_cancel_infinite_loop(proc, manager):
         await trio.to_thread.run_sync(ev.wait, cancellable=True)
         nursery.cancel_scope.cancel()
     with trio.fail_after(1):
-        assert await proc.wait() in (-15, -9)
+        assert await proc.wait() in (-15, -9, 255)  # 255 for py3.6 forkserver
 
 
 # TODO: debug manager interaction with pipes on PyPy GH#44
@@ -67,7 +67,7 @@ async def test_run_sync_raises_on_kill(proc):
             await trio.sleep(0.1)
             proc.kill()  # also tests multiple calls to proc.kill
     exitcode = await proc.wait()
-    assert exitcode in (-15, -9)
+    assert exitcode in (-15, -9, 255)  # 255 for py3.6 forkserver
     assert exc_info.value.args[-1].exitcode == exitcode
 
 
@@ -112,6 +112,8 @@ async def test_run_sync_raises_on_segfault(proc, capfd):
 
 
 async def test_exhaustively_cancel_run_sync1(proc):
+    if proc.mp_context._name == "fork":
+        pytest.skip("Doesn't exist on WorkerForkProc")
     # cancel at startup
     with trio.fail_after(1):
         with trio.move_on_after(0) as cs:
@@ -127,7 +129,7 @@ async def test_exhaustively_cancel_run_sync2(proc, manager):
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await proc.run_sync(_never_halts, ev)
-        assert await proc.wait() in (-15, -9)
+        assert await proc.wait() in (-15, -9, 255)  # 255 for py3.6 forkserver
 
     # cancel at result recv is tested elsewhere
 
