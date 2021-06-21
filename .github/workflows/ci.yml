@@ -69,7 +69,7 @@ jobs:
           echo "::set-output name=settings::$( tar cz pyproject.toml requirements/test.txt | base64 -w 0 )"
           echo "::set-output name=cachehash::${{ hashFiles('**/requirements/test.txt') }}"
       - name: Upload build artifact
-        uses: actions/upload-artifact@v2.2.3
+        uses: actions/upload-artifact@v2.2.4
         with:
           name: Build
 #         by default build puts sdist and wheel here
@@ -147,7 +147,7 @@ jobs:
           --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
         shell: bash
       - name: Upload coverage
-        uses: actions/upload-artifact@v2.2.3
+        uses: actions/upload-artifact@v2.2.4
         with:
           name: Coverage
           # Codecov-bash-uploader's match is '*coverage*.*'
