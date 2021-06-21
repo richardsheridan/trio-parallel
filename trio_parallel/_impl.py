@@ -5,7 +5,7 @@ from typing import Type, Callable
 
 import attr
 import trio
-from contextlib import contextmanager
+from async_generator import asynccontextmanager
 
 from ._proc import WORKER_PROC_MAP
 from ._abc import WorkerCache, AbstractWorker
@@ -55,8 +55,8 @@ DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
 _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
 
 
-@contextmanager
-def cache_scope(
+@asynccontextmanager
+async def cache_scope(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
     retire=DEFAULT_CONTEXT.retire,
     worker_type=WorkerType.SPAWN,
@@ -82,7 +82,6 @@ def cache_scope(
           timeout.
 
     """
-    trio.lowlevel.current_task()  # assert early we are in an async context
     if not isinstance(worker_type, WorkerType):
         raise ValueError("worker_type must be a member of WorkerType")
     elif idle_timeout < 0:
@@ -97,7 +96,7 @@ def cache_scope(
         yield
     finally:
         _worker_context_var.reset(token)
-        worker_context.worker_cache.clear()
+        await worker_context.worker_cache.clear()
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):

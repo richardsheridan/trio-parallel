@@ -26,7 +26,7 @@ class WorkerCache(deque, ABC):
         while idle in the cache."""
 
     @abstractmethod
-    def clear(self):
+    async def clear(self):
         """Stop and clean up any resources associated with all cached workers."""
 
 

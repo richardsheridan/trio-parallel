@@ -10,13 +10,7 @@ from .._impl import DEFAULT_CONTEXT, WorkerType, run_sync, cache_scope
 
 @pytest.fixture(autouse=True)
 def empty_proc_cache():
-    while True:
-        try:
-            proc = DEFAULT_CONTEXT.worker_cache.pop()
-            proc._send_pipe.close()
-            proc._proc.join()
-        except IndexError:
-            return
+    trio.run(DEFAULT_CONTEXT.worker_cache.clear)
 
 
 @pytest.fixture(scope="module")
@@ -154,7 +148,7 @@ async def test_run_sync_large_job():
 
 async def test_cache_scope():
     pid1 = await run_sync(os.getpid)
-    with cache_scope():
+    async with cache_scope():
         pid2 = await run_sync(os.getpid)
         assert pid1 != pid2
     pid5 = await run_sync(os.getpid)
@@ -174,7 +168,7 @@ def _retire_run_twice():  # pragma: no cover
 
 
 async def test_cache_retire():
-    with cache_scope(retire=_retire_run_twice):
+    async with cache_scope(retire=_retire_run_twice):
         pid2 = await run_sync(os.getpid)
         pid3 = await run_sync(os.getpid)
         assert pid3 == pid2
@@ -184,7 +178,7 @@ async def test_cache_retire():
 
 async def test_cache_timeout():
     with trio.fail_after(20):
-        with cache_scope(idle_timeout=0):
+        async with cache_scope(idle_timeout=0):
             pid0 = await run_sync(os.getpid)
             while pid0 == await run_sync(os.getpid):
                 pass  # pragma: no cover, rare race will reuse proc once or twice
@@ -192,26 +186,20 @@ async def test_cache_timeout():
 
 @pytest.mark.parametrize("method", list(WorkerType))
 async def test_cache_type(method):
-    with cache_scope(worker_type=method):
+    async with cache_scope(worker_type=method):
         assert 0 == await run_sync(int)
 
 
 async def test_erroneous_scope_inputs():
     with pytest.raises(ValueError):
-        with cache_scope(idle_timeout=-1):
+        async with cache_scope(idle_timeout=-1):
             pass
     with pytest.raises(ValueError):
-        with cache_scope(retire=0):
+        async with cache_scope(retire=0):
             pass
     with pytest.raises(ValueError):
-        with cache_scope(worker_type="wrong"):
+        async with cache_scope(worker_type="wrong"):
             pass
-
-
-def test_not_in_async_context():
-    with pytest.raises(RuntimeError):
-        with cache_scope():
-            assert False, "__enter__ should raise"
 
 
 def _bad_retire_fn():
@@ -219,10 +207,30 @@ def _bad_retire_fn():
 
 
 async def test_bad_retire_fn(capfd):
-    with pytest.raises(BrokenWorkerError):
-        with trio.fail_after(10):
-            with cache_scope(retire=_bad_retire_fn):
+    with trio.fail_after(10):
+        async with cache_scope(retire=_bad_retire_fn):
+            with pytest.raises(BrokenWorkerError):
                 await run_sync(os.getpid, cancellable=True)
+    out, err = capfd.readouterr()
+    assert "trio-parallel worker process" in err
+    assert "AssertionError" in err
+
+
+def _delayed_bad_retire_fn():
+    if _retire_run_twice():
+        _bad_retire_fn()
+
+
+async def test_delayed_bad_retire_fn(capfd):
+    with trio.fail_after(10):
+        cs = cache_scope(retire=_delayed_bad_retire_fn)
+        await cs.__aenter__()
+        try:
+            await run_sync(bool, cancellable=True)
+            await run_sync(bool, cancellable=True)
+        finally:
+            with pytest.raises(BrokenWorkerError):
+                await cs.__aexit__(None, None, None)
     out, err = capfd.readouterr()
     assert "trio-parallel worker process" in err
     assert "AssertionError" in err
@@ -230,7 +238,7 @@ async def test_bad_retire_fn(capfd):
 
 async def test_truthy_retire_fn_can_be_cancelled():
     with trio.move_on_after(0.1) as cs:
-        with cache_scope(retire=object):
+        async with cache_scope(retire=object):
             assert await run_sync(int)
 
     assert cs.cancelled_caught

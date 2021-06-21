@@ -36,14 +36,22 @@ class WorkerProcCache(WorkerCache):
                 self.appendleft(proc)
                 return
 
-    def clear(self):
-        try:
-            while True:
-                proc = self.pop()
-                proc._send_pipe.close()
-                trio.lowlevel.spawn_system_task(proc.wait)
-        except IndexError:
-            pass
+    async def clear(self):
+        # TODO: cook up some robustness tests.
+        # TODO: do we need a timeout/kill/raise?
+        async def clean_wait(proc):
+            if await proc.wait():
+                raise BrokenWorkerProcessError
+
+        async with trio.open_nursery() as nursery:
+            nursery.cancel_scope.shield = True
+            try:
+                while True:
+                    proc = self.pop()
+                    proc._send_pipe.close()
+                    nursery.start_soon(clean_wait, proc)
+            except IndexError:
+                pass
 
 
 class WorkerProcBase(AbstractWorker):
@@ -165,8 +173,8 @@ class WorkerProcBase(AbstractWorker):
         finally:  # Convoluted branching, but the concept is simple
             if result is None:  # pragma: no branch
                 # that is, if anything interrupted a normal result
-                # do cleanup soon, but no need to block here
-                trio.lowlevel.spawn_system_task(self.wait)  # pragma: no branch
+                with trio.CancelScope(shield=True):
+                    await self.wait()  # pragma: no branch
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
