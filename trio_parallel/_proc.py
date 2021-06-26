@@ -38,20 +38,24 @@ class WorkerProcCache(WorkerCache):
 
     async def clear(self):
         # TODO: cook up some robustness tests.
-        # TODO: do we need a timeout/kill/raise?
         async def clean_wait(proc):
             if await proc.wait():
                 raise BrokenWorkerProcessError
 
-        async with trio.open_nursery() as nursery:
-            nursery.cancel_scope.shield = True
-            try:
-                while True:
-                    proc = self.pop()
+        try:
+            async with trio.open_nursery() as nursery:
+                # Should have private, single-threaded access to self here
+                for proc in self:
                     proc._send_pipe.close()
                     nursery.start_soon(clean_wait, proc)
-            except IndexError:
-                pass
+        except:  # pragma: no cover
+            async with trio.open_nursery() as nursery:
+                nursery.cancel_scope.shield = True
+                for proc in self:
+                    if proc.is_alive():
+                        proc.kill()
+                        nursery.start_soon(proc.wait)
+            raise
 
 
 class WorkerProcBase(AbstractWorker):
