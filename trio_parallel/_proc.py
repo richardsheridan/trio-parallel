@@ -158,7 +158,7 @@ class WorkerProcBase(AbstractWorker):
             except trio.EndOfChannel:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 result = await self.wait()  # skip kill/wait in finally block
-                raise BrokenWorkerError(
+                raise BrokenWorkerProcessError(
                     "Worker died unexpectedly:", self._proc
                 ) from None
 
