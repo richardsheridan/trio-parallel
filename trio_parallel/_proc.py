@@ -4,7 +4,7 @@ import struct
 from abc import abstractmethod
 from itertools import count
 from multiprocessing import get_context, get_all_start_methods
-from pickle import dumps, loads
+from pickle import dumps, loads, HIGHEST_PROTOCOL
 from typing import Optional, Callable
 
 import trio
@@ -61,6 +61,7 @@ class WorkerProcBase(AbstractWorker):
     def __init__(self, idle_timeout, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
+        retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
         self._proc = self.mp_context.Process(
             target=self._work,
             args=(
@@ -98,12 +99,14 @@ class WorkerProcBase(AbstractWorker):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         try:
+            if isinstance(retire, bytes):
+                retire = loads(retire)
             while not retire() and recv_pipe.poll(idle_timeout):
                 fn, args = loads(recv_pipe.recv_bytes())
                 # Do the CPU bound work
                 result = capture(coroutine_checker, fn, args)
                 # Send result and go back to idling
-                send_pipe.send_bytes(dumps(result, protocol=-1))
+                send_pipe.send_bytes(dumps(result, protocol=HIGHEST_PROTOCOL))
 
                 del fn
                 del args
@@ -134,7 +137,7 @@ class WorkerProcBase(AbstractWorker):
             # race condition and need a restart. However, the send MUST be non-blocking
             # to free this process's resources in a timely manner. Therefore, this message
             # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
-            send_pipe.send_bytes(dumps(None, protocol=-1))
+            send_pipe.send_bytes(dumps(None, protocol=HIGHEST_PROTOCOL))
             send_pipe.close()
 
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
@@ -341,9 +344,15 @@ if "fork" in _all_start_methods:  # pragma: no branch
     class WorkerForkProc(PosixWorkerProc):
         mp_context = get_context("fork")
 
+        def __init__(self, idle_timeout, retire):
+            self._retire = retire
+            super().__init__(idle_timeout, retire)
+
         def _work(self, recv_pipe, send_pipe, idle_timeout, retire):
             self._send_pipe.close()
             self._recv_pipe.close()
+            retire = self._retire
+            del self._retire
             super()._work(recv_pipe, send_pipe, idle_timeout, retire)
 
         async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
