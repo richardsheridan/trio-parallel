@@ -111,7 +111,7 @@ class WorkerProcBase(AbstractWorker):
         except (BrokenPipeError, EOFError):
             # If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
-            # Closing pipes manually to fix some __del__ flakiness in CI
+            # Closing pipes manually fixes some __del__ flakiness in CI
             send_pipe.close()
             recv_pipe.close()
             return
@@ -269,7 +269,10 @@ class PosixWorkerProc(WorkerProcBase):
             partial_result = await self._recv_stream.receive_some(size)
             num_recvd = len(partial_result)
             if not num_recvd:
-                raise trio.EndOfChannel("got end of file during message")
+                if not result_bytes:
+                    raise trio.EndOfChannel
+                else:  # pragma: no cover
+                    raise OSError("got end of file during message")
             result_bytes.extend(partial_result)
             if num_recvd > size:  # pragma: no cover
                 raise RuntimeError("Oversized response")
