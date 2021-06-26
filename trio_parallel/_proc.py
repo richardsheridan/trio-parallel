@@ -308,50 +308,52 @@ class PosixWorkerProc(WorkerProcBase):
             self._recv_stream._fd_holder.fd = -1
 
 
-if os.name == "nt":
+WORKER_PROC_MAP = {}
 
-    class WorkerSpawnProc(WindowsWorkerProc):
-        pass
+_all_start_methods = set(get_all_start_methods())
 
-    WORKER_PROC_MAP = {"spawn": (WorkerSpawnProc, WorkerProcCache)}
+if "spawn" in _all_start_methods:  # pragma: no branch
 
+    if os.name == "nt":
 
-else:
+        class WorkerSpawnProc(WindowsWorkerProc):
+            pass
 
-    WORKER_PROC_MAP = {}
-    if "spawn" in get_all_start_methods():  # pragma: no branch
+    else:
 
         class WorkerSpawnProc(PosixWorkerProc):
             pass
 
-        WORKER_PROC_MAP["spawn"] = WorkerSpawnProc, WorkerProcCache
+    WORKER_PROC_MAP["spawn"] = WorkerSpawnProc, WorkerProcCache
 
-    if "forkserver" in get_all_start_methods():  # pragma: no branch
+if "forkserver" in _all_start_methods:  # pragma: no branch
 
-        class WorkerForkserverProc(PosixWorkerProc):
-            mp_context = get_context("forkserver")
+    class WorkerForkserverProc(PosixWorkerProc):
+        mp_context = get_context("forkserver")
 
-        WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
+    WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
 
-    if "fork" in get_all_start_methods():  # pragma: no branch
+if "fork" in _all_start_methods:  # pragma: no branch
 
-        class WorkerForkProc(PosixWorkerProc):
-            mp_context = get_context("fork")
+    class WorkerForkProc(PosixWorkerProc):
+        mp_context = get_context("fork")
 
-            def _work(self, recv_pipe, send_pipe, idle_timeout, retire):
-                self._send_pipe.close()
-                self._recv_pipe.close()
-                super()._work(recv_pipe, send_pipe, idle_timeout, retire)
+        def _work(self, recv_pipe, send_pipe, idle_timeout, retire):
+            self._send_pipe.close()
+            self._recv_pipe.close()
+            super()._work(recv_pipe, send_pipe, idle_timeout, retire)
 
-            async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
-                if not self._started.is_set():
-                    # on fork, doing start() in a thread is racy, and should be
-                    # fast enough to not be considered blocking anyway
-                    self._proc.start()
-                    # XXX: We must explicitly close these after start to see child closures
-                    self._child_send_pipe.close()
-                    self._child_recv_pipe.close()
-                    self._started.set()
-                return await super().run_sync(sync_fn, *args)
+        async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
+            if not self._started.is_set():
+                # on fork, doing start() in a thread is racy, and should be
+                # fast enough to not be considered blocking anyway
+                self._proc.start()
+                # XXX: We must explicitly close these after start to see child closures
+                self._child_send_pipe.close()
+                self._child_recv_pipe.close()
+                self._started.set()
+            return await super().run_sync(sync_fn, *args)
 
-        WORKER_PROC_MAP["fork"] = WorkerForkProc, WorkerProcCache
+    WORKER_PROC_MAP["fork"] = WorkerForkProc, WorkerProcCache
+
+del _all_start_methods
