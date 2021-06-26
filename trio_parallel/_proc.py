@@ -61,7 +61,8 @@ class WorkerProcBase(AbstractWorker):
     def __init__(self, idle_timeout, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
-        retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
+        if retire is not None:  # true except on "fork"
+            retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
         self._proc = self.mp_context.Process(
             target=self._work,
             args=(
@@ -99,7 +100,7 @@ class WorkerProcBase(AbstractWorker):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         try:
-            if isinstance(retire, bytes):
+            if isinstance(retire, bytes):  # true except on "fork"
                 retire = loads(retire)
             while not retire() and recv_pipe.poll(idle_timeout):
                 fn, args = loads(recv_pipe.recv_bytes())
@@ -346,7 +347,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
 
         def __init__(self, idle_timeout, retire):
             self._retire = retire
-            super().__init__(idle_timeout, retire)
+            super().__init__(idle_timeout, None)
 
         def _work(self, recv_pipe, send_pipe, idle_timeout, retire):
             self._send_pipe.close()
