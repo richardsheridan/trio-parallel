@@ -1,15 +1,18 @@
 import os
+import contextvars
+from enum import Enum
+from typing import Type, Callable
 
+import attr
 import trio
-from collections import deque
+from async_generator import asynccontextmanager
 
-from ._proc import WorkerProc
-
-
-_limiter_local = trio.lowlevel.RunVar("proc_limiter")
+from ._proc import WORKER_PROC_MAP
+from ._abc import WorkerCache, AbstractWorker
 
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
+_limiter_local = trio.lowlevel.RunVar("proc_limiter")
 
 
 def current_default_worker_limiter():
@@ -22,43 +25,114 @@ def current_default_worker_limiter():
 
     """
     try:
-        limiter = _limiter_local.get()
+        return _limiter_local.get()
     except LookupError:
         limiter = trio.CapacityLimiter(DEFAULT_LIMIT)
         _limiter_local.set(limiter)
-    return limiter
+        return limiter
 
 
-class WorkerCache(deque):
-    def prune(self):
-        # remove procs that have died from the idle timeout
-        while True:
-            try:
-                proc = self.popleft()
-            except IndexError:
-                return
-            if proc.is_alive():
-                self.appendleft(proc)
-                return
+WORKER_MAP = {**WORKER_PROC_MAP}
+
+WorkerType = Enum(
+    "WorkerType", ((x.upper(), x) for x in WORKER_MAP), type=str, module=__name__
+)
+WorkerType.__doc__ = """An Enum of available kinds of workers.
+
+Currently, these correspond to the values of
+:func:`multiprocessing.get_all_start_methods`, which vary by platform.
+``WorkerType.SPAWN`` is the default and is supported on all platforms.
+``WorkerType.FORKSERVER`` is available on POSIX platforms and could be an
+optimization if workers need to be killed/restarted often.
+``WorkerType.FORK`` is available for experimentation but not recommended."""
 
 
-WORKER_CACHE = WorkerCache()
+@attr.s(auto_attribs=True, slots=True)
+class WorkerContext:
+    idle_timeout: float = 600.0
+    retire: Callable[[], bool] = bool  # always falsey singleton
+    worker_class: Type[AbstractWorker] = WORKER_MAP[WorkerType.SPAWN][0]
+    worker_cache: WorkerCache = attr.ib(factory=WORKER_MAP[WorkerType.SPAWN][1])
 
 
-async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
-    """Run sync_fn in a separate process
+DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
+_worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
 
-    This is a wrapping of :class:`multiprocessing.Process` that follows the API of
-    :func:`trio.to_thread.run_sync`. The intended use of this function is limited:
 
-    - Circumvent the GIL to run CPU-bound functions in parallel
-    - Make blocking APIs or infinite loops truly cancellable through
+@asynccontextmanager
+async def cache_scope(
+    idle_timeout=DEFAULT_CONTEXT.idle_timeout,
+    retire=DEFAULT_CONTEXT.retire,
+    worker_type=WorkerType.SPAWN,
+):
+    """Create a new, customized worker cache with workers confined to
+    a scoped lifetime.
+
+    By default, :func:`run_sync` draws workers from a global cache that is shared
+    across sequential and between concurrent :func:`trio.run()` calls, with workers'
+    lifetimes limited to the life of the main process. This covers most use
+    cases and so it is only advised to use this context manager if specific
+    control over worker type, state, or lifetime is required.
+
+    Args:
+      idle_timeout (float): The time in seconds an idle worker will wait for a
+          CPU-bound job before shutting down and releasing its own resources.
+          MUST be non-negative.
+      retire (Callable[[], bool]):
+          An object to call within the worker BEFORE waiting for a CPU-bound job.
+          The return value indicates whether worker should be shut down (retired)
+          BEFORE waiting. By default, workers are never retired.
+          The process-global environment is stable between calls. Among other things,
+          that means that storing state in global variables works.
+          NOTES: MUST return a false-y value on the first call
+          otherwise :func:`run_sync` will get caught in an infinite loop trying
+          to find a valid worker. MUST be callable without arguments. MUST not
+          raise (will result in a :class:`BrokenWorkerError` at an indeterminate
+          future :func:`run_sync` call.)
+      worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
+
+    Raises:
+      RuntimeError: if you attempt to open a scope outside an async context,
+          that is, outside of a :func:`trio.run`.
+      ValueError: if an invalid value is passed for an argument, such as a negative
+          timeout.
+      BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
+
+    """
+    if not isinstance(worker_type, WorkerType):
+        raise ValueError("worker_type must be a member of WorkerType")
+    elif idle_timeout < 0:
+        raise ValueError("idle_timeout must be non-negative")
+    elif not callable(retire):
+        raise ValueError("retire must be callable (with no arguments)")
+    # TODO: better ergonomics for truthy first call to retire()
+    worker_class, worker_cache = WORKER_MAP[worker_type]
+    worker_context = WorkerContext(idle_timeout, retire, worker_class, worker_cache())
+    token = _worker_context_var.set(worker_context)
+    try:
+        yield
+    finally:
+        _worker_context_var.reset(token)
+        await worker_context.worker_cache.clear()
+
+
+async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
+    """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
+
+    This function is intended to enable the following:
+
+    - Circumventing the GIL to run CPU-bound functions in parallel
+    - Making blocking APIs or infinite loops truly cancellable through
       SIGKILL/TerminateProcess without leaking resources
-    - Protect the main process from untrusted/unstable code without leaks
+    - Protecting the main process from unstable/crashy code
 
+    Currently, this is a wrapping of :class:`multiprocessing.Process` that
+    follows the API of :func:`trio.to_thread.run_sync`.
     Other :mod:`multiprocessing` features may work but are not officially
-    supported, and all the normal :mod:`multiprocessing` caveats apply. The
-    underlying worker processes are cached LIFO and reused to minimize latency.
+    supported, and all the normal :mod:`multiprocessing` caveats apply.
+    To customize this, use the :func:`cache_scope` context manager.
+
+    The underlying workers are cached LIFO and reused to minimize latency.
     Global state cannot be considered stable between and across calls.
 
     Args:
@@ -88,20 +162,22 @@ async def to_process_run_sync(sync_fn, *args, cancellable=False, limiter=None):
     if limiter is None:
         limiter = current_default_worker_limiter()
 
+    ctx = _worker_context_var.get()
+
     async with limiter:
-        WORKER_CACHE.prune()
+        ctx.worker_cache.prune()
         result = None
         while result is None:
             # Prevent uninterruptible loop when KI & cancellable=False
             await trio.lowlevel.checkpoint_if_cancelled()
 
             try:
-                proc = WORKER_CACHE.pop()
+                proc = ctx.worker_cache.pop()
             except IndexError:
-                proc = WorkerProc()
+                proc = ctx.worker_class(ctx.idle_timeout, ctx.retire)
 
             with trio.CancelScope(shield=not cancellable):
                 result = await proc.run_sync(sync_fn, *args)
 
-    WORKER_CACHE.append(proc)
+    ctx.worker_cache.append(proc)
     return result.unwrap()

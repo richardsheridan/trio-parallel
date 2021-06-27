@@ -20,12 +20,14 @@ faulthandler_timeout = 60
 branch = true
 source = ["trio_parallel"]
 relative_files = true
+disable_warnings = ["trace-changed"]  # for test_clean_exit_on_pipe_close
 
 [tool.coverage.report]
 precision = 1
 exclude_lines = [
   "pragma: no cover",
   "abc.abstractmethod",
+  "abstractmethod",
   ]
 
 [tool.coverage.html]

@@ -1,7 +1,9 @@
 """Top-level package for trio-parallel."""
 
 from ._impl import (
-    to_process_run_sync as run_sync,
+    run_sync,
+    cache_scope,
+    WorkerType,
     current_default_worker_limiter,
 )
-from ._proc import BrokenWorkerError
+from ._abc import BrokenWorkerError

@@ -5,12 +5,13 @@ import time
 import trio
 import pytest
 
-from .._proc import WorkerProc, BrokenWorkerError
+from .._proc import WORKER_PROC_MAP
+from .._abc import BrokenWorkerError
 
 
-@pytest.fixture
-async def proc():
-    proc = WorkerProc()
+@pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))
+async def proc(request):
+    proc = request.param[0](600, bool)
     try:
         yield proc
     finally:
@@ -18,7 +19,7 @@ async def proc():
             await proc.wait()
         if not cs.cancelled_caught:
             return
-        with trio.move_on_after(1) as cs:
+        with trio.move_on_after(2) as cs:
             proc._send_pipe.close()
             await proc.wait()
         if not cs.cancelled_caught:  # pragma: no branch, leads to failure case
@@ -54,7 +55,7 @@ async def test_run_sync_cancel_infinite_loop(proc, manager):
         await trio.to_thread.run_sync(ev.wait, cancellable=True)
         nursery.cancel_scope.cancel()
     with trio.fail_after(1):
-        assert await proc.wait() in (-15, -9)
+        assert await proc.wait() in (-15, -9, 255)  # 255 for py3.6 forkserver
 
 
 # TODO: debug manager interaction with pipes on PyPy GH#44
@@ -66,7 +67,7 @@ async def test_run_sync_raises_on_kill(proc):
             await trio.sleep(0.1)
             proc.kill()  # also tests multiple calls to proc.kill
     exitcode = await proc.wait()
-    assert exitcode in (-15, -9)
+    assert exitcode in (-15, -9, 255)  # 255 for py3.6 forkserver
     assert exc_info.value.args[-1].exitcode == exitcode
 
 
@@ -111,6 +112,9 @@ async def test_run_sync_raises_on_segfault(proc, capfd):
 
 
 async def test_exhaustively_cancel_run_sync1(proc):
+    if proc.mp_context._name == "fork":
+        proc.kill()  # satisfy fixture wait() check
+        pytest.skip("Doesn't exist on WorkerForkProc")
     # cancel at startup
     with trio.fail_after(1):
         with trio.move_on_after(0) as cs:
@@ -126,24 +130,9 @@ async def test_exhaustively_cancel_run_sync2(proc, manager):
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await proc.run_sync(_never_halts, ev)
-        assert await proc.wait() in (-15, -9)
+        assert await proc.wait() in (-15, -9, 255)  # 255 for py3.6 forkserver
 
     # cancel at result recv is tested elsewhere
-
-
-def _shorten_timeout():
-    from .. import _proc
-
-    _proc.IDLE_TIMEOUT = 0
-
-
-async def test_racing_timeout(proc):
-    await proc.run_sync(_shorten_timeout)
-    with trio.fail_after(1):
-        while (await proc.run_sync(int)) is not None:
-            pass  # pragma: no cover, this rarely takes more than one iteration.
-    with trio.fail_after(1):
-        assert await proc.wait() == 0
 
 
 def _raise_ki():

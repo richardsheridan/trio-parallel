@@ -63,6 +63,7 @@ Example
             result = await trio_parallel.run_sync(hard_work, 2, None)
             nursery.cancel_scope.cancel()
         print("got", result, "in", time.perf_counter() - t0, "seconds")
+        # prints 2.xxx
 
 
     if __name__ == "__main__":

@@ -1,16 +1,19 @@
 import os
 import struct
-import abc
+
+from abc import abstractmethod
 from itertools import count
-from multiprocessing import get_context
-from pickle import dumps, loads
-from typing import Optional
+from multiprocessing import get_context, get_all_start_methods
+from pickle import dumps, loads, HIGHEST_PROTOCOL
+from typing import Optional, Callable
 
 import trio
 from outcome import Outcome, capture
 
+from ._abc import WorkerCache, AbstractWorker, BrokenWorkerError
 
-class BrokenWorkerError(RuntimeError):
+
+class BrokenWorkerProcessError(BrokenWorkerError):
     """Raised when a worker process fails or dies unexpectedly.
 
     This error is not typically encountered in normal use, and indicates a severe
@@ -20,24 +23,69 @@ class BrokenWorkerError(RuntimeError):
     :class:`multiprocessing.Process` which may be inspected for e.g. exit codes.
     """
 
-    pass
+
+class WorkerProcCache(WorkerCache):
+    def prune(self):
+        # remove procs that have died from the idle timeout
+        while True:
+            try:
+                proc = self.popleft()
+            except IndexError:
+                return
+            if proc.is_alive():
+                self.appendleft(proc)
+                return
+
+    async def clear(self):
+        unclean = []
+        killed = []
+
+        async def clean_wait(proc):
+            if await proc.wait():
+                unclean.append(proc._proc)
+
+        async with trio.open_nursery() as nursery:
+            nursery.cancel_scope.shield = True
+            nursery.cancel_scope.deadline = trio.current_time() + 10
+            # Should have private, single-threaded access to self here
+            for proc in self:
+                proc._send_pipe.close()
+                nursery.start_soon(clean_wait, proc)
+        if nursery.cancel_scope.cancelled_caught:
+            async with trio.open_nursery() as nursery:
+                nursery.cancel_scope.shield = True
+                for proc in self:
+                    if proc.is_alive():
+                        proc.kill()
+                        killed.append(proc._proc)
+                        nursery.start_soon(proc.wait)
+        if unclean or killed:
+            raise BrokenWorkerProcessError(
+                f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
+                f"and {len(killed)} forceful terminations.",
+                *unclean,
+                *killed,
+            )
 
 
-# How long a process will idle waiting for new work before gives up and exits.
-# This should be longer than a thread timeout proportionately to startup time.
-IDLE_TIMEOUT = 60 * 10
+class WorkerProcBase(AbstractWorker):
+    _proc_counter = count()
+    mp_context = get_context("spawn")
 
-_proc_counter = count()
-
-
-class WorkerProcBase(abc.ABC):
-    def __init__(self, mp_context=get_context("spawn")):
-        self._child_recv_pipe, self._send_pipe = mp_context.Pipe(duplex=False)
-        self._recv_pipe, self._child_send_pipe = mp_context.Pipe(duplex=False)
-        self._proc = mp_context.Process(
+    def __init__(self, idle_timeout, retire):
+        self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
+        self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
+        if retire is not None:  # true except on "fork"
+            retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
+        self._proc = self.mp_context.Process(
             target=self._work,
-            args=(self._child_recv_pipe, self._child_send_pipe),
-            name=f"trio-parallel worker process {next(_proc_counter)}",
+            args=(
+                self._child_recv_pipe,
+                self._child_send_pipe,
+                idle_timeout,
+                retire,
+            ),
+            name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
         self._started = trio.Event()  # Allow waiting before startup
@@ -45,7 +93,7 @@ class WorkerProcBase(abc.ABC):
         self._rehabilitate_pipes()
 
     @staticmethod
-    def _work(recv_pipe, send_pipe):
+    def _work(recv_pipe, send_pipe, idle_timeout, retire):
         import inspect
         import signal
 
@@ -66,37 +114,48 @@ class WorkerProcBase(abc.ABC):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         try:
-            while recv_pipe.poll(IDLE_TIMEOUT):
+            if isinstance(retire, bytes):  # true except on "fork"
+                retire = loads(retire)
+            while not retire() and recv_pipe.poll(idle_timeout):
                 fn, args = loads(recv_pipe.recv_bytes())
                 # Do the CPU bound work
                 result = capture(coroutine_checker, fn, args)
                 # Send result and go back to idling
-                send_pipe.send_bytes(dumps(result, protocol=-1))
+                send_pipe.send_bytes(dumps(result, protocol=HIGHEST_PROTOCOL))
 
                 del fn
                 del args
                 del result
         except (BrokenPipeError, EOFError):
-            # If the main process ends but this one is still alive, we will
+            # If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
-            # Closing pipes manually to fix some __del__ flakiness in CI
+            # Closing pipes manually fixes some __del__ flakiness in CI
             send_pipe.close()
             recv_pipe.close()
             return
+        except BaseException as exc:
+            # Ensure BrokenWorkerError raised in the main proc.
+            send_pipe.close()
+            # recv_pipe must remain open and clear until the main proc hits _send().
+            try:
+                while True:
+                    recv_pipe.recv_bytes()
+            except EOFError:
+                raise exc from None
+        else:
+            # Clean shutdown: close recv_pipe first to minimize subsequent race.
+            recv_pipe.close()
+            # Race condition: it is possible to sneak a write through in the main process
+            # between the while loop predicate and recv_pipe.close(). Naively, this would
+            # make a clean shutdown look like a broken worker. By sending a sentinel
+            # value, we can indicate to a waiting main process that we have hit this
+            # race condition and need a restart. However, the send MUST be non-blocking
+            # to free this process's resources in a timely manner. Therefore, this message
+            # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
+            send_pipe.send_bytes(dumps(None, protocol=HIGHEST_PROTOCOL))
+            send_pipe.close()
 
-        # Clean idle shutdown: close recv_pipe first to minimize subsequent race.
-        recv_pipe.close()
-        # Race condition: it is possible to sneak a write through in the main process
-        # between the recv_pipe poll timeout and close. Naively, this would
-        # make a clean shutdown look like a broken worker. By sending a sentinel
-        # value, we can indicate to a waiting main process that we have hit this
-        # race condition and need a restart. However, the send MUST be non-blocking
-        # to free this process's resources in a timely manner. Therefore, this message
-        # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
-        send_pipe.send_bytes(dumps(None, protocol=-1))
-        send_pipe.close()
-
-    async def run_sync(self, sync_fn, *args) -> Optional[Outcome]:
+    async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         result = None
         try:
 
@@ -115,8 +174,9 @@ class WorkerProcBase(abc.ABC):
             try:
                 result = loads(await self._recv())
             except trio.EndOfChannel:
+                self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 result = await self.wait()  # skip kill/wait in finally block
-                raise BrokenWorkerError(
+                raise BrokenWorkerProcessError(
                     "Worker died unexpectedly:", self._proc
                 ) from None
 
@@ -128,10 +188,11 @@ class WorkerProcBase(abc.ABC):
             # unrecoverable state requiring kill as well
             self.kill()
             raise
-        finally:  # pragma: no cover convoluted branching, but the concept is simple
-            if result is None:  # that is, if anything interrupted a normal result
-                # do cleanup soon, but no need to block here
-                trio.lowlevel.spawn_system_task(self.wait)
+        finally:  # Convoluted branching, but the concept is simple
+            if result is None:  # pragma: no branch
+                # that is, if anything interrupted a normal result
+                with trio.CancelScope(shield=True):
+                    await self.wait()  # pragma: no branch
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -161,19 +222,19 @@ class WorkerProcBase(abc.ABC):
         return self._proc.exitcode
 
     # platform-specific behavior
-    @abc.abstractmethod
+    @abstractmethod
     def _rehabilitate_pipes(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _recv(self):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _send(self, buf):
         pass
 
-    @abc.abstractmethod
+    @abstractmethod
     async def _wait(self):
         pass
 
@@ -226,7 +287,10 @@ class PosixWorkerProc(WorkerProcBase):
             partial_result = await self._recv_stream.receive_some(size)
             num_recvd = len(partial_result)
             if not num_recvd:
-                raise trio.EndOfChannel("got end of file during message")
+                if not result_bytes:
+                    raise trio.EndOfChannel
+                else:  # pragma: no cover
+                    raise OSError("got end of file during message")
             result_bytes.extend(partial_result)
             if num_recvd > size:  # pragma: no cover
                 raise RuntimeError("Oversized response")
@@ -265,13 +329,58 @@ class PosixWorkerProc(WorkerProcBase):
             self._recv_stream._fd_holder.fd = -1
 
 
-if os.name == "nt":
+WORKER_PROC_MAP = {}
 
-    class WorkerProc(WindowsWorkerProc):
-        pass
+_all_start_methods = set(get_all_start_methods())
 
+if "spawn" in _all_start_methods:  # pragma: no branch
 
-else:
+    if os.name == "nt":
 
-    class WorkerProc(PosixWorkerProc):
-        pass
+        class WorkerSpawnProc(WindowsWorkerProc):
+            pass
+
+    else:
+
+        class WorkerSpawnProc(PosixWorkerProc):
+            pass
+
+    WORKER_PROC_MAP["spawn"] = WorkerSpawnProc, WorkerProcCache
+
+if "forkserver" in _all_start_methods:  # pragma: no branch
+
+    class WorkerForkserverProc(PosixWorkerProc):
+        mp_context = get_context("forkserver")
+
+    WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
+
+if "fork" in _all_start_methods:  # pragma: no branch
+
+    class WorkerForkProc(PosixWorkerProc):
+        mp_context = get_context("fork")
+
+        def __init__(self, idle_timeout, retire):
+            self._retire = retire
+            super().__init__(idle_timeout, None)
+
+        def _work(self, recv_pipe, send_pipe, idle_timeout, retire):
+            self._send_pipe.close()
+            self._recv_pipe.close()
+            retire = self._retire
+            del self._retire
+            super()._work(recv_pipe, send_pipe, idle_timeout, retire)
+
+        async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
+            if not self._started.is_set():
+                # on fork, doing start() in a thread is racy, and should be
+                # fast enough to not be considered blocking anyway
+                self._proc.start()
+                # XXX: We must explicitly close these after start to see child closures
+                self._child_send_pipe.close()
+                self._child_recv_pipe.close()
+                self._started.set()
+            return await super().run_sync(sync_fn, *args)
+
+    WORKER_PROC_MAP["fork"] = WorkerForkProc, WorkerProcCache
+
+del _all_start_methods
