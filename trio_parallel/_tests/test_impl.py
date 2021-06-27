@@ -236,6 +236,31 @@ async def test_delayed_bad_retire_fn(capfd):
     assert "AssertionError" in err
 
 
+def _loopy_retire_fn():  # pragma: no cover, will be killed
+    if _retire_run_twice():
+        import time
+
+        while True:
+            time.sleep(1)
+
+
+async def test_loopy_retire_fn(manager):
+    b = manager.Barrier(3)
+    with trio.fail_after(20):
+        cs = cache_scope(retire=_loopy_retire_fn)
+        await cs.__aenter__()
+        try:
+            # open an extra process to increase branch coverage in cache close()
+            async with trio.open_nursery() as n:
+                n.start_soon(run_sync, b.wait)
+                n.start_soon(run_sync, b.wait)
+                await trio.to_thread.run_sync(b.wait)
+            await run_sync(bool, cancellable=True)
+        finally:
+            with pytest.raises(BrokenWorkerError):
+                await cs.__aexit__(None, None, None)
+
+
 async def test_truthy_retire_fn_can_be_cancelled():
     with trio.move_on_after(0.1) as cs:
         async with cache_scope(retire=object):

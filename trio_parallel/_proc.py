@@ -37,25 +37,35 @@ class WorkerProcCache(WorkerCache):
                 return
 
     async def clear(self):
-        # TODO: cook up some robustness tests.
+        unclean = []
+        killed = []
+
         async def clean_wait(proc):
             if await proc.wait():
-                raise BrokenWorkerProcessError
+                unclean.append(proc._proc)
 
-        try:
-            async with trio.open_nursery() as nursery:
-                # Should have private, single-threaded access to self here
-                for proc in self:
-                    proc._send_pipe.close()
-                    nursery.start_soon(clean_wait, proc)
-        except:  # pragma: no cover
+        async with trio.open_nursery() as nursery:
+            nursery.cancel_scope.shield = True
+            nursery.cancel_scope.deadline = trio.current_time() + 10
+            # Should have private, single-threaded access to self here
+            for proc in self:
+                proc._send_pipe.close()
+                nursery.start_soon(clean_wait, proc)
+        if nursery.cancel_scope.cancelled_caught:
             async with trio.open_nursery() as nursery:
                 nursery.cancel_scope.shield = True
                 for proc in self:
                     if proc.is_alive():
                         proc.kill()
+                        killed.append(proc._proc)
                         nursery.start_soon(proc.wait)
-            raise
+        if unclean or killed:
+            raise BrokenWorkerProcessError(
+                f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
+                f"and {len(killed)} forceful terminations.",
+                *unclean,
+                *killed,
+            )
 
 
 class WorkerProcBase(AbstractWorker):
