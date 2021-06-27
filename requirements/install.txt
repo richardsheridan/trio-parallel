@@ -24,5 +24,5 @@ sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0
     # via trio
-trio==0.18.0
+trio==0.19.0
     # via trio-parallel (setup.py)
