@@ -40,7 +40,11 @@ WorkerType = Enum(
 WorkerType.__doc__ = """An Enum of available kinds of workers.
 
 Currently, these correspond to the values of
-:func:`multiprocessing.get_all_start_methods`."""
+:func:`multiprocessing.get_all_start_methods`, which vary by platform.
+``WorkerType.SPAWN`` is the default and is supported on all platforms.
+``WorkerType.FORKSERVER`` is available on POSIX platforms and could be an
+optimization if workers need to be killed/restarted often.
+``WorkerType.FORK`` is available for experimentation but not recommended."""
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -61,18 +65,30 @@ async def cache_scope(
     retire=DEFAULT_CONTEXT.retire,
     worker_type=WorkerType.SPAWN,
 ):
-    """Create a new, customized worker cache with a scoped lifetime.
+    """Create a new, customized worker cache with workers confined to
+    a scoped lifetime.
+
+    By default, :func:`run_sync` draws workers from a global cache that is shared
+    across sequential and between concurrent :func:`trio.run()` calls, with workers'
+    lifetimes limited to the life of the main process. This covers most use
+    cases and so it is only advised to use this context manager if specific
+    control over worker type, state, or lifetime is required.
 
     Args:
-      idle_timeout (float): The time in seconds an idle worker will wait before
-          shutting down and releasing its own resources. Must be non-negative.
+      idle_timeout (float): The time in seconds an idle worker will wait for a
+          CPU-bound job before shutting down and releasing its own resources.
+          MUST be non-negative.
       retire (Callable[[], bool]):
-          An object to call within the worker BEFORE running each CPU-bound job
-          that returns a value indicating whether worker should be retired
-          BEFORE accepting that job. By default, workers are never retired.
-          Note that this function MUST return a falsey value on the first call
+          An object to call within the worker BEFORE waiting for a CPU-bound job.
+          The return value indicates whether worker should be shut down (retired)
+          BEFORE waiting. By default, workers are never retired.
+          The process-global environment is stable between calls. Among other things,
+          that means that storing state in global variables works.
+          NOTES: MUST return a false-y value on the first call
           otherwise :func:`run_sync` will get caught in an infinite loop trying
-          to find a valid worker.
+          to find a valid worker. MUST be callable without arguments. MUST not
+          raise (will result in a :class:`BrokenWorkerError` at an indeterminate
+          future :func:`run_sync` call.)
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
@@ -80,6 +96,7 @@ async def cache_scope(
           that is, outside of a :func:`trio.run`.
       ValueError: if an invalid value is passed for an argument, such as a negative
           timeout.
+      BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
 
     """
     if not isinstance(worker_type, WorkerType):
@@ -100,16 +117,16 @@ async def cache_scope(
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
-    """Run sync_fn in a separate process
+    """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
 
-    The intended use of this function is limited:
+    This function is intended to enable the following:
 
-    - Circumvent the GIL to run CPU-bound functions in parallel
-    - Make blocking APIs or infinite loops truly cancellable through
+    - Circumventing the GIL to run CPU-bound functions in parallel
+    - Making blocking APIs or infinite loops truly cancellable through
       SIGKILL/TerminateProcess without leaking resources
-    - Protect the main process from untrusted/unstable code without leaks
+    - Protecting the main process from unstable/crashy code
 
-    By default, this is a wrapping of :class:`multiprocessing.Process` that
+    Currently, this is a wrapping of :class:`multiprocessing.Process` that
     follows the API of :func:`trio.to_thread.run_sync`.
     Other :mod:`multiprocessing` features may work but are not officially
     supported, and all the normal :mod:`multiprocessing` caveats apply.

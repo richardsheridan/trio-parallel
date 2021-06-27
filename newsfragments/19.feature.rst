@@ -1,0 +1,1 @@
+The behavior and lifetime of worker processes can now be customized with the :func:`cache_scope` context manager.
