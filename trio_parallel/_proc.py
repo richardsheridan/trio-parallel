@@ -167,7 +167,7 @@ class WorkerProcBase(AbstractWorker):
                 self._started.set()
 
             try:
-                await self._send(dumps((sync_fn, args), protocol=-1))
+                await self._send(dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL))
             except trio.BrokenResourceError:
                 return None
 
@@ -378,6 +378,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
                 # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
+                del self._retire
                 self._started.set()
             return await super().run_sync(sync_fn, *args)
 
