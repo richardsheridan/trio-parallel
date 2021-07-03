@@ -1,7 +1,5 @@
 import os
-import struct
 
-from abc import abstractmethod
 from itertools import count
 from multiprocessing import get_context, get_all_start_methods
 from pickle import dumps, loads, HIGHEST_PROTOCOL
@@ -11,6 +9,29 @@ import trio
 from outcome import Outcome, capture
 
 from ._abc import WorkerCache, AbstractWorker, BrokenWorkerError
+
+if os.name == "nt":
+
+    async def wait(obj):
+        return await trio.lowlevel.WaitForSingleObject(obj)
+
+    def asyncify_pipes(receive_handle, send_handle):
+
+        from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
+
+        return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
+
+
+else:
+
+    async def wait(fd):
+        return await trio.lowlevel.wait_readable(fd)
+
+    def asyncify_pipes(receive_fd, send_fd):
+
+        from ._posix_pipes import FdChannel
+
+        return FdChannel(receive_fd), FdChannel(send_fd)
 
 
 class BrokenWorkerProcessError(BrokenWorkerError):
@@ -68,13 +89,16 @@ class WorkerProcCache(WorkerCache):
             )
 
 
-class WorkerProcBase(AbstractWorker):
+class WorkerSpawnProc(AbstractWorker):
     _proc_counter = count()
     mp_context = get_context("spawn")
 
     def __init__(self, idle_timeout, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
+        self._receive_chan, self._send_chan = asyncify_pipes(
+            self._recv_pipe.fileno(), self._send_pipe.fileno()
+        )
         if retire is not None:  # true except on "fork"
             retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
         self._proc = self.mp_context.Process(
@@ -90,7 +114,6 @@ class WorkerProcBase(AbstractWorker):
         )
         self._started = trio.Event()  # Allow waiting before startup
         self._wait_lock = trio.Lock()  # Efficiently multiplex waits
-        self._rehabilitate_pipes()
 
     @staticmethod
     def _work(recv_pipe, send_pipe, idle_timeout, retire):
@@ -167,12 +190,14 @@ class WorkerProcBase(AbstractWorker):
                 self._started.set()
 
             try:
-                await self._send(dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL))
+                await self._send_chan.send(
+                    dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
+                )
             except trio.BrokenResourceError:
                 return None
 
             try:
-                result = loads(await self._recv())
+                result = loads(await self._receive_chan.receive())
             except trio.EndOfChannel:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 result = await self.wait()  # skip kill/wait in finally block
@@ -215,148 +240,35 @@ class WorkerProcBase(AbstractWorker):
         if self._proc.pid is None:
             return None  # killed before started
         async with self._wait_lock:
-            await self._wait()
-        # redundant wait, but also fix a macos race and do Process cleanup
+            await wait(self._proc.sentinel)
+        # fix a macos race: Trio GH#1296
         self._proc.join()
         # unfortunately join does not return exitcode
         return self._proc.exitcode
 
-    # platform-specific behavior
-    @abstractmethod
-    def _rehabilitate_pipes(self):
-        pass
-
-    @abstractmethod
-    async def _recv(self):
-        pass
-
-    @abstractmethod
-    async def _send(self, buf):
-        pass
-
-    @abstractmethod
-    async def _wait(self):
-        pass
-
-
-class WindowsWorkerProc(WorkerProcBase):
-    async def _wait(self):
-        await trio.lowlevel.WaitForSingleObject(self._proc.sentinel)
-
-    def _rehabilitate_pipes(self):
-        # These must be created in an async context
-        from ._windows_pipes import PipeSendChannel, PipeReceiveChannel
-
-        self._send_chan = PipeSendChannel(self._send_pipe.fileno())
-        self._recv_chan = PipeReceiveChannel(self._recv_pipe.fileno())
-
-    async def _recv(self):
-        return await self._recv_chan.receive()
-
-    async def _send(self, buf):
-        return await self._send_chan.send(buf)
-
     def __del__(self):
-        # Avoid __del__ errors on cleanup: GH#174, GH#1767
+        # Avoid __del__ errors on cleanup: Trio GH#174, GH#1767
         # multiprocessing will close them for us
         if hasattr(self, "_send_chan"):  # pragma: no branch
-            self._send_chan._handle_holder.handle = -1
-            self._recv_chan._handle_holder.handle = -1
+            self._send_chan.detach()
+        if hasattr(self, "_receive_chan"):  # pragma: no branch
+            self._receive_chan.detach()
 
 
-class PosixWorkerProc(WorkerProcBase):
-    async def _wait(self):
-        await trio.lowlevel.wait_readable(self._proc.sentinel)
-
-    def _rehabilitate_pipes(self):
-        # These must be created in an async context
-        self._send_stream = trio.lowlevel.FdStream(self._send_pipe.fileno())
-        self._recv_stream = trio.lowlevel.FdStream(self._recv_pipe.fileno())
-
-    async def _recv(self):
-        buf = await self._recv_exactly(4)
-        (size,) = struct.unpack("!i", buf)
-        if size == -1:  # pragma: no cover, can't go this big on CI
-            buf = await self._recv_exactly(8)
-            (size,) = struct.unpack("!Q", buf)
-        return await self._recv_exactly(size)
-
-    async def _recv_exactly(self, size):
-        result_bytes = bytearray()
-        while size:
-            partial_result = await self._recv_stream.receive_some(size)
-            num_recvd = len(partial_result)
-            if not num_recvd:
-                if not result_bytes:
-                    raise trio.EndOfChannel
-                else:  # pragma: no cover
-                    raise OSError("got end of file during message")
-            result_bytes.extend(partial_result)
-            if num_recvd > size:  # pragma: no cover
-                raise RuntimeError("Oversized response")
-            else:
-                size -= num_recvd
-        return result_bytes
-
-    async def _send(self, buf):
-        n = len(buf)
-        if n > 0x7FFFFFFF:  # pragma: no cover, can't go this big on CI
-            pre_header = struct.pack("!i", -1)
-            header = struct.pack("!Q", n)
-            await self._send_stream.send_all(pre_header)
-            await self._send_stream.send_all(header)
-            await self._send_stream.send_all(buf)
-        else:
-            # For wire compatibility with 3.7 and lower
-            header = struct.pack("!i", n)
-            if n > 16384:
-                # The payload is large so Nagle's algorithm won't be triggered
-                # and we'd better avoid the cost of concatenation.
-                await self._send_stream.send_all(header)
-                await self._send_stream.send_all(buf)
-            else:
-                # Issue #20540: concatenate before sending, to avoid delays due
-                # to Nagle's algorithm on a TCP socket.
-                # Also note we want to avoid sending a 0-length buffer separately,
-                # to avoid "broken pipe" errors if the other end closed the pipe.
-                await self._send_stream.send_all(header + buf)
-
-    def __del__(self):
-        # Avoid __del__ errors on cleanup: GH#174, GH#1767
-        # multiprocessing will close them for us
-        if hasattr(self, "_send_stream"):  # pragma: no branch
-            self._send_stream._fd_holder.fd = -1
-            self._recv_stream._fd_holder.fd = -1
-
-
-WORKER_PROC_MAP = {}
+WORKER_PROC_MAP = {"spawn": (WorkerSpawnProc, WorkerProcCache)}
 
 _all_start_methods = set(get_all_start_methods())
 
-if "spawn" in _all_start_methods:  # pragma: no branch
-
-    if os.name == "nt":
-
-        class WorkerSpawnProc(WindowsWorkerProc):
-            pass
-
-    else:
-
-        class WorkerSpawnProc(PosixWorkerProc):
-            pass
-
-    WORKER_PROC_MAP["spawn"] = WorkerSpawnProc, WorkerProcCache
-
 if "forkserver" in _all_start_methods:  # pragma: no branch
 
-    class WorkerForkserverProc(PosixWorkerProc):
+    class WorkerForkserverProc(WorkerSpawnProc):
         mp_context = get_context("forkserver")
 
     WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
 
 if "fork" in _all_start_methods:  # pragma: no branch
 
-    class WorkerForkProc(PosixWorkerProc):
+    class WorkerForkProc(WorkerSpawnProc):
         mp_context = get_context("fork")
 
         def __init__(self, idle_timeout, retire):
