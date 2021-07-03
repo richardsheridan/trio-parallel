@@ -182,6 +182,10 @@ async def test_cache_timeout():
             pid0 = await run_sync(os.getpid)
             while pid0 == await run_sync(os.getpid):
                 pass  # pragma: no cover, rare race will reuse proc once or twice
+    with trio.fail_after(20):
+        async with cache_scope(idle_timeout=None):
+            pid0 = await run_sync(os.getpid)
+            assert pid0 == await run_sync(os.getpid)
 
 
 @pytest.mark.parametrize("method", list(WorkerType))
