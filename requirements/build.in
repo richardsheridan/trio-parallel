@@ -1,0 +1,6 @@
+# keep me in sync with pyproject.toml!
+setuptools >= 45
+wheel
+setuptools_scm[toml] >= 6.0
+setuptools_scm_git_archive
+build
