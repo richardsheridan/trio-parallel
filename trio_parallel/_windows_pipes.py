@@ -15,15 +15,16 @@ class PipeSendChannel(SendChannel[bytes]):
 
     def __init__(self, handle: int) -> None:
         self._pss = PipeSendStream(handle)
-        # needed for "detach" via _handle_holder.handle = -1
-        self._handle_holder = self._pss._handle_holder
 
     async def send(self, value: bytes):
         # Works just fine if the pipe is message-oriented
         await self._pss.send_all(value)
 
+    def detach(self):
+        self._pss._handle_holder.handle = -1
+
     async def aclose(self):  # pragma: no cover
-        await self._handle_holder.aclose()
+        await self._pss._handle_holder.aclose()
 
 
 class PipeReceiveChannel(ReceiveChannel[bytes]):
@@ -75,6 +76,9 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
             # We are raising an exception so we don't need to checkpoint,
             # in contrast to PipeReceiveStream.
             raise trio.EndOfChannel
+
+    def detach(self):
+        self._handle_holder.handle = -1
 
     async def aclose(self):  # pragma: no cover
         await self._handle_holder.aclose()
