@@ -1,7 +1,7 @@
 import os
 import contextvars
 from enum import Enum
-from typing import Type, Callable
+from typing import Type, Callable, Optional
 
 import attr
 import trio
@@ -49,7 +49,7 @@ optimization if workers need to be killed/restarted often.
 
 @attr.s(auto_attribs=True, slots=True)
 class WorkerContext:
-    idle_timeout: float = 600.0
+    idle_timeout: Optional[float] = 600.0
     retire: Callable[[], bool] = bool  # always falsey singleton
     worker_class: Type[AbstractWorker] = WORKER_MAP[WorkerType.SPAWN][0]
     worker_cache: WorkerCache = attr.ib(factory=WORKER_MAP[WorkerType.SPAWN][1])
@@ -75,9 +75,10 @@ async def cache_scope(
     control over worker type, state, or lifetime is required.
 
     Args:
-      idle_timeout (float): The time in seconds an idle worker will wait for a
-          CPU-bound job before shutting down and releasing its own resources.
-          MUST be non-negative.
+      idle_timeout (Optional[float]): The time in seconds an idle worker will
+          wait for a CPU-bound job before shutting down and releasing its own
+          resources. Pass `None` to wait forever, as `math.inf` will fail.
+          MUST be non-negative if not `None`.
       retire (Callable[[], bool]):
           An object to call within the worker BEFORE waiting for a CPU-bound job.
           The return value indicates whether worker should be shut down (retired)
@@ -101,8 +102,8 @@ async def cache_scope(
     """
     if not isinstance(worker_type, WorkerType):
         raise ValueError("worker_type must be a member of WorkerType")
-    elif idle_timeout < 0:
-        raise ValueError("idle_timeout must be non-negative")
+    elif idle_timeout is not None and idle_timeout < 0.0:
+        raise ValueError("idle_timeout must be non-negative or None")
     elif not callable(retire):
         raise ValueError("retire must be callable (with no arguments)")
     # TODO: better ergonomics for truthy first call to retire()
@@ -168,7 +169,7 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
         ctx.worker_cache.prune()
         result = None
         while result is None:
-            # Prevent uninterruptible loop when KI & cancellable=False
+            # Prevent uninterruptible loop when KI-protected & cancellable=False
             await trio.lowlevel.checkpoint_if_cancelled()
 
             try:
