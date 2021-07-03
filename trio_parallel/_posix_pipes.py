@@ -65,5 +65,5 @@ class FdChannel(Channel[bytes]):
     def detach(self):
         self._stream._fd_holder.fd = -1
 
-    async def aclose(self):
+    async def aclose(self):  # pragma: no cover
         return await self._stream.aclose()
