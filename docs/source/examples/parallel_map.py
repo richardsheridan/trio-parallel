@@ -16,8 +16,7 @@ async def parallel_map(fn, inputs, *args):
 
     async def worker(j, inp):
         results[j] = await trio_parallel.run_sync(fn, inp, *args)
-        if DISP:
-            print(j, "done")
+        print(j, "done")
 
     async with trio.open_nursery() as nursery:
         for i, inp in enumerate(inputs):
@@ -26,8 +25,6 @@ async def parallel_map(fn, inputs, *args):
     return results
 
 
-DISP = False
 if __name__ == "__main__":
     multiprocessing.freeze_support()
-    DISP = True
     print(trio.run(parallel_map, twiddle, range(100)))

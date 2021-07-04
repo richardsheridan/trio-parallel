@@ -76,9 +76,10 @@ Additional examples and the full API are at `<https://trio-parallel.readthedocs.
 Features
 --------
 
-- Bypasses the GIL for CPU bound work
+- Bypasses the GIL for CPU-bound work
 - Minimal API complexity (looks and feels like `Trio threads <https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync>`_)
 - Cross-platform
+- `print` just works
 - Automatic LIFO caching of subprocesses
 - Cancel seriously misbehaving code
 

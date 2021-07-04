@@ -15,7 +15,7 @@ are cached to minimize latency and resource usage. Despite this,
 executing a function in a process is at best an order of magnitude slower than in
 a thread, and possibly even slower when dealing with large arguments or a cold cache.
 Therefore, we recommend avoiding worker process dispatch for functions with a
-duration of less than about 10 ms.
+duration of less than about 1 ms.
 
 Unlike threads, subprocesses are strongly isolated from the parent process, which
 allows two important features that cannot be portably implemented in threads:

@@ -44,7 +44,7 @@ Currently, these correspond to the values of
 ``WorkerType.SPAWN`` is the default and is supported on all platforms.
 ``WorkerType.FORKSERVER`` is available on POSIX platforms and could be an
 optimization if workers need to be killed/restarted often.
-``WorkerType.FORK`` is available for experimentation but not recommended."""
+``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
 @attr.s(auto_attribs=True, slots=True)
@@ -68,11 +68,14 @@ async def cache_scope(
     """Create a new, customized worker cache with workers confined to
     a scoped lifetime.
 
-    By default, :func:`run_sync` draws workers from a global cache that is shared
-    across sequential and between concurrent :func:`trio.run()` calls, with workers'
-    lifetimes limited to the life of the main process. This covers most use
-    cases and so it is only advised to use this context manager if specific
-    control over worker type, state, or lifetime is required.
+    By default, :func:`trio_parallel.run_sync` draws workers from a global cache
+    that is shared across sequential and between concurrent :func:`trio.run()`
+    calls, with workers' lifetimes limited to the life of the main process. This
+    covers most use cases, but for the many edge cases, this context manager
+    defines a scope wherein each call to :func:`run_sync` pulls workers from an
+    isolated cache with behavior specified by the arguments. It is only advised
+    to use this context manager if specific control over worker type, state, or
+    lifetime is required.
 
     Args:
       idle_timeout (Optional[float]): The time in seconds an idle worker will
@@ -93,8 +96,6 @@ async def cache_scope(
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
-      RuntimeError: if you attempt to open a scope outside an async context,
-          that is, outside of a :func:`trio.run`.
       ValueError: if an invalid value is passed for an argument, such as a negative
           timeout.
       BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
@@ -131,10 +132,10 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     follows the API of :func:`trio.to_thread.run_sync`.
     Other :mod:`multiprocessing` features may work but are not officially
     supported, and all the normal :mod:`multiprocessing` caveats apply.
-    To customize this, use the :func:`cache_scope` context manager.
+    To customize worker behavior, use :func:`trio_parallel.cache_scope`.
 
     The underlying workers are cached LIFO and reused to minimize latency.
-    Global state cannot be considered stable between and across calls.
+    Global state of the workers is not stable between and across calls.
 
     Args:
       sync_fn: An importable or pickleable synchronous callable. See the
