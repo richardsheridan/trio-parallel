@@ -11,26 +11,22 @@ from outcome import Outcome, capture
 from ._abc import WorkerCache, AbstractWorker, BrokenWorkerError
 
 if os.name == "nt":
+    from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
 
     async def wait(obj):
         return await trio.lowlevel.WaitForSingleObject(obj)
 
     def asyncify_pipes(receive_handle, send_handle):
-
-        from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
-
         return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
 
 
 else:
+    from ._posix_pipes import FdChannel
 
     async def wait(fd):
         return await trio.lowlevel.wait_readable(fd)
 
     def asyncify_pipes(receive_fd, send_fd):
-
-        from ._posix_pipes import FdChannel
-
         return FdChannel(receive_fd), FdChannel(send_fd)
 
 
@@ -152,14 +148,14 @@ class WorkerSpawnProc(AbstractWorker):
         except (BrokenPipeError, EOFError):
             # If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
-            # Closing pipes manually fixes some __del__ flakiness in CI
+            # Closing pipes manually fixed some __del__ flakiness in CI
             send_pipe.close()
             recv_pipe.close()
             return
         except BaseException as exc:
             # Ensure BrokenWorkerError raised in the main proc.
             send_pipe.close()
-            # recv_pipe must remain open and clear until the main proc hits _send().
+            # recv_pipe must remain open and clear until the main proc closes it.
             try:
                 while True:
                     recv_pipe.recv_bytes()
@@ -200,7 +196,7 @@ class WorkerSpawnProc(AbstractWorker):
                 result = loads(await self._receive_chan.receive())
             except trio.EndOfChannel:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
-                result = await self.wait()  # skip kill/wait in finally block
+                result = await self.wait()  # skip wait in finally block
                 raise BrokenWorkerProcessError(
                     "Worker died unexpectedly:", self._proc
                 ) from None
@@ -215,7 +211,7 @@ class WorkerSpawnProc(AbstractWorker):
             raise
         finally:  # Convoluted branching, but the concept is simple
             if result is None:  # pragma: no branch
-                # that is, if anything interrupted a normal result
+                # something interrupted a normal result, proc MUST be dying
                 with trio.CancelScope(shield=True):
                     await self.wait()  # pragma: no branch
 
@@ -285,7 +281,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
         async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
             if not self._started.is_set():
                 # on fork, doing start() in a thread is racy, and should be
-                # fast enough to not be considered blocking anyway
+                # fast enough to be considered non-blocking anyway
                 self._proc.start()
                 # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()

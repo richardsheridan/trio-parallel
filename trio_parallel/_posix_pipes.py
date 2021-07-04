@@ -1,11 +1,11 @@
+import os
 import struct
-import sys
 from typing import TYPE_CHECKING
 
 import trio
 from trio.abc import Channel
 
-assert sys.platform != "win32" or not TYPE_CHECKING
+assert os.name != "nt" or not TYPE_CHECKING
 
 
 class FdChannel(Channel[bytes]):

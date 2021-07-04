@@ -1,4 +1,4 @@
-import sys
+import os
 from typing import TYPE_CHECKING
 
 import trio
@@ -7,7 +7,7 @@ from trio._windows_pipes import PipeSendStream, _HandleHolder, DEFAULT_RECEIVE_S
 from trio.abc import SendChannel, ReceiveChannel
 from ._windows_cffi import ErrorCodes, peek_pipe_message_left
 
-assert sys.platform == "win32" or not TYPE_CHECKING
+assert os.name == "nt" or not TYPE_CHECKING
 
 
 class PipeSendChannel(SendChannel[bytes]):

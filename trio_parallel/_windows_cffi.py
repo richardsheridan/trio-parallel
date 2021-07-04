@@ -1,6 +1,6 @@
-import cffi
-import re
 import enum
+
+import cffi
 
 ################################################################
 # Functions and types
@@ -15,32 +15,7 @@ BOOL PeekNamedPipe(
   LPDWORD lpTotalBytesAvail,
   LPDWORD lpBytesLeftThisMessage
 );
-
-BOOL GetNamedPipeHandleStateA(
-  HANDLE  hNamedPipe,
-  LPDWORD lpState,
-  LPDWORD lpCurInstances,
-  LPDWORD lpMaxCollectionCount,
-  LPDWORD lpCollectDataTimeout,
-  LPSTR   lpUserName,
-  DWORD   nMaxUserNameSize
-);
-
 """
-
-# cribbed from pywincffi
-# programmatically strips out those annotations MSDN likes, like _In_
-REGEX_SAL_ANNOTATION = re.compile(
-    r"\b(_In_|_Inout_|_Out_|_Outptr_|_Reserved_)(opt_)?\b"
-)
-LIB = REGEX_SAL_ANNOTATION.sub(" ", LIB)
-
-# Other fixups:
-# - get rid of FAR, cffi doesn't like it
-LIB = re.sub(r"\bFAR\b", " ", LIB)
-# - PASCAL is apparently an alias for __stdcall (on modern compilers - modern
-#   being _MSC_VER >= 800)
-LIB = re.sub(r"\bPASCAL\b", "__stdcall", LIB)
 
 ffi = cffi.FFI()
 ffi.cdef(LIB)
@@ -72,13 +47,6 @@ class ErrorCodes(enum.IntEnum):
     ERROR_NOT_FOUND = 1168
     ERROR_NOT_SOCKET = 10038
     ERROR_MORE_DATA = 234
-
-
-class PipeModes(enum.IntFlag):
-    PIPE_WAIT = 0x00000000
-    PIPE_NOWAIT = 0x00000001
-    PIPE_READMODE_BYTE = 0x00000000
-    PIPE_READMODE_MESSAGE = 0x00000002
 
 
 ################################################################
