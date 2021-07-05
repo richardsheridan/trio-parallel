@@ -2,12 +2,12 @@
 trio-parallel: CPU parallelism for Trio
 =======================================
 
-Do you have CPU bound work that just keeps slowing down your
+Do you have CPU-bound work that just keeps slowing down your
 `Trio <https://github.com/python-trio/trio>`_ event loop
 no matter what you try? Do you need to get all those cores humming at once?
 This is the library for you!
 
-The aim of trio-parallel is to use the lightest-weight, lowest-overhead, lowest latency
+The aim of trio-parallel is to use the lightest-weight, lowest-overhead, lowest-latency
 method to achieve CPU parallelism of arbitrary Python code with a dead-simple API.
 
 Resources
@@ -77,9 +77,16 @@ Features
 --------
 
 - Bypasses the GIL for CPU-bound work
-- Minimal API complexity (looks and feels like `Trio threads <https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync>`_)
+- Minimal API complexity
+
+  - looks and feels like `Trio threads <https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync>`_
+
+- Minimal internal complexity
+
+  - No reliance on ``multiprocessing.Pool``, ``ProcessPoolExecutor``, or any background threads
+
 - Cross-platform
-- `print` just works
+- ``print`` just works
 - Automatic LIFO caching of subprocesses
 - Cancel seriously misbehaving code
 
@@ -124,8 +131,10 @@ so this use case is not supported.
 How should I map a function over a collection of arguments?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-This is fully possible but we leave the implementation of that up to you.
-Some examples of this can be found in the documentation_.
+This is fully possible but we leave the implementation of that up to you. Think
+of us as a `loky <https://loky.readthedocs.io/en/stable/index.html>`_ for your
+`joblib <https://joblib.readthedocs.io/en/latest/>`_, but natively async and Trionic.
+Some example parallelism patterns can be found in the documentation_.
 Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
 
 Contributing
