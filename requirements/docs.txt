@@ -72,7 +72,7 @@ sortedcontainers==2.4.0
     # via trio
 sphinx-rtd-theme==0.5.2
     # via trio-parallel (setup.py)
-sphinx==4.0.3
+sphinx==4.1.0
     # via
     #   sphinx-rtd-theme
     #   sphinxcontrib-trio
