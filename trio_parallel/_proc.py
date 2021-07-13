@@ -46,11 +46,11 @@ class WorkerProcCache(WorkerCache):
         # remove procs that have died from the idle timeout
         while True:
             try:
-                proc = self.popleft()
+                worker = self.popleft()
             except IndexError:
                 return
-            if proc.is_alive():
-                self.appendleft(proc)
+            if worker.is_alive():
+                self.appendleft(worker)
                 return
 
     async def clear(self):
@@ -59,23 +59,23 @@ class WorkerProcCache(WorkerCache):
 
         async def clean_wait(proc):
             if await proc.wait():
-                unclean.append(proc._proc)
+                unclean.append(proc.proc)
 
         async with trio.open_nursery() as nursery:
             nursery.cancel_scope.shield = True
             nursery.cancel_scope.deadline = trio.current_time() + 10
             # Should have private, single-threaded access to self here
-            for proc in self:
-                proc._send_pipe.close()
-                nursery.start_soon(clean_wait, proc)
+            for worker in self:
+                worker.shutdown()
+                nursery.start_soon(clean_wait, worker)
         if nursery.cancel_scope.cancelled_caught:
             async with trio.open_nursery() as nursery:
                 nursery.cancel_scope.shield = True
-                for proc in self:
-                    if proc.is_alive():
-                        proc.kill()
-                        killed.append(proc._proc)
-                        nursery.start_soon(proc.wait)
+                for worker in self:
+                    if worker.is_alive():
+                        worker.kill()
+                        killed.append(worker.proc)
+                        nursery.start_soon(worker.wait)
         if unclean or killed:
             raise BrokenWorkerProcessError(
                 f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
@@ -97,7 +97,7 @@ class WorkerSpawnProc(AbstractWorker):
         )
         if retire is not None:  # true except on "fork"
             retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
-        self._proc = self.mp_context.Process(
+        self.proc = self.mp_context.Process(
             target=self._work,
             args=(
                 self._child_recv_pipe,
@@ -179,7 +179,7 @@ class WorkerSpawnProc(AbstractWorker):
         try:
 
             if not self._started.is_set():
-                await trio.to_thread.run_sync(self._proc.start)
+                await trio.to_thread.run_sync(self.proc.start)
                 # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
@@ -198,7 +198,7 @@ class WorkerSpawnProc(AbstractWorker):
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 result = await self.wait()  # skip wait in finally block
                 raise BrokenWorkerProcessError(
-                    "Worker died unexpectedly:", self._proc
+                    "Worker died unexpectedly:", self.proc
                 ) from None
 
             return result
@@ -218,29 +218,32 @@ class WorkerSpawnProc(AbstractWorker):
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
         # dying. This call reaps zombie children on Unix.
-        return self._proc.is_alive()
+        return self.proc.is_alive()
+
+    def shutdown(self):
+        self._send_pipe.close()
 
     def kill(self):
-        if self._proc.pid is None:
+        if self.proc.pid is None:
             self._started.set()  # unblock self.wait()
             return
         try:
-            self._proc.kill()
+            self.proc.kill()
         except AttributeError:
-            self._proc.terminate()
+            self.proc.terminate()
 
     async def wait(self):
-        if self._proc.exitcode is not None:
-            return self._proc.exitcode
+        if self.proc.exitcode is not None:
+            return self.proc.exitcode
         await self._started.wait()
-        if self._proc.pid is None:
+        if self.proc.pid is None:
             return None  # killed before started
         async with self._wait_lock:
-            await wait(self._proc.sentinel)
+            await wait(self.proc.sentinel)
         # fix a macos race: Trio GH#1296
-        self._proc.join()
+        self.proc.join()
         # unfortunately join does not return exitcode
-        return self._proc.exitcode
+        return self.proc.exitcode
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: Trio GH#174, GH#1767
@@ -282,7 +285,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
             if not self._started.is_set():
                 # on fork, doing start() in a thread is racy, and should be
                 # fast enough to be considered non-blocking anyway
-                self._proc.start()
+                self.proc.start()
                 # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
