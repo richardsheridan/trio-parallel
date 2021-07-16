@@ -144,22 +144,22 @@ GitHub issues_ and pull requests are very welcome! Please read the
 `code of conduct <https://trio.readthedocs.io/en/stable/code-of-conduct.html>`_.
 
 .. _chat: https://gitter.im/python-trio/general
-.. |chat badge| image:: https://img.shields.io/badge/chat-join%20now-blue.svg?color=royalblue&logo=Gitter&logoColor=whitesmoke
+.. |chat badge| image:: https://img.shields.io/badge/chat-join%20now-blue.svg?color=royalblue&logo=Gitter
    :target: `chat`_
    :alt: Chatroom
 
 .. _forum: https://trio.discourse.group
-.. |forum badge| image:: https://img.shields.io/badge/forum-join%20now-blue.svg?color=royalblue&logo=Discourse&logoColor=whitesmoke
+.. |forum badge| image:: https://img.shields.io/badge/forum-join%20now-blue.svg?color=royalblue&logo=Discourse
    :target: `forum`_
    :alt: Forum
 
 .. _documentation: https://trio-parallel.readthedocs.io/
-.. |documentation badge| image:: https://readthedocs.org/projects/trio-parallel/badge/
+.. |documentation badge| image:: https://img.shields.io/readthedocs/trio-parallel?logo=readthedocs&logoColor=whitesmoke
    :target: `documentation`_
    :alt: Documentation
 
 .. _distribution: https://pypi.org/project/trio-parallel/
-.. |version badge| image:: https://badgen.net/pypi/v/trio-parallel?icon=pypi
+.. |version badge| image:: https://img.shields.io/pypi/v/trio-parallel?logo=PyPI&logoColor=whitesmoke
    :target: `distribution`_
    :alt: Latest Pypi version
 
@@ -173,21 +173,21 @@ GitHub issues_ and pull requests are very welcome! Please read the
    :target: `pepy`_
    :alt: Pypi monthly downloads
 
-.. |python versions badge| image:: https://img.shields.io/pypi/pyversions/trio-parallel.svg?color=indianred&logo=PyPI&logoColor=whitesmoke
+.. |python versions badge| image:: https://img.shields.io/pypi/pyversions/trio-parallel.svg?logo=PyPI&logoColor=whitesmoke
    :alt: Supported Python versions
    :target: `distribution`_
 
-.. |python interpreters badge| image:: https://img.shields.io/pypi/implementation/trio-parallel.svg?color=indianred&logo=PyPI&logoColor=whitesmoke
+.. |python interpreters badge| image:: https://img.shields.io/pypi/implementation/trio-parallel.svg?logo=PyPI&logoColor=whitesmoke
    :alt: Supported Python interpreters
    :target: `distribution`_
 
 .. _issues: https://github.com/richardsheridan/trio-parallel/issues
-.. |issues badge| image:: https://badgen.net/github/open-issues/richardsheridan/trio-parallel?icon=github
+.. |issues badge| image:: https://img.shields.io/github/issues-raw/richardsheridan/trio-parallel?logo=github
    :target: `issues`_
    :alt: Issues
 
 .. _repository: https://github.com/richardsheridan/trio-parallel
-.. |repository badge| image:: https://badgen.net/github/last-commit/richardsheridan/trio-parallel/main?icon=github
+.. |repository badge| image:: https://img.shields.io/github/last-commit/richardsheridan/trio-parallel?logo=github
    :target: `repository`_
    :alt: Repository
 
@@ -202,11 +202,11 @@ GitHub issues_ and pull requests are very welcome! Please read the
    :alt: Test coverage
 
 .. _style: https://github.com/psf/black
-.. |style badge| image:: https://badgen.net/badge/code%20style/Black/black
+.. |style badge| image:: https://img.shields.io/badge/code%20style-Black-black
    :target: `style`_
    :alt: Code style
 
 .. _license: https://github.com/richardsheridan/trio-parallel/blob/main/LICENSE
-.. |license badge| image:: https://badgen.net/pypi/license/trio-parallel
+.. |license badge| image:: https://img.shields.io/pypi/l/trio-parallel?color=informational
    :target: `license`_
    :alt: MIT -or- Apache License 2.0
