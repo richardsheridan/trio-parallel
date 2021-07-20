@@ -36,7 +36,7 @@ docutils==0.16
     # via
     #   sphinx
     #   sphinx-rtd-theme
-idna==2.10
+idna==3.2
     # via
     #   requests
     #   trio
@@ -64,7 +64,7 @@ pyparsing==2.4.7
     # via packaging
 pytz==2021.1
     # via babel
-requests==2.25.1
+requests==2.26.0
     # via sphinx
 sniffio==1.2.0
     # via trio
