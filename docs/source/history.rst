@@ -5,6 +5,15 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.0.0 (2021-07-22)
+--------------------------------
+
+Features
+~~~~~~~~
+
+- The behavior and lifetime of worker processes can now be customized with the :func:`cache_scope` context manager. (`#19 <https://github.com/richardsheridan/trio-parallel/issues/19>`__)
+
+
 trio-parallel 0.5.1 (2021-05-05)
 --------------------------------
 
