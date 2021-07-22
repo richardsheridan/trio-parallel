@@ -93,7 +93,7 @@ jobs:
         os:
           - windows-latest
           - ubuntu-latest
-#          - macos-latest
+          - macos-latest
         python:
           - '3.6'
           - '3.7'
