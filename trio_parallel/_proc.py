@@ -146,13 +146,13 @@ class WorkerSpawnProc(AbstractWorker):
                 del args
                 del result
         except (BrokenPipeError, EOFError):
-            # If the main process closes the pipes, we will
+            # Graceful shutdown: If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
             # Closing pipes manually fixed some __del__ flakiness in CI
             send_pipe.close()
             recv_pipe.close()
             return
-        except BaseException as exc:
+        except BaseException:
             # Ensure BrokenWorkerError raised in the main proc.
             send_pipe.close()
             # recv_pipe must remain open and clear until the main proc closes it.
@@ -160,9 +160,11 @@ class WorkerSpawnProc(AbstractWorker):
                 while True:
                     recv_pipe.recv_bytes()
             except EOFError:
-                raise exc from None
+                pass
+            raise
         else:
-            # Clean shutdown: close recv_pipe first to minimize subsequent race.
+            # Clean idle shutdown or retirement: close recv_pipe first to minimize
+            # subsequent race.
             recv_pipe.close()
             # Race condition: it is possible to sneak a write through in the main process
             # between the while loop predicate and recv_pipe.close(). Naively, this would
