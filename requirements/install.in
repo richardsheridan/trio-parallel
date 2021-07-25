@@ -1,6 +1,7 @@
-# keep me in sync with setup.cfg!
+# keep me in sync with pyproject.toml!
 trio >= 0.18.0
 outcome
 attrs >= 17.3.0
 cffi; os_name == 'nt' and implementation_name != 'pypy'
 tblib
+tricycle >= 0.3.0

@@ -9,6 +9,7 @@ from itertools import count
 from typing import Type, Callable, Any, TypeVar
 
 import attr
+import tricycle
 import trio
 
 from ._proc import WORKER_PROC_MAP
@@ -270,41 +271,43 @@ def configure_default_context(
         DEFAULT_CONTEXT = ctx
 
 
+async def close_at_run_end(ctx):
+    try:
+        await trio.sleep_forever()
+    finally:
+        await ctx._aclose()  # noqa: ASYNC102
+
+
+CACHE_SCOPE_TREEVAR = tricycle.TreeVar("tp_cache_scope")
 if sys.platform == "win32":
     DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
     DEFAULT_CONTEXT_PARAMS = {}
 
-    # TODO: intelligently test ki protection here such that CI fails if the
-    #  decorators disappear
-
-    @trio.lowlevel.enable_ki_protection
     def get_default_context():
+        try:
+            return CACHE_SCOPE_TREEVAR.get()
+        except LookupError:
+            pass
         try:
             ctx = DEFAULT_CONTEXT_RUNVAR.get()
         except LookupError:
             ctx = WorkerContext._create(**DEFAULT_CONTEXT_PARAMS)
-            DEFAULT_CONTEXT_RUNVAR.set(ctx)
-            # KeyboardInterrupt here could leak the context
             trio.lowlevel.spawn_system_task(close_at_run_end, ctx)
+            # set ctx last so as not to leak on KeyboardInterrupt
+            DEFAULT_CONTEXT_RUNVAR.set(ctx)
         return ctx
-
-    @trio.lowlevel.enable_ki_protection
-    async def close_at_run_end(ctx):
-        try:
-            await trio.sleep_forever()
-        finally:
-            # KeyboardInterrupt here could leak the context
-            await ctx._aclose()  # noqa: ASYNC102
 
 else:
 
     def get_default_context():
-        return DEFAULT_CONTEXT
+        try:
+            return CACHE_SCOPE_TREEVAR.get()
+        except LookupError:
+            return DEFAULT_CONTEXT
 
-    def graceful_default_shutdown(ctx):
+    @atexit.register
+    def graceful_default_shutdown(ctx=DEFAULT_CONTEXT):
         ctx._worker_cache.shutdown(ctx.grace_period)
-
-    atexit.register(graceful_default_shutdown, DEFAULT_CONTEXT)
 
 
 def default_context_statistics():
@@ -374,6 +377,64 @@ async def open_worker_context(
     try:
         yield ctx
     finally:
+        await ctx._aclose()  # noqa: ASYNC102
+
+
+@asynccontextmanager
+@trio.lowlevel.enable_ki_protection
+async def cache_scope(
+    idle_timeout=DEFAULT_CONTEXT.idle_timeout,
+    init=DEFAULT_CONTEXT.init,
+    retire=DEFAULT_CONTEXT.retire,
+    grace_period=DEFAULT_CONTEXT.grace_period,
+    worker_type=WorkerType.SPAWN,
+):
+    """
+    The context will automatically wait for any running workers to become idle when
+    exiting the scope. Since this wait cannot be cancelled, it is more convenient to
+    only pass the context object to tasks that cannot outlive the scope, for example,
+    by using a :class:`~trio.Nursery`.
+
+    Args:
+      idle_timeout (float): The time in seconds an idle worker will
+          wait for a CPU-bound job before shutting down and releasing its own
+          resources. Pass `math.inf` to wait forever. MUST be non-negative.
+      init (Callable[[], bool]):
+          An object to call within the worker before waiting for jobs.
+          This is suitable for initializing worker state so that such stateful logic
+          does not need to be included in functions passed to
+          :func:`WorkerContext.run_sync`. MUST be callable without arguments.
+      retire (Callable[[], bool]):
+          An object to call within the worker after executing a CPU-bound job.
+          The return value indicates whether worker should be retired (shut down.)
+          By default, workers are never retired.
+          The process-global environment is stable between calls. Among other things,
+          that means that storing state in global variables works.
+          MUST be callable without arguments.
+      grace_period (float): The time in seconds to wait in ``__aexit__`` for workers to
+          exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
+          Pass `math.inf` to wait forever. MUST be non-negative.
+      worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
+
+    Raises:
+      ValueError | TypeError: if an invalid value is passed for an argument, such as a
+          negative timeout.
+      BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
+
+    .. warning::
+
+       The callables passed to retire MUST not raise! Doing so will result in a
+       :class:`BrokenWorkerError` at an indeterminate future
+       :func:`WorkerContext.run_sync` call.
+    """
+
+    ctx = WorkerContext._create(idle_timeout, init, retire, grace_period, worker_type)
+
+    try:
+        token = CACHE_SCOPE_TREEVAR.set(ctx)
+        yield
+    finally:
+        CACHE_SCOPE_TREEVAR.reset(token)
         await ctx._aclose()  # noqa: ASYNC102
 
 

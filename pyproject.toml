@@ -37,6 +37,7 @@ dependencies = [
     "attrs >= 17.3.0",
     "cffi; os_name == 'nt' and implementation_name != 'pypy'",
     "tblib",
+    "tricycle >= 0.3.0"
 ]
 requires-python = ">=3.7"
 dynamic = ["version"]

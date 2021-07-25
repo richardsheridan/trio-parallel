@@ -1,5 +1,6 @@
 """ Tests of public API with mocked-out workers ("collaboration" tests)"""
 
+import os
 import sys
 from typing import Callable, Optional
 
@@ -185,3 +186,54 @@ async def test_worker_returning_none_can_be_cancelled():
 def test_cannot_instantiate_WorkerContext():
     with pytest.raises(TypeError):
         _impl.WorkerContext()
+
+
+async def _assert_worker_pid(pid, matches):
+    comparison = pid == await run_sync(os.getpid)
+    assert comparison == matches
+
+
+async def test_cache_scope_overrides_run_sync():
+    pid = await run_sync(os.getpid)
+
+    async with _impl.cache_scope():
+        await _assert_worker_pid(pid, False)
+
+
+async def test_cache_scope_overrides_nursery_task():
+    pid = await run_sync(os.getpid)
+
+    async def check_both_sides_of_task_status_started(pid, task_status):
+        await _assert_worker_pid(pid, True)
+        task_status.started()
+        await _assert_worker_pid(pid, True)
+
+    async with trio.open_nursery() as nursery:
+        async with _impl.cache_scope():
+            nursery.start_soon(_assert_worker_pid, pid, True)
+
+    async with trio.open_nursery() as nursery:
+        async with _impl.cache_scope():
+            await nursery.start(check_both_sides_of_task_status_started, pid)
+
+
+async def test_cache_scope_follows_task_tree_discipline():
+    shared_nursery: Optional[trio.Nursery] = None
+
+    async def make_a_cache_scope_around_nursery(task_status):
+        nonlocal shared_nursery
+        async with _impl.cache_scope(), trio.open_nursery() as shared_nursery:
+            await _assert_worker_pid(pid, False)
+            task_status.started()
+            await e.wait()
+
+    async def assert_elsewhere_in_task_tree():
+        await _assert_worker_pid(pid, False)
+        e.set()
+
+    pid = await run_sync(os.getpid)
+    e = trio.Event()
+    async with trio.open_nursery() as nursery:
+        await nursery.start(make_a_cache_scope_around_nursery)
+        # this line tests the main difference from contextvars vs treevars
+        shared_nursery.start_soon(assert_elsewhere_in_task_tree)
