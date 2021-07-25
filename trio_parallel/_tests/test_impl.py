@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+from typing import Optional
 
 import pytest
 import trio
@@ -271,3 +272,39 @@ async def test_truthy_retire_fn_can_be_cancelled():
             assert await run_sync(int)
 
     assert cs.cancelled_caught
+
+
+async def test_cache_scope_follows_task_tree_discipline():
+    shared_nursery: Optional[trio.Nursery] = None
+
+    async def assert_worker_pid(pid, matches):
+        comparison = pid == await run_sync(os.getpid)
+        assert comparison == matches
+
+    async def make_a_cache_scope_around_nursery(task_status):
+        nonlocal shared_nursery
+        pid = await run_sync(os.getpid)
+        async with cache_scope(), trio.open_nursery() as shared_nursery:
+            await assert_worker_pid(pid, False)
+            task_status.started()
+            await trio.sleep_forever()
+
+    async def start_in_shared_nursery():
+        pid = await run_sync(os.getpid)
+        shared_nursery.start_soon(assert_worker_pid, pid, False)
+        await trio.testing.wait_all_tasks_blocked()
+        shared_nursery.cancel_scope.cancel()
+
+    async def check_both_sides_of_task_status_started(pid, task_status):
+        await assert_worker_pid(pid, False)
+        task_status.started()
+        await assert_worker_pid(pid, True)
+
+    async with trio.open_nursery() as nursery:
+        pid = await run_sync(os.getpid)
+        async with cache_scope():
+            await assert_worker_pid(pid, False)
+            await nursery.start(check_both_sides_of_task_status_started, pid)
+            nursery.start_soon(assert_worker_pid, pid, True)
+        await nursery.start(make_a_cache_scope_around_nursery)
+        nursery.start_soon(start_in_shared_nursery)
