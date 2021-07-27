@@ -62,7 +62,7 @@ jobs:
           key: ${{ runner.os }}-pip-build-${{ hashFiles('**/requirements/build.txt') }}
       - name: Build sdist wheel
         run: |
-          python -m pip install -U pip setuptools
+          python -m pip install -U pip
           python -m pip install -r requirements/build.txt
           python -m build --no-isolation  # already isolated & build deps pinned
       - name: Set outputs
@@ -144,7 +144,7 @@ jobs:
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements/test.txt
-          python -m pip install ${{ needs.Build.outputs.wheelname }}
+          python -m pip install ${{ needs.Build.outputs.wheelname }} --no-deps
           pytest --pyargs trio_parallel -W error -r a --cov=trio_parallel --verbose \
           --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml 
         shell: bash
