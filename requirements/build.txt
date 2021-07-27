@@ -6,6 +6,8 @@
 #
 build==0.5.1
     # via -r build.in
+colorama==0.4.4
+    # via build
 packaging==21.0
     # via build
 pep517==0.10.0
