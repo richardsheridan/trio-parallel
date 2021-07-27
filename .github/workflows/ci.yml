@@ -160,6 +160,7 @@ jobs:
     name: Codecov
     if: always()
     needs: Test
+    timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -177,6 +178,7 @@ jobs:
     name: Publish
     if: github.event_name == 'release'
     needs: [ Blacken, Build, Test, Codecov ]
+    timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifact
