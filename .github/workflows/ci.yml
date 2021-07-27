@@ -48,7 +48,6 @@ jobs:
     outputs:
       wheelname: ${{ steps.outputs.outputs.wheelname }}
       settings: ${{ steps.outputs.outputs.settings }}
-      cachehash: ${{ steps.outputs.outputs.cachehash }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2.3.4
@@ -71,7 +70,6 @@ jobs:
         run: |
           echo "::set-output name=wheelname::$( echo ./dist/*.whl )"
           echo "::set-output name=settings::$( tar cz pyproject.toml requirements/test.txt | base64 -w 0 )"
-          echo "::set-output name=cachehash::${{ hashFiles('**/requirements/test.txt') }}"
       - name: Upload build artifact
         uses: actions/upload-artifact@v2.2.4
         with:
@@ -126,6 +124,9 @@ jobs:
         with:
           python-version: '${{ matrix.python }}'
           architecture: '${{ matrix.arch }}'
+      - name: Input settings
+        run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
+        shell: bash
       - name: Pip cache
         uses: actions/cache@v2.1.6
         with:
@@ -133,15 +134,12 @@ jobs:
             ~/AppData/Local/pip/Cache
             ~/.cache/pip
             ~/Library/Caches/pip
-          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ needs.Build.outputs.cachehash }}
+          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/requirements/test.txt') }}
       - name: Download build artifact
         uses: actions/download-artifact@v2.0.10
         with:
           name: Build
           path: dist
-      - name: Input settings
-        run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
-        shell: bash
       - name: Run tests
         run: |
           python -m pip install -U pip
