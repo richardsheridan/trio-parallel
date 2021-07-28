@@ -20,7 +20,7 @@ async def proc(request):
         if not cs.cancelled_caught:
             return
         with trio.move_on_after(2) as cs:
-            proc._send_pipe.close()
+            proc.shutdown()
             await proc.wait()
         if not cs.cancelled_caught:  # pragma: no branch, leads to failure case
             return
