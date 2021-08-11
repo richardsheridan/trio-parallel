@@ -108,7 +108,6 @@ class WorkerSpawnProc(AbstractWorker):
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
-        self._started = trio.Event()  # Allow waiting before startup
         self._wait_lock = trio.Lock()  # Efficiently multiplex waits
 
     @staticmethod
@@ -180,12 +179,11 @@ class WorkerSpawnProc(AbstractWorker):
         result = None
         try:
 
-            if not self._started.is_set():
+            if self.proc.pid is None:
                 await trio.to_thread.run_sync(self.proc.start)
                 # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
-                self._started.set()
 
             try:
                 await self._send_chan.send(
@@ -227,7 +225,6 @@ class WorkerSpawnProc(AbstractWorker):
 
     def kill(self):
         if self.proc.pid is None:
-            self._started.set()  # unblock self.wait()
             return
         try:
             self.proc.kill()
@@ -237,7 +234,6 @@ class WorkerSpawnProc(AbstractWorker):
     async def wait(self):
         if self.proc.exitcode is not None:
             return self.proc.exitcode
-        await self._started.wait()
         if self.proc.pid is None:
             return None  # killed before started
         async with self._wait_lock:
@@ -284,7 +280,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
             super()._work(recv_pipe, send_pipe, idle_timeout, retire)
 
         async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
-            if not self._started.is_set():
+            if self.proc.pid is None:
                 # on fork, doing start() in a thread is racy, and should be
                 # fast enough to be considered non-blocking anyway
                 self.proc.start()
@@ -292,7 +288,6 @@ if "fork" in _all_start_methods:  # pragma: no branch
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
                 del self._retire
-                self._started.set()
             return await super().run_sync(sync_fn, *args)
 
     WORKER_PROC_MAP["fork"] = WorkerForkProc, WorkerProcCache
