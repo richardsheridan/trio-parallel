@@ -1,7 +1,7 @@
 import os
+import multiprocessing
 
 from itertools import count
-from multiprocessing import get_context, get_all_start_methods
 from pickle import dumps, loads, HIGHEST_PROTOCOL
 from typing import Optional, Callable
 
@@ -53,13 +53,13 @@ class WorkerProcCache(WorkerCache):
                 self.appendleft(worker)
                 return
 
-    async def clear(self):
+    async def shutdown(self):
         unclean = []
         killed = []
 
-        async def clean_wait(proc):
-            if await proc.wait():
-                unclean.append(proc.proc)
+        async def clean_wait(worker):
+            if await worker.wait():
+                unclean.append(worker.proc)
 
         async with trio.open_nursery() as nursery:
             nursery.cancel_scope.shield = True
@@ -87,7 +87,7 @@ class WorkerProcCache(WorkerCache):
 
 class WorkerSpawnProc(AbstractWorker):
     _proc_counter = count()
-    mp_context = get_context("spawn")
+    mp_context = multiprocessing.get_context("spawn")
 
     def __init__(self, idle_timeout, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
@@ -254,19 +254,19 @@ class WorkerSpawnProc(AbstractWorker):
 
 WORKER_PROC_MAP = {"spawn": (WorkerSpawnProc, WorkerProcCache)}
 
-_all_start_methods = set(get_all_start_methods())
+_all_start_methods = set(multiprocessing.get_all_start_methods())
 
 if "forkserver" in _all_start_methods:  # pragma: no branch
 
     class WorkerForkserverProc(WorkerSpawnProc):
-        mp_context = get_context("forkserver")
+        mp_context = multiprocessing.get_context("forkserver")
 
     WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
 
 if "fork" in _all_start_methods:  # pragma: no branch
 
     class WorkerForkProc(WorkerSpawnProc):
-        mp_context = get_context("fork")
+        mp_context = multiprocessing.get_context("fork")
 
         def __init__(self, idle_timeout, retire):
             self._retire = retire

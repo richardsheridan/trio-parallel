@@ -9,8 +9,9 @@ from .._impl import DEFAULT_CONTEXT, WorkerType, run_sync, cache_scope
 
 
 @pytest.fixture(autouse=True)
-def empty_proc_cache():
-    trio.run(DEFAULT_CONTEXT.worker_cache.clear)
+def shutdown_cache():
+    trio.run(DEFAULT_CONTEXT.worker_cache.shutdown)
+    DEFAULT_CONTEXT.worker_cache.clear()
 
 
 @pytest.fixture(scope="module")
@@ -37,8 +38,8 @@ async def test_run_sync():
     assert excinfo.value.args[0] != trio_pid
 
 
-def _block_proc(block, start, done):
-    # Make the process block for a controlled amount of time
+def _block_worker(block, start, done):
+    # Make the worker block for a controlled amount of time
     start.set()
     block.wait()
     done.set()
@@ -50,12 +51,12 @@ async def test_cancellation(manager):
         child_start = True
         try:
             return await run_sync(
-                _block_proc, block, proc_start, proc_done, cancellable=cancellable
+                _block_worker, block, worker_start, worker_done, cancellable=cancellable
             )
         finally:
             child_done = True
 
-    block, proc_start, proc_done = manager.Event(), manager.Event(), manager.Event()
+    block, worker_start, worker_done = manager.Event(), manager.Event(), manager.Event()
     child_start = False
     child_done = False
 
@@ -67,17 +68,17 @@ async def test_cancellation(manager):
     assert scope.cancelled_caught
     assert child_start
     assert child_done
-    assert not proc_start.is_set()
-    assert not proc_done.is_set()
+    assert not worker_start.is_set()
+    assert not worker_done.is_set()
 
     block.clear()
-    proc_start.clear()
-    proc_done.clear()
+    worker_start.clear()
+    worker_done.clear()
     child_start = False
     child_done = False
     # prime worker cache so fail timeout doesn't have to be so long
     await run_sync(bool)
-    # This is truly cancellable by killing the process
+    # This is truly cancellable by killing the worker
     async with trio.open_nursery() as nursery:
         nursery.start_soon(child, True)
         # Give it a chance to get started. (This is important because
@@ -86,34 +87,34 @@ async def test_cancellation(manager):
         await trio.testing.wait_all_tasks_blocked(0.01)
         assert child_start
         with trio.fail_after(1):
-            await trio.to_thread.run_sync(proc_start.wait, cancellable=True)
+            await trio.to_thread.run_sync(worker_start.wait, cancellable=True)
         # Then cancel it.
         nursery.cancel_scope.cancel()
-    # The task exited, but the process died
+    # The task exited, but the worker died
     assert not block.is_set()
-    assert not proc_done.is_set()
+    assert not worker_done.is_set()
     assert child_done
 
     block.clear()
-    proc_start.clear()
-    proc_done.clear()
+    worker_start.clear()
+    worker_done.clear()
     child_start = False
     child_done = False
 
     # This one can't be cancelled
     async with trio.open_nursery() as nursery:
         nursery.start_soon(child, False)
-        await trio.to_thread.run_sync(proc_start.wait, cancellable=True)
+        await trio.to_thread.run_sync(worker_start.wait, cancellable=True)
         assert child_start
         nursery.cancel_scope.cancel()
         with trio.CancelScope(shield=True):
             await trio.testing.wait_all_tasks_blocked(0.01)
         # It's still running
-        assert not proc_done.is_set()
+        assert not worker_done.is_set()
         block.set()
         # Now it exits
     assert child_done
-    assert proc_done.is_set()
+    assert worker_done.is_set()
 
 
 async def _null_async_fn():  # pragma: no cover, coroutine called but not run
@@ -126,15 +127,15 @@ async def test_run_sync_coroutine_error():
 
 
 async def test_prune_cache():
-    # take proc's number and kill it for the next test
+    # take worker's number and kill it for the next test
     pid1 = await run_sync(os.getpid)
-    proc = DEFAULT_CONTEXT.worker_cache.pop()
-    proc.kill()
+    worker = DEFAULT_CONTEXT.worker_cache.pop()
+    worker.kill()
     with trio.fail_after(1):
-        await proc.wait()
+        await worker.wait()
     pid2 = await run_sync(os.getpid)
-    # put dead proc into the cache (normal code never does this)
-    DEFAULT_CONTEXT.worker_cache.appendleft(proc)
+    # put dead worker into the cache (normal code never does this)
+    DEFAULT_CONTEXT.worker_cache.appendleft(worker)
     pid2 = await run_sync(os.getpid)
     assert len(DEFAULT_CONTEXT.worker_cache) == 1
     assert pid1 != pid2
@@ -181,7 +182,7 @@ async def test_cache_timeout():
         async with cache_scope(idle_timeout=0):
             pid0 = await run_sync(os.getpid)
             while pid0 == await run_sync(os.getpid):
-                pass  # pragma: no cover, rare race will reuse proc once or twice
+                pass  # pragma: no cover, rare race will reuse worker once or twice
     with trio.fail_after(20):
         async with cache_scope(idle_timeout=None):
             pid0 = await run_sync(os.getpid)
@@ -254,7 +255,7 @@ async def test_loopy_retire_fn(manager):
         cs = cache_scope(retire=_loopy_retire_fn)
         await cs.__aenter__()
         try:
-            # open an extra process to increase branch coverage in cache close()
+            # open an extra worker to increase branch coverage in cache shutdown()
             async with trio.open_nursery() as n:
                 n.start_soon(run_sync, b.wait)
                 n.start_soon(run_sync, b.wait)
