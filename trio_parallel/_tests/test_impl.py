@@ -1,5 +1,7 @@
+import inspect
 import multiprocessing
 import os
+import sys
 
 import pytest
 import trio
@@ -159,7 +161,7 @@ async def test_cache_scope():
 _NUM_RUNS = 0
 
 
-def _retire_run_twice():  # pragma: no cover
+def _retire_run_twice():
     global _NUM_RUNS
     if _NUM_RUNS >= 2:
         return True
@@ -272,3 +274,37 @@ async def test_truthy_retire_fn_can_be_cancelled():
             assert await run_sync(int)
 
     assert cs.cancelled_caught
+
+
+def _atexit_shutdown():
+    # run in a subprocess, no access to globals
+    import trio
+
+    # note the order here: if trio_parallel is imported after multiprocessing,
+    # specifically after invoking the logger, a more naive installation of the atexit
+    # handler could be done and still pass the test
+    import trio_parallel
+    import multiprocessing  # noqa: F811
+
+    # we inspect the logger output in stderr to validate the test
+    multiprocessing.log_to_stderr(10)
+    trio.run(trio_parallel.run_sync, bool)
+
+
+_main_incantation = """
+if __name__ == '__main__':
+    {}()
+
+"""
+
+
+def test_we_control_atexit_shutdowns(pytester):
+    # multiprocessing will either terminate or workers or lock up during its atexit
+    # our graceful shutdown code allows atexit handlers *in the workers* to run as
+    # well as avoiding being joined by the multiprocessing code. We test the latter.
+    test_code = inspect.getsource(_atexit_shutdown)
+    test_code += _main_incantation.format(_atexit_shutdown.__name__)
+    test_path = pytester.makepyfile(test_code)
+    result = pytester.run(sys.executable, test_path, timeout=10)
+    assert result.ret == 0
+    assert "calling join() for" not in str(result.stderr)

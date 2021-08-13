@@ -1,3 +1,4 @@
+import atexit
 import os
 import contextvars
 from enum import Enum
@@ -56,6 +57,7 @@ class WorkerContext:
 
 
 DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
+atexit.register(trio.run, DEFAULT_CONTEXT.worker_cache.shutdown)
 _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
 
 

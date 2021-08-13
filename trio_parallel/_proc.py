@@ -10,6 +10,8 @@ from outcome import Outcome, capture
 
 from ._abc import WorkerCache, AbstractWorker, BrokenWorkerError
 
+multiprocessing.get_logger()  # to register multiprocessing atexit handler
+
 if os.name == "nt":
     from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
 
