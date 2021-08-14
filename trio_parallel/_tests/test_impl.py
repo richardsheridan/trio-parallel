@@ -276,7 +276,7 @@ async def test_truthy_retire_fn_can_be_cancelled():
     assert cs.cancelled_caught
 
 
-def _atexit_shutdown():
+def _atexit_shutdown():  # pragma: no cover, source code extracted
     # run in a subprocess, no access to globals
     import trio
 
@@ -297,14 +297,20 @@ if __name__ == '__main__':
 
 """
 
-
-def test_we_control_atexit_shutdowns(pytester):
+# trying to cover this leads to bugs like
+# https://github.com/pytest-dev/pytest-cov/issues/243
+# and a weird duplication of the statistics in reports.
+# We don't even need coverage if it passes...
+@pytest.mark.no_cover
+def test_we_control_atexit_shutdowns(pytester, capfd):  # pragma: no cover
     # multiprocessing will either terminate or workers or lock up during its atexit
     # our graceful shutdown code allows atexit handlers *in the workers* to run as
     # well as avoiding being joined by the multiprocessing code. We test the latter.
     test_code = inspect.getsource(_atexit_shutdown)
     test_code += _main_incantation.format(_atexit_shutdown.__name__)
-    test_path = pytester.makepyfile(test_code)
-    result = pytester.run(sys.executable, test_path, timeout=10)
+    result = pytester.run(sys.executable, "-c", test_code, timeout=10)
     assert result.ret == 0
-    assert "calling join() for" not in str(result.stderr)
+    stderr = str(result.stderr)
+    assert "[INFO/MainProcess] process shutting down" in stderr
+    assert "calling join() for" not in stderr
+    capfd.readouterr()
