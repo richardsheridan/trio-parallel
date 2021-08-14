@@ -16,13 +16,6 @@ def shutdown_cache():
     DEFAULT_CONTEXT.worker_cache.clear()
 
 
-@pytest.fixture(scope="module")
-def manager():
-    m = multiprocessing.get_context("spawn").Manager()
-    with m:
-        yield m
-
-
 def _raise_pid():
     raise ValueError(os.getpid())
 
