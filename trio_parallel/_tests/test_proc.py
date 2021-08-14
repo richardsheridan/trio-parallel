@@ -33,13 +33,6 @@ async def worker(request):
             )
 
 
-@pytest.fixture(scope="module")
-def manager():
-    m = multiprocessing.get_context("spawn").Manager()
-    with m:
-        yield m
-
-
 def _never_halts(ev):  # pragma: no cover, worker will be killed
     # important difference from blocking call is cpu usage
     ev.set()
@@ -58,13 +51,13 @@ async def test_run_sync_cancel_infinite_loop(worker, manager):
         assert await worker.wait() in (-15, -9, 255)  # 255 for py3.6 forkserver
 
 
-# TODO: debug manager interaction with pipes on PyPy GH#44
-async def test_run_sync_raises_on_kill(worker):
+async def test_run_sync_raises_on_kill(worker, manager):
+    ev = manager.Event()
     await worker.run_sync(int)  # running start so actual test is less racy
     with pytest.raises(BrokenWorkerError) as exc_info, trio.fail_after(5):
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(worker.run_sync, time.sleep, 5)
-            await trio.sleep(0.1)
+            nursery.start_soon(worker.run_sync, _never_halts, ev)
+            await trio.to_thread.run_sync(ev.wait, cancellable=True)
             worker.kill()  # also tests multiple calls to worker.kill
     exitcode = await worker.wait()
     assert exitcode in (-15, -9, 255)  # 255 for py3.6 forkserver
