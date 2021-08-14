@@ -1,3 +1,4 @@
+import atexit
 import os
 import contextvars
 from enum import Enum
@@ -56,6 +57,7 @@ class WorkerContext:
 
 
 DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
+atexit.register(trio.run, DEFAULT_CONTEXT.worker_cache.shutdown)
 _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
 
 
@@ -115,7 +117,7 @@ async def cache_scope(
         yield
     finally:
         _worker_context_var.reset(token)
-        await worker_context.worker_cache.clear()
+        await worker_context.worker_cache.shutdown()
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
@@ -174,12 +176,12 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
             await trio.lowlevel.checkpoint_if_cancelled()
 
             try:
-                proc = ctx.worker_cache.pop()
+                worker = ctx.worker_cache.pop()
             except IndexError:
-                proc = ctx.worker_class(ctx.idle_timeout, ctx.retire)
+                worker = ctx.worker_class(ctx.idle_timeout, ctx.retire)
 
             with trio.CancelScope(shield=not cancellable):
-                result = await proc.run_sync(sync_fn, *args)
+                result = await worker.run_sync(sync_fn, *args)
 
-    ctx.worker_cache.append(proc)
+    ctx.worker_cache.append(worker)
     return result.unwrap()
