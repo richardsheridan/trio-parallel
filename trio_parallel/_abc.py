@@ -26,8 +26,16 @@ class WorkerCache(deque, ABC):
         while idle in the cache."""
 
     @abstractmethod
-    async def shutdown(self):
-        """Stop and clean up any resources associated with all cached workers."""
+    def shutdown(self, grace_period):
+        """Stop and clean up any resources associated with all cached workers.
+
+        Args:
+          grace_period: Time in seconds to wait for graceful shutdown before
+              raising.
+
+        Raises:
+          BrokenWorkerError: Raised if any workers fail to respond to a graceful
+              shutdown signal within ``grace_period``."""
 
 
 class AbstractWorker(ABC):

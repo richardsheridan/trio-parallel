@@ -57,8 +57,14 @@ class WorkerContext:
 
 
 DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
-atexit.register(trio.run, DEFAULT_CONTEXT.worker_cache.shutdown)
 _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
+DEFAULT_SHUTDOWN_GRACE_PERIOD = 30
+
+
+@atexit.register
+def graceful_default_shutdown():
+    # need to late-bind the context attribute lookup
+    DEFAULT_CONTEXT.worker_cache.shutdown(DEFAULT_SHUTDOWN_GRACE_PERIOD)
 
 
 @asynccontextmanager
@@ -117,7 +123,10 @@ async def cache_scope(
         yield
     finally:
         _worker_context_var.reset(token)
-        await worker_context.worker_cache.shutdown()
+        with trio.CancelScope(shield=True):
+            await trio.to_thread.run_sync(
+                worker_context.worker_cache.shutdown, DEFAULT_SHUTDOWN_GRACE_PERIOD
+            )
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
