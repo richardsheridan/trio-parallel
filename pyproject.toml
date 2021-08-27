@@ -13,14 +13,13 @@ underlines = ["-", "~", "^"]
 issue_format = "`#{issue} <https://github.com/richardsheridan/trio-parallel/issues/{issue}>`__"
 
 [tool.pytest.ini_options]
-addopts = "--pyargs -W error -r a --cov --cov-config=pyproject.toml --verbose"
+addopts = "--pyargs -W error -r a --verbose --cov --cov-config=pyproject.toml --cov-context=test"
 xfail_strict = true
 faulthandler_timeout = 60
 
 [tool.coverage.run]
 branch = true
 source_pkgs = ["trio_parallel"]
-dynamic_context = "test_function"
 relative_files = true
 disable_warnings = ["trace-changed"]  # for test_clean_exit_on_pipe_close
 
