@@ -1,10 +1,6 @@
-import pytest
-
-pytest_plugins = "pytester"
-from pytest_trio.enable_trio_mode import *
-
-
 import multiprocessing
+import pytest
+from pytest_trio.enable_trio_mode import *
 
 
 @pytest.fixture(scope="package")
