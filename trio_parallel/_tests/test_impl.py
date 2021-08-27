@@ -1,6 +1,7 @@
 import inspect
 import multiprocessing
 import os
+import subprocess
 import sys
 
 import pytest
@@ -284,26 +285,18 @@ def _atexit_shutdown():  # pragma: no cover, source code extracted
     trio.run(trio_parallel.run_sync, bool)
 
 
-_main_incantation = """
-if __name__ == '__main__':
-    {}()
-
-"""
-
-# trying to cover this leads to bugs like
-# https://github.com/pytest-dev/pytest-cov/issues/243
-# and a weird duplication of the statistics in reports.
-# We don't even need coverage if it passes...
-@pytest.mark.no_cover
-def test_we_control_atexit_shutdowns(pytester, capfd):  # pragma: no cover
+def test_we_control_atexit_shutdowns():
     # multiprocessing will either terminate or workers or lock up during its atexit
     # our graceful shutdown code allows atexit handlers *in the workers* to run as
     # well as avoiding being joined by the multiprocessing code. We test the latter.
-    test_code = inspect.getsource(_atexit_shutdown)
-    test_code += _main_incantation.format(_atexit_shutdown.__name__)
-    result = pytester.run(sys.executable, "-c", test_code, timeout=10)
-    assert result.ret == 0
-    stderr = str(result.stderr)
-    assert "[INFO/MainProcess] process shutting down" in stderr
-    assert "calling join() for" not in stderr
-    capfd.readouterr()
+    test_code = f"""{inspect.getsource(_atexit_shutdown)}\nif __name__ == '__main__':
+        {_atexit_shutdown.__name__}()"""
+    result = subprocess.run(
+        [sys.executable, "-c", test_code],
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=10,
+    )
+    assert result.returncode == 0
+    assert b"[INFO/MainProcess] process shutting down" in result.stderr
+    assert b"calling join() for" not in result.stderr
