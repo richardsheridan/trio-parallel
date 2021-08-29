@@ -117,7 +117,8 @@ class WorkerSpawnProc(AbstractWorker):
         import inspect
         import signal
 
-        def coroutine_checker(fn, args):
+        def handle_job(job):
+            fn, args = loads(job)
             ret = fn(*args)
             if inspect.iscoroutine(ret):
                 # Manually close coroutine to avoid RuntimeWarnings
@@ -129,6 +130,13 @@ class WorkerSpawnProc(AbstractWorker):
 
             return ret
 
+        def safe_dumps(result):
+            string_result = capture(dumps, result, protocol=HIGHEST_PROTOCOL)
+            try:
+                return string_result.value
+            except AttributeError:
+                return dumps(string_result, protocol=HIGHEST_PROTOCOL)
+
         # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -137,15 +145,9 @@ class WorkerSpawnProc(AbstractWorker):
             if isinstance(retire, bytes):  # true except on "fork"
                 retire = loads(retire)
             while not retire() and recv_pipe.poll(idle_timeout):
-                fn, args = loads(recv_pipe.recv_bytes())
-                # Do the CPU bound work
-                result = capture(coroutine_checker, fn, args)
-                # Send result and go back to idling
-                send_pipe.send_bytes(dumps(result, protocol=HIGHEST_PROTOCOL))
-
-                del fn
-                del args
-                del result
+                send_pipe.send_bytes(
+                    safe_dumps(capture(handle_job, recv_pipe.recv_bytes()))
+                )
         except (BrokenPipeError, EOFError):
             # Graceful shutdown: If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.

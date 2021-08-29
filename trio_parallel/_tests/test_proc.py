@@ -1,6 +1,5 @@
-import multiprocessing
 import signal
-import time
+from pickle import PicklingError
 
 import trio
 import pytest
@@ -149,3 +148,16 @@ async def test_clean_exit_on_pipe_close(worker, capfd):
     out, err = capfd.readouterr()
     assert not out
     assert not err
+
+
+_lambda = lambda: None  # pragma: no cover
+
+
+def _return_lambda():
+    return _lambda
+
+
+@pytest.mark.parametrize("job", [_lambda, _return_lambda])
+async def test_unpickleable(job, worker):
+    with pytest.raises((PicklingError, AttributeError)):
+        (await worker.run_sync(job)).unwrap()
