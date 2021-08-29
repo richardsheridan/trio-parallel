@@ -148,6 +148,7 @@ jobs:
           pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
         shell: bash
       - name: Upload coverage
+        if: always()
         uses: actions/upload-artifact@v2.2.4
         with:
           name: Coverage
