@@ -10,26 +10,21 @@ from .._abc import BrokenWorkerError
 
 @pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))
 async def worker(request):
-    worker = request.param[0](600, bool)
+    worker = request.param[0](None, bool)
     try:
         yield worker
     finally:
-        with trio.move_on_after(0.01) as cs:
-            await worker.wait()
-        if not cs.cancelled_caught:
-            return
         with trio.move_on_after(2) as cs:
             worker.shutdown()
             await worker.wait()
-        if not cs.cancelled_caught:  # pragma: no branch, leads to failure case
-            return
-        with trio.fail_after(1):  # pragma: no cover, leads to failure case
-            worker.kill()
-            await worker.wait()
-            pytest.fail(
-                "tests should be responsible for killing and waiting if they do not lead to "
-                "a graceful shutdown state"
-            )
+        if cs.cancelled_caught:
+            with trio.fail_after(1):  # pragma: no cover, leads to failure case
+                worker.kill()
+                await worker.wait()
+                pytest.fail(
+                    "tests should be responsible for killing and waiting if "
+                    "they do not lead to a graceful shutdown state"
+                )
 
 
 def _never_halts(ev):  # pragma: no cover, worker will be killed

@@ -6,8 +6,6 @@ import sys
 import pytest
 import trio
 
-from .. import _impl
-from .._abc import BrokenWorkerError
 from .._impl import (
     DEFAULT_CONTEXT,
     WorkerType,
@@ -119,36 +117,6 @@ async def test_cancellation(manager):
     assert worker_done.is_set()
 
 
-async def _null_async_fn():  # pragma: no cover, coroutine called but not run
-    pass
-
-
-async def test_run_sync_coroutine_error():
-    with pytest.raises(TypeError, match="expected a sync function"):
-        await run_sync(_null_async_fn)
-
-
-async def test_prune_cache():
-    # take worker's number and kill it for the next test
-    pid1 = await run_sync(os.getpid)
-    worker = DEFAULT_CONTEXT.worker_cache.pop()
-    worker.kill()
-    with trio.fail_after(1):
-        await worker.wait()
-    pid2 = await run_sync(os.getpid)
-    # put dead worker into the cache (normal code never does this)
-    DEFAULT_CONTEXT.worker_cache.appendleft(worker)
-    pid2 = await run_sync(os.getpid)
-    assert len(DEFAULT_CONTEXT.worker_cache) == 1
-    assert pid1 != pid2
-
-
-async def test_run_sync_large_job():
-    n = 2 ** 20
-    x = await run_sync(bytes, bytearray(n))
-    assert len(x) == n
-
-
 async def test_cache_scope():
     pid1 = await run_sync(os.getpid)
     async with cache_scope():
@@ -210,61 +178,6 @@ async def test_erroneous_scope_inputs():
     with pytest.raises(ValueError):
         async with cache_scope(grace_period=-2):
             pass
-
-
-def _bad_retire_fn():
-    assert False
-
-
-async def test_bad_retire_fn(capfd):
-    with trio.fail_after(10):
-        async with cache_scope(retire=_bad_retire_fn):
-            with pytest.raises(BrokenWorkerError):
-                await run_sync(os.getpid, cancellable=True)
-    out, err = capfd.readouterr()
-    assert "trio-parallel worker process" in err
-    assert "AssertionError" in err
-
-
-def _delayed_bad_retire_fn():
-    if _retire_run_twice():
-        _bad_retire_fn()
-
-
-async def test_delayed_bad_retire_fn(capfd):
-    with trio.fail_after(10):
-        cs = cache_scope(retire=_delayed_bad_retire_fn)
-        await cs.__aenter__()
-        try:
-            await run_sync(bool, cancellable=True)
-            await run_sync(bool, cancellable=True)
-        finally:
-            with pytest.raises(BrokenWorkerError):
-                await cs.__aexit__(None, None, None)
-    out, err = capfd.readouterr()
-    assert "trio-parallel worker process" in err
-    assert "AssertionError" in err
-
-
-def _loopy_retire_fn():  # pragma: no cover, will be killed
-    if _retire_run_twice():
-        import time
-
-        while True:
-            time.sleep(1)
-
-
-async def test_loopy_retire_fn(manager):
-    b = manager.Barrier(2)
-    with pytest.raises(BrokenWorkerError), trio.fail_after(15) as cancel_scope:
-        async with cache_scope(retire=_loopy_retire_fn, grace_period=0.5):
-            # open an extra worker to increase branch coverage in cache shutdown()
-            async with trio.open_nursery() as n:
-                n.start_soon(run_sync, b.wait)
-                n.start_soon(run_sync, b.wait)
-            await run_sync(bool, cancellable=True)
-            cancel_scope.cancel()
-    assert cancel_scope.cancel_called
 
 
 async def test_truthy_retire_fn_can_be_cancelled():
