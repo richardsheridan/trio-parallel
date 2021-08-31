@@ -1,7 +1,5 @@
-import inspect
-import os
-import subprocess
-import sys
+""" Tests of run_sync API with mocked-out workers ("collaboration" tests)"""
+
 from typing import Callable, Optional
 
 import pytest

@@ -1,5 +1,9 @@
-import signal
-from pickle import PicklingError
+""" Tests of internal worker process API ("contract" tests)
+
+    These are specific to subprocesses and you wouldn't expect these to pass
+    with thread or subinterpreter workers.
+"""
+
 
 import trio
 import pytest
@@ -122,27 +126,13 @@ async def test_exhaustively_cancel_run_sync2(worker, manager):
 
 
 def _raise_ki():
+    import signal
+
     trio._util.signal_raise(signal.SIGINT)
 
 
 async def test_ki_does_not_propagate(worker):
     (await worker.run_sync(_raise_ki)).unwrap()
-
-
-async def test_clean_exit_on_pipe_close(worker, capfd):
-    # This could happen on weird __del__/weakref/atexit situations.
-    # It was not visible on normal, clean exits because multiprocessing
-    # would call terminate before pipes were GC'd.
-    x = await worker.run_sync(int)
-    x.unwrap()
-    worker._send_pipe.close()
-    worker._recv_pipe.close()
-    with trio.fail_after(1):
-        assert await worker.wait() == 0
-
-    out, err = capfd.readouterr()
-    assert not out
-    assert not err
 
 
 _lambda = lambda: None  # pragma: no cover
@@ -154,5 +144,7 @@ def _return_lambda():
 
 @pytest.mark.parametrize("job", [_lambda, _return_lambda])
 async def test_unpickleable(job, worker):
+    from pickle import PicklingError
+
     with pytest.raises((PicklingError, AttributeError)):
         (await worker.run_sync(job)).unwrap()

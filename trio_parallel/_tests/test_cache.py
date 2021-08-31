@@ -1,3 +1,5 @@
+""" Tests of internal cache API ("contract" tests)"""
+
 import pytest
 import trio
 
@@ -6,7 +8,7 @@ from .._abc import BrokenWorkerError
 
 
 @pytest.fixture(params=list(WORKER_MAP.values()), ids=list(WORKER_MAP.keys()))
-async def cache_and_workertype(request):
+def cache_and_workertype(request):
     worker_type, cache_type = request.param
     cache = cache_type()
     try:
