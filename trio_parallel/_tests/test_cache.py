@@ -12,7 +12,7 @@ async def cache_and_workertype(request):
     try:
         yield cache, worker_type
     finally:
-        await cache.shutdown()  # internal assertion of clean shutdown
+        cache.shutdown(10)  # internal assertion of clean shutdown
 
 
 async def test_prune_cache(cache_and_workertype):
@@ -106,5 +106,5 @@ async def test_loopy_retire_fn(cache_and_workertype):
     cache.append(worker)
 
     with pytest.raises(BrokenWorkerError):
-        await cache.shutdown()
+        await cache.shutdown(0.5)
     cache.clear()

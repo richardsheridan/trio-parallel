@@ -48,7 +48,7 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
-@attr.s(auto_attribs=True, slots=True)
+@attr.s(auto_attribs=True, slots=True, eq=False)
 class WorkerContext:
     idle_timeout: Optional[float] = 600.0
     retire: Callable[[], bool] = bool  # always falsey singleton
