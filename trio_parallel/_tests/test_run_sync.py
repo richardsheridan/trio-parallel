@@ -206,6 +206,12 @@ class MockWorker(AbstractWorker):
                 lambda *a: (sync_fn, args, trio.current_effective_deadline())
             )
 
+    def shutdown(self):
+        self.retire = _special_none_making_retire
+
+    async def wait(self):  # pragma: no cover, only here to satisfy ABC
+        pass
+
 
 class MockCache(WorkerCache):
     pruned_count = 0
@@ -215,6 +221,8 @@ class MockCache(WorkerCache):
         self.pruned_count += 1
 
     def shutdown(self, grace_period):
+        for worker in self:
+            worker.shutdown()
         self.shutdown_count += 1
 
 

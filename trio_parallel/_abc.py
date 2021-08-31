@@ -59,6 +59,15 @@ class AbstractWorker(ABC):
 
         Raises:
           BrokenWorkerError: Indicates the worker died unexpectedly. Not encountered
-              in normal use.
+              in normal use."""
 
-        """
+    @abstractmethod
+    def shutdown(self):
+        """Trigger a graceful shutdown of the worker.
+
+        :meth:`run_sync` will return None in response to any future job submissions.
+        Jobs in progress will complete as normal."""
+
+    @abstractmethod
+    async def wait(self):
+        """Wait for the worker to terminate."""
