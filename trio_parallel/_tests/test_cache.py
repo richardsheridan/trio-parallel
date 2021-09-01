@@ -87,6 +87,11 @@ async def test_delayed_bad_retire_fn(cache_and_workertype, capfd):
         await worker.run_sync(bool)
     with trio.fail_after(1):
         assert await worker.wait() == 1
+
+    cache.append(worker)
+    with pytest.raises(BrokenWorkerError):
+        await cache.shutdown(0.5)
+    cache.clear()
     out, err = capfd.readouterr()
     assert "trio-parallel worker process" in err
     assert "AssertionError" in err
@@ -105,8 +110,8 @@ async def test_loopy_retire_fn(cache_and_workertype):
     worker = worker_type(None, _loopy_retire_fn)
     await worker.run_sync(bool)
     await worker.run_sync(bool)
-    cache.append(worker)
 
+    cache.append(worker)
     with pytest.raises(BrokenWorkerError):
         await cache.shutdown(0.5)
     cache.clear()
