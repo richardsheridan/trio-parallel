@@ -116,17 +116,18 @@ async def cache_scope(
           wait for a CPU-bound job before shutting down and releasing its own
           resources. Pass `None` to wait forever, as `math.inf` will fail.
           MUST be non-negative if not `None`.
+      init (Callable[[], bool]):
+          An object to call within the worker before waiting for jobs.
+          This is suitable for initializing worker state so that such stateful logic
+          does not need to be included in functions passed to :func:`run_sync`.
+          MUST be callable without arguments.
       retire (Callable[[], bool]):
-          An object to call within the worker BEFORE waiting for a CPU-bound job.
-          The return value indicates whether worker should be shut down (retired)
-          BEFORE waiting. By default, workers are never retired.
+          An object to call within the worker after executing a CPU-bound job.
+          The return value indicates whether worker should be retired (shut down.)
+          By default, workers are never retired.
           The process-global environment is stable between calls. Among other things,
           that means that storing state in global variables works.
-          NOTES: MUST return a false-y value on the first call
-          otherwise :func:`run_sync` will get caught in an infinite loop trying
-          to find a valid worker. MUST be callable without arguments. MUST not
-          raise (will result in a :class:`BrokenWorkerError` at an indeterminate
-          future :func:`run_sync` call.)
+          MUST be callable without arguments.
       grace_period (Optional[float]): The time in seconds to wait for workers to
           exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
           Pass `None` to wait forever, as `math.inf` will fail.
@@ -138,6 +139,10 @@ async def cache_scope(
           timeout.
       BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
 
+    .. note::
+
+       The callables passed to init or retire MUST not raise! That will result in a
+       :class:`BrokenWorkerError` at an indeterminate future :func:`run_sync` call.
     """
     if not isinstance(worker_type, WorkerType):
         raise ValueError("worker_type must be a member of WorkerType")
@@ -147,7 +152,6 @@ async def cache_scope(
         raise ValueError("retire must be callable (with no arguments)")
     elif grace_period is not None and grace_period < 0.0:
         raise ValueError("grace_period must be non-negative or None")
-    # TODO: better ergonomics for truthy first call to retire()
     worker_class, worker_cache = WORKER_MAP[worker_type]
     worker_context = WorkerContext(idle_timeout, retire, worker_class, worker_cache())
     token = _worker_context_var.set(worker_context)
