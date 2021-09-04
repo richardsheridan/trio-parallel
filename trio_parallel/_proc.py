@@ -84,12 +84,14 @@ class WorkerSpawnProc(AbstractWorker):
     _proc_counter = count()
     mp_context = multiprocessing.get_context("spawn")
 
-    def __init__(self, idle_timeout, retire):
+    def __init__(self, idle_timeout, init, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
         self._receive_chan, self._send_chan = asyncify_pipes(
             self._recv_pipe.fileno(), self._send_pipe.fileno()
         )
+        if init is not None:  # true except on "fork"
+            init = dumps(init, protocol=HIGHEST_PROTOCOL)
         if retire is not None:  # true except on "fork"
             retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
         self.proc = self.mp_context.Process(
@@ -98,6 +100,7 @@ class WorkerSpawnProc(AbstractWorker):
                 self._child_recv_pipe,
                 self._child_send_pipe,
                 idle_timeout,
+                init,
                 retire,
             ),
             name=f"trio-parallel worker process {next(self._proc_counter)}",
@@ -106,7 +109,7 @@ class WorkerSpawnProc(AbstractWorker):
         self._wait_lock = trio.Lock()  # Efficiently multiplex waits
 
     @staticmethod
-    def _work(recv_pipe, send_pipe, idle_timeout, retire):
+    def _work(recv_pipe, send_pipe, idle_timeout, init, retire):
         import inspect
         import signal
 
@@ -135,12 +138,17 @@ class WorkerSpawnProc(AbstractWorker):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
         try:
+            if isinstance(init, bytes):  # true except on "fork"
+                init = loads(init)
             if isinstance(retire, bytes):  # true except on "fork"
                 retire = loads(retire)
-            while not retire() and recv_pipe.poll(idle_timeout):
+            init()
+            while recv_pipe.poll(idle_timeout):
                 send_pipe.send_bytes(
                     safe_dumps(capture(handle_job, recv_pipe.recv_bytes()))
                 )
+                if retire():
+                    break
         except (BrokenPipeError, EOFError):
             # Graceful shutdown: If the main process closes the pipes, we will
             # observe one of these exceptions and can simply exit quietly.
@@ -265,16 +273,19 @@ if "fork" in _all_start_methods:  # pragma: no branch
     class WorkerForkProc(WorkerSpawnProc):
         mp_context = multiprocessing.get_context("fork")
 
-        def __init__(self, idle_timeout, retire):
+        def __init__(self, idle_timeout, init, retire):
+            self._init = init
             self._retire = retire
-            super().__init__(idle_timeout, None)
+            super().__init__(idle_timeout, None, None)
 
-        def _work(self, recv_pipe, send_pipe, idle_timeout, retire):
+        def _work(self, recv_pipe, send_pipe, idle_timeout, init, retire):
             self._send_pipe.close()
             self._recv_pipe.close()
+            init = self._init
+            del self._init
             retire = self._retire
             del self._retire
-            super()._work(recv_pipe, send_pipe, idle_timeout, retire)
+            super()._work(recv_pipe, send_pipe, idle_timeout, init, retire)
 
         async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
             if self.proc.pid is None:
@@ -284,6 +295,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
                 # XXX: We must explicitly close these after start to see child closures
                 self._child_send_pipe.close()
                 self._child_recv_pipe.close()
+                del self._init
                 del self._retire
             return await super().run_sync(sync_fn, *args)
 

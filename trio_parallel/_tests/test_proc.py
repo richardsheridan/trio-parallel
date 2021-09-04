@@ -14,7 +14,7 @@ from .._abc import BrokenWorkerError
 
 @pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))
 async def worker(request):
-    worker = request.param[0](None, bool)
+    worker = request.param[0](None, bool, bool)
     try:
         yield worker
     finally:

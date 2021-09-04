@@ -40,7 +40,12 @@ class WorkerCache(deque, ABC):
 
 class AbstractWorker(ABC):
     @abstractmethod
-    def __init__(self, idle_timeout: float, retire: Optional[Callable[[], bool]]):
+    def __init__(
+        self,
+        idle_timeout: float,
+        init: Optional[Callable[[], bool]],
+        retire: Optional[Callable[[], bool]],
+    ):
         pass
 
     @abstractmethod
