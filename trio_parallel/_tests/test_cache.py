@@ -63,6 +63,8 @@ def _bad_retire_fn():
 
 async def test_bad_retire_fn(cache_and_workertype, capfd):
     cache, worker_type = cache_and_workertype
+    if worker_type.mp_context._name == "forkserver":
+        pytest.skip("capfd doesn't work on WorkerForkserverProc")
     worker = worker_type(None, _bad_retire_fn)
     with pytest.raises(BrokenWorkerError):
         await worker.run_sync(bool)
@@ -80,6 +82,8 @@ def _delayed_bad_retire_fn():
 
 async def test_delayed_bad_retire_fn(cache_and_workertype, capfd):
     cache, worker_type = cache_and_workertype
+    if worker_type.mp_context._name == "forkserver":
+        pytest.skip("capfd doesn't work on WorkerForkserverProc")
     worker = worker_type(None, _delayed_bad_retire_fn)
     await worker.run_sync(bool)
     await worker.run_sync(bool)
