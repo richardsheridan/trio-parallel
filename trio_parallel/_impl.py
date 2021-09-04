@@ -71,7 +71,7 @@ def default_shutdown_grace_period(grace_period=-1.0):
           to return the current value without modifying it.
 
     Returns:
-      Optional[float]: The current grace period in seconds or None.
+      Optional[float]: The current grace period in seconds or `None`.
 
     .. note::
 
