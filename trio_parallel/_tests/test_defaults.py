@@ -7,7 +7,7 @@ import sys
 
 import pytest
 import trio
-from .._impl import DEFAULT_CONTEXT, run_sync
+from .._impl import DEFAULT_CONTEXT, run_sync, default_shutdown_grace_period
 
 
 @pytest.fixture
@@ -161,3 +161,16 @@ def test_we_control_atexit_shutdowns():
     )
     assert b"[INFO/MainProcess] process shutting down" in result.stderr
     assert b"calling join() for" not in result.stderr
+
+
+def test_change_default_grace_period():
+    orig = default_shutdown_grace_period()
+    assert orig == default_shutdown_grace_period()
+    for x in (0, None, orig):
+        assert x == default_shutdown_grace_period(x)
+        assert x == default_shutdown_grace_period()
+        assert x == default_shutdown_grace_period(-3)
+
+    with pytest.raises(TypeError):
+        default_shutdown_grace_period("forever")
+    assert x == default_shutdown_grace_period()
