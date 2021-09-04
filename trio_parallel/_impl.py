@@ -48,7 +48,7 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
-@attr.s(auto_attribs=True, slots=True)
+@attr.s(auto_attribs=True, slots=True, eq=False)
 class WorkerContext:
     idle_timeout: Optional[float] = 600.0
     retire: Callable[[], bool] = bool  # always falsey singleton
@@ -211,11 +211,7 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
 
     async with limiter:
         ctx.worker_cache.prune()
-        result = None
-        while result is None:
-            # Prevent uninterruptible loop when KI-protected & cancellable=False
-            await trio.lowlevel.checkpoint_if_cancelled()
-
+        while True:
             try:
                 worker = ctx.worker_cache.pop()
             except IndexError:
@@ -224,5 +220,9 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
             with trio.CancelScope(shield=not cancellable):
                 result = await worker.run_sync(sync_fn, *args)
 
-    ctx.worker_cache.append(worker)
-    return result.unwrap()
+            if result is None:
+                # Prevent uninterruptible loop when KI-protected & cancellable=False
+                await trio.lowlevel.checkpoint_if_cancelled()
+            else:
+                ctx.worker_cache.append(worker)
+                return result.unwrap()
