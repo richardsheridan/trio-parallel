@@ -8,7 +8,13 @@ import trio
 
 from .. import _impl
 from .._abc import BrokenWorkerError
-from .._impl import DEFAULT_CONTEXT, WorkerType, run_sync, cache_scope
+from .._impl import (
+    DEFAULT_CONTEXT,
+    WorkerType,
+    run_sync,
+    cache_scope,
+    default_shutdown_grace_period,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -201,6 +207,9 @@ async def test_erroneous_scope_inputs():
     with pytest.raises(ValueError):
         async with cache_scope(worker_type="wrong"):
             pass
+    with pytest.raises(ValueError):
+        async with cache_scope(grace_period=-2):
+            pass
 
 
 def _bad_retire_fn():
@@ -245,11 +254,10 @@ def _loopy_retire_fn():  # pragma: no cover, will be killed
             time.sleep(1)
 
 
-async def test_loopy_retire_fn(manager, monkeypatch):
-    monkeypatch.setattr(_impl, "DEFAULT_SHUTDOWN_GRACE_PERIOD", 0.5)
+async def test_loopy_retire_fn(manager):
     b = manager.Barrier(2)
     with pytest.raises(BrokenWorkerError), trio.fail_after(5) as cancel_scope:
-        async with cache_scope(retire=_loopy_retire_fn):
+        async with cache_scope(retire=_loopy_retire_fn, grace_period=0.5):
             # open an extra worker to increase branch coverage in cache shutdown()
             async with trio.open_nursery() as n:
                 n.start_soon(run_sync, b.wait)
@@ -297,3 +305,16 @@ def test_we_control_atexit_shutdowns():
     assert result.returncode == 0
     assert b"[INFO/MainProcess] process shutting down" in result.stderr
     assert b"calling join() for" not in result.stderr
+
+
+def test_change_default_grace_period():
+    orig = default_shutdown_grace_period()
+    assert orig == default_shutdown_grace_period()
+    for x in (0, None, orig):
+        assert x == default_shutdown_grace_period(x)
+        assert x == default_shutdown_grace_period()
+        assert x == default_shutdown_grace_period(-3)
+
+    with pytest.raises(TypeError):
+        default_shutdown_grace_period("forever")
+    assert x == default_shutdown_grace_period()
