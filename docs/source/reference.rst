@@ -10,6 +10,8 @@ Running CPU-bound functions in parallel
 
 .. autofunction:: current_default_worker_limiter
 
+.. autofunction:: default_shutdown_grace_period
+
 Configuring workers
 -------------------
 

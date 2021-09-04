@@ -57,14 +57,46 @@ class WorkerContext:
 
 
 DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
-atexit.register(trio.run, DEFAULT_CONTEXT.worker_cache.shutdown)
 _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
+DEFAULT_SHUTDOWN_GRACE_PERIOD = 30.0
+
+
+def default_shutdown_grace_period(grace_period=-1.0):
+    """Return and optionally set the default worker cache shutdown grace period.
+
+    Args:
+      grace_period (Optional[float]): The time in seconds to wait for workers to
+          exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
+          Pass `None` to wait forever, as `math.inf` will fail. Pass a negative value
+          to return the current value without modifying it.
+
+    Returns:
+      Optional[float]: The current grace period in seconds or `None`.
+
+    .. note::
+
+       This function is subject to threading race conditions."""
+
+    global DEFAULT_SHUTDOWN_GRACE_PERIOD
+
+    if grace_period is None:
+        DEFAULT_SHUTDOWN_GRACE_PERIOD = None
+    elif grace_period >= 0.0:
+        DEFAULT_SHUTDOWN_GRACE_PERIOD = grace_period
+    return DEFAULT_SHUTDOWN_GRACE_PERIOD
+
+
+@atexit.register
+def graceful_default_shutdown():
+    # need to late-bind the context attribute lookup
+    DEFAULT_CONTEXT.worker_cache.shutdown(DEFAULT_SHUTDOWN_GRACE_PERIOD)
 
 
 @asynccontextmanager
 async def cache_scope(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
     retire=DEFAULT_CONTEXT.retire,
+    grace_period=DEFAULT_SHUTDOWN_GRACE_PERIOD,
     worker_type=WorkerType.SPAWN,
 ):
     """Create a new, customized worker cache with workers confined to
@@ -95,6 +127,10 @@ async def cache_scope(
           to find a valid worker. MUST be callable without arguments. MUST not
           raise (will result in a :class:`BrokenWorkerError` at an indeterminate
           future :func:`run_sync` call.)
+      grace_period (Optional[float]): The time in seconds to wait for workers to
+          exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
+          Pass `None` to wait forever, as `math.inf` will fail.
+          MUST be non-negative if not `None`.
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
@@ -109,6 +145,8 @@ async def cache_scope(
         raise ValueError("idle_timeout must be non-negative or None")
     elif not callable(retire):
         raise ValueError("retire must be callable (with no arguments)")
+    elif grace_period is not None and grace_period < 0.0:
+        raise ValueError("grace_period must be non-negative or None")
     # TODO: better ergonomics for truthy first call to retire()
     worker_class, worker_cache = WORKER_MAP[worker_type]
     worker_context = WorkerContext(idle_timeout, retire, worker_class, worker_cache())
@@ -117,7 +155,10 @@ async def cache_scope(
         yield
     finally:
         _worker_context_var.reset(token)
-        await worker_context.worker_cache.shutdown()
+        with trio.CancelScope(shield=True):
+            await trio.to_thread.run_sync(
+                worker_context.worker_cache.shutdown, grace_period
+            )
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):

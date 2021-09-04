@@ -1,5 +1,6 @@
 import os
 import multiprocessing
+import time
 
 from itertools import count
 from pickle import dumps, loads, HIGHEST_PROTOCOL
@@ -55,31 +56,23 @@ class WorkerProcCache(WorkerCache):
                 self.appendleft(worker)
                 return
 
-    async def shutdown(self):
+    def shutdown(self, grace_period):
         unclean = []
         killed = []
-
-        async def clean_wait(worker):
-            if await worker.wait():
+        for worker in self:
+            worker.shutdown()
+        deadline = time.perf_counter() + grace_period
+        for worker in self:
+            worker.proc.join(deadline - time.perf_counter())
+            if worker.proc.exitcode is None:
+                worker.kill()
+                killed.append(worker.proc)
+            elif worker.proc.exitcode:
                 unclean.append(worker.proc)
-
-        async with trio.open_nursery() as nursery:
-            nursery.cancel_scope.shield = True
-            nursery.cancel_scope.deadline = trio.current_time() + 10
-            # Should have private, single-threaded access to self here
-            for worker in self:
-                worker.shutdown()
-                nursery.start_soon(clean_wait, worker)
-        if nursery.cancel_scope.cancelled_caught:
-            async with trio.open_nursery() as nursery:
-                nursery.cancel_scope.shield = True
-                for worker in self:
-                    if worker.is_alive():
-                        worker.kill()
-                        killed.append(worker.proc)
-                        nursery.start_soon(worker.wait)
         if unclean or killed:
-            raise BrokenWorkerProcessError(
+            for proc in killed:
+                proc.join()
+            raise BrokenWorkerError(
                 f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
                 f"and {len(killed)} forceful terminations.",
                 *unclean,
