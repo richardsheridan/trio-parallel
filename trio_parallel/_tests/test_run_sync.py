@@ -20,7 +20,7 @@ def _special_none_making_retire():  # pragma: no cover, never called
 
 
 class MockWorker(AbstractWorker):
-    def __init__(self, idle_timeout: float, retire: Optional[Callable[[], bool]]):
+    def __init__(self, idle_timeout, init, retire):
         self.idle_timeout = idle_timeout
         self.retire = retire
 
@@ -160,7 +160,7 @@ async def test_erroneous_scope_inputs(mock_context):
         async with cache_scope(retire=0):
             assert False, "should be unreachable"
     assert not MockContext.active_contexts
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         async with cache_scope(worker_type="wrong"):
             assert False, "should be unreachable"
     with pytest.raises(ValueError):

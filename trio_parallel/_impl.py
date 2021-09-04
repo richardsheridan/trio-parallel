@@ -51,6 +51,7 @@ optimization if workers need to be killed/restarted often.
 @attr.s(auto_attribs=True, slots=True, eq=False)
 class WorkerContext:
     idle_timeout: Optional[float] = 600.0
+    init: Callable[[], bool] = bool
     retire: Callable[[], bool] = bool  # always falsey singleton
     worker_class: Type[AbstractWorker] = WORKER_MAP[WorkerType.SPAWN][0]
     worker_cache: WorkerCache = attr.ib(factory=WORKER_MAP[WorkerType.SPAWN][1])
@@ -95,6 +96,7 @@ def graceful_default_shutdown():
 @asynccontextmanager
 async def cache_scope(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
+    init=DEFAULT_CONTEXT.retire,
     retire=DEFAULT_CONTEXT.retire,
     grace_period=DEFAULT_SHUTDOWN_GRACE_PERIOD,
     worker_type=WorkerType.SPAWN,
@@ -141,19 +143,23 @@ async def cache_scope(
 
     .. note::
 
-       The callables passed to init or retire MUST not raise! That will result in a
+       The callables passed to retire MUST not raise! Doing so will result in a
        :class:`BrokenWorkerError` at an indeterminate future :func:`run_sync` call.
     """
     if not isinstance(worker_type, WorkerType):
-        raise ValueError("worker_type must be a member of WorkerType")
+        raise TypeError("worker_type must be a member of WorkerType")
     elif idle_timeout is not None and idle_timeout < 0.0:
         raise ValueError("idle_timeout must be non-negative or None")
+    elif not callable(init):
+        raise TypeError("init must be callable (with no arguments)")
     elif not callable(retire):
-        raise ValueError("retire must be callable (with no arguments)")
+        raise TypeError("retire must be callable (with no arguments)")
     elif grace_period is not None and grace_period < 0.0:
         raise ValueError("grace_period must be non-negative or None")
     worker_class, worker_cache = WORKER_MAP[worker_type]
-    worker_context = WorkerContext(idle_timeout, retire, worker_class, worker_cache())
+    worker_context = WorkerContext(
+        idle_timeout, init, retire, worker_class, worker_cache()
+    )
     token = _worker_context_var.set(worker_context)
     try:
         yield
@@ -219,7 +225,7 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
             try:
                 worker = ctx.worker_cache.pop()
             except IndexError:
-                worker = ctx.worker_class(ctx.idle_timeout, ctx.retire)
+                worker = ctx.worker_class(ctx.idle_timeout, ctx.init, ctx.retire)
 
             with trio.CancelScope(shield=not cancellable):
                 result = await worker.run_sync(sync_fn, *args)

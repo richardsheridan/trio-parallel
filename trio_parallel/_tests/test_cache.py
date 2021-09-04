@@ -20,11 +20,11 @@ def cache_and_workertype(request):
 async def test_prune_cache(cache_and_workertype):
     # setup phase
     cache, worker_type = cache_and_workertype
-    dead_worker = worker_type(0, bool)
+    dead_worker = worker_type(0, bool, bool)
     assert not (await dead_worker.run_sync(bool)).unwrap()
     with trio.fail_after(1):
         await dead_worker.wait()
-    live_worker = worker_type(None, bool)
+    live_worker = worker_type(None, bool, bool)
     assert not (await live_worker.run_sync(bool)).unwrap()
     # put dead worker into the cache on the left
     cache.extend(iter([dead_worker, live_worker]))
@@ -68,6 +68,7 @@ async def test_bad_retire_fn(cache_and_workertype, capfd):
     if worker_type.mp_context._name == "forkserver":
         pytest.skip("capfd doesn't work on WorkerForkserverProc")
     worker = worker_type(None, bool, _bad_retire_fn)
+    await worker.run_sync(bool)
     with pytest.raises(BrokenWorkerError):
         await worker.run_sync(bool)
     with trio.fail_after(1):
