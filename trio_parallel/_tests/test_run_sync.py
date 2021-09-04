@@ -54,9 +54,10 @@ class MockCache(WorkerCache):
 class MockContext(_impl.WorkerContext):
     active_contexts = list()
 
-    def __init__(self, idle_timeout, retire, worker_class, worker_cache):
-        super().__init__(idle_timeout, retire, worker_class, worker_cache)
+    def __init__(self, idle_timeout, init, retire, worker_class, worker_cache):
+        super().__init__(idle_timeout, init, retire, worker_class, worker_cache)
         self.called_worker_class = worker_class
+        self.called_init = init
         self.called_retire = retire
         self.called_idle_timeout = idle_timeout
         self.worker_class = MockWorker
@@ -122,8 +123,9 @@ async def test_cache_scope_methods(mock_context):
 
 
 async def test_cache_scope_args(mock_context):
-    async with cache_scope(retire=int, idle_timeout=33):
+    async with cache_scope(init=float, retire=int, idle_timeout=33):
         active_context = MockContext.active_contexts.pop()
+        assert active_context.called_init is float
         assert active_context.called_retire is int
         assert active_context.called_idle_timeout == 33
 
@@ -151,7 +153,10 @@ async def test_erroneous_scope_inputs(mock_context):
         async with cache_scope(idle_timeout=-1):
             assert False, "should be unreachable"
     assert not MockContext.active_contexts
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
+        async with cache_scope(init=0):
+            assert False, "should be unreachable"
+    with pytest.raises(TypeError):
         async with cache_scope(retire=0):
             assert False, "should be unreachable"
     assert not MockContext.active_contexts

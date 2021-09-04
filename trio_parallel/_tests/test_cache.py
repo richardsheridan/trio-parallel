@@ -33,21 +33,23 @@ async def test_prune_cache(cache_and_workertype):
     assert dead_worker not in cache
 
 
-_NUM_RUNS = 0
+_NUM_RUNS_LEFT = 0
+
+
+def _init_run_twice():
+    global _NUM_RUNS_LEFT
+    _NUM_RUNS_LEFT = 2
 
 
 def _retire_run_twice():
-    global _NUM_RUNS
-    if _NUM_RUNS >= 2:
-        return True
-    else:
-        _NUM_RUNS += 1
-        return False
+    global _NUM_RUNS_LEFT
+    _NUM_RUNS_LEFT -= 1
+    return _NUM_RUNS_LEFT <= 0
 
 
 async def test_retire(cache_and_workertype):
     cache, worker_type = cache_and_workertype
-    worker = worker_type(None, _retire_run_twice)
+    worker = worker_type(None, _init_run_twice, _retire_run_twice)
     try:
         assert await worker.run_sync(bool) is not None
         assert await worker.run_sync(bool) is not None
@@ -65,7 +67,7 @@ async def test_bad_retire_fn(cache_and_workertype, capfd):
     cache, worker_type = cache_and_workertype
     if worker_type.mp_context._name == "forkserver":
         pytest.skip("capfd doesn't work on WorkerForkserverProc")
-    worker = worker_type(None, _bad_retire_fn)
+    worker = worker_type(None, bool, _bad_retire_fn)
     with pytest.raises(BrokenWorkerError):
         await worker.run_sync(bool)
     with trio.fail_after(1):
@@ -84,7 +86,7 @@ async def test_delayed_bad_retire_fn(cache_and_workertype, capfd):
     cache, worker_type = cache_and_workertype
     if worker_type.mp_context._name == "forkserver":
         pytest.skip("capfd doesn't work on WorkerForkserverProc")
-    worker = worker_type(None, _delayed_bad_retire_fn)
+    worker = worker_type(None, _init_run_twice, _delayed_bad_retire_fn)
     await worker.run_sync(bool)
     await worker.run_sync(bool)
     with pytest.raises(BrokenWorkerError):
@@ -111,7 +113,7 @@ def _loopy_retire_fn():  # pragma: no cover, will be killed
 
 async def test_loopy_retire_fn(cache_and_workertype):
     cache, worker_type = cache_and_workertype
-    worker = worker_type(None, _loopy_retire_fn)
+    worker = worker_type(None, _init_run_twice, _loopy_retire_fn)
     await worker.run_sync(bool)
     await worker.run_sync(bool)
 
