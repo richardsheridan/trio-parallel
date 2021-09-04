@@ -256,7 +256,7 @@ def _loopy_retire_fn():  # pragma: no cover, will be killed
 
 async def test_loopy_retire_fn(manager):
     b = manager.Barrier(2)
-    with pytest.raises(BrokenWorkerError), trio.fail_after(5) as cancel_scope:
+    with pytest.raises(BrokenWorkerError), trio.fail_after(15) as cancel_scope:
         async with cache_scope(retire=_loopy_retire_fn, grace_period=0.5):
             # open an extra worker to increase branch coverage in cache shutdown()
             async with trio.open_nursery() as n:
