@@ -1,3 +1,0 @@
-Added configuration options for the grace periods permitted to worker caches upon
-shutdown. This includes a new keyword argument for :func:`cache_scope` and the new top
-level function :func:`default_shutdown_grace_period`.
