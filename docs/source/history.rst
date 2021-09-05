@@ -5,8 +5,21 @@ Release history
 
 .. towncrier release notes start
 
-trio-parallel 1.0.0 (2021-07-22)
---------------------------------
+trio-parallel 1.0.0a1 (2021-09-05)
+----------------------------------
+
+Features
+~~~~~~~~
+
+- Added configuration options for the grace periods permitted to worker caches upon
+  shutdown. This includes a new keyword argument for :func:`cache_scope` and the new top
+  level function :func:`default_shutdown_grace_period`. (`#108 <https://github.com/richardsheridan/trio-parallel/issues/108>`__)
+- :func:`cache_scope` gained a new argument, ``init``, and ``retire`` is no longer
+  called before the first job in the worker. (`#110 <https://github.com/richardsheridan/trio-parallel/issues/110>`__)
+
+
+trio-parallel 1.0.0a0 (2021-07-22)
+----------------------------------
 
 Features
 ~~~~~~~~

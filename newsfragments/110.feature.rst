@@ -1,2 +1,0 @@
-:func:`cache_scope` gained a new argument, ``init``, and ``retire`` is no longer
-called before the first job in the worker.
