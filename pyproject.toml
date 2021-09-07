@@ -33,3 +33,6 @@ exclude_lines = [
 
 [tool.coverage.html]
 show_contexts = true
+
+[tool.coverage.paths]
+source = ["*/trio_parallel"]
