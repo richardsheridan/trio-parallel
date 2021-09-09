@@ -196,7 +196,7 @@ jobs:
         run: |
           coverage combine
           coverage html
-          coverage report --fail-under=100
+          coverage report --fail-under=100 --show-missing
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v2.2.4
