@@ -2,10 +2,9 @@
 trio-parallel: CPU parallelism for Trio
 =======================================
 
-Do you have CPU-bound work that just keeps slowing down your
-`Trio <https://github.com/python-trio/trio>`_ event loop
-no matter what you try? Do you need to get all those cores humming at once?
-This is the library for you!
+Do you have CPU-bound work that just keeps slowing down your Trio_ event loop no
+matter what you try? Do you need to get all those cores humming at once? This is the
+library for you!
 
 The aim of trio-parallel is to use the lightest-weight, lowest-overhead, lowest-latency
 method to achieve CPU parallelism of arbitrary Python code with a dead-simple API.
@@ -57,10 +56,10 @@ Example
     async def amain():
         t0 = time.perf_counter()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(trio_parallel.run_sync, hard_work, 3, True)
+            nursery.start_soon(trio_parallel.run_sync, hard_work, 2, True)
             nursery.start_soon(trio_parallel.run_sync, hard_work, 1, False)
             nursery.start_soon(too_slow)
-            result = await trio_parallel.run_sync(hard_work, 2, None)
+            result = await trio_parallel.run_sync(hard_work, 1.5, None)
             nursery.cancel_scope.cancel()
         print("got", result, "in", time.perf_counter() - t0, "seconds")
         # prints 2.xxx
@@ -71,7 +70,7 @@ Example
         trio.run(amain)
 
 
-Additional examples and the full API are at `<https://trio-parallel.readthedocs.io/>`__
+Additional examples_ and the full API_ are available in the documentation_
 
 Features
 --------
@@ -79,7 +78,7 @@ Features
 - Bypasses the GIL for CPU-bound work
 - Minimal API complexity
 
-  - looks and feels like `Trio threads <https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync>`_
+  - looks and feels like Trio threads_
 
 - Minimal internal complexity
 
@@ -87,6 +86,7 @@ Features
 
 - Cross-platform
 - ``print`` just works
+- Automatic, opportunistic use of cloudpickle_
 - Automatic LIFO caching of subprocesses
 - Cancel seriously misbehaving code
 
@@ -101,12 +101,11 @@ How does trio-parallel run Python code in parallel?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Currently, this project is based on ``multiprocessing`` subprocesses and
-has all the usual `multiprocessing caveats
-<https://docs.python.org/3/library/multiprocessing.html#programming-guidelines>`_
-(``freeze_support``, pickleable objects only).
-The case for basing these workers on
-multiprocessing is that it keeps a lot of complexity outside of the project while
-offering a set of quirks that users are likely already familiar with.
+has all the usual multiprocessing caveats_ (``freeze_support``, pickleable objects
+only). The case for basing these workers on multiprocessing is that it keeps a lot of
+complexity outside of the project while offering a set of quirks that users are
+likely already familiar with.
+The pickling limitations can be partially alleviated by installing cloudpickle_.
 
 Can I have my workers talk to each other?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -139,9 +138,8 @@ Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
 
 Contributing
 ------------
-If you notice any bugs, need any help, or want to contribute any code,
-GitHub issues_ and pull requests are very welcome! Please read the
-`code of conduct <https://trio.readthedocs.io/en/stable/code-of-conduct.html>`_.
+If you notice any bugs, need any help, or want to contribute any code, GitHub issues_
+and pull requests are very welcome! Please read the `code of conduct`_.
 
 .. _chat: https://gitter.im/python-trio/general
 .. |chat badge| image:: https://img.shields.io/badge/chat-join%20now-blue.svg?color=royalblue&logo=Gitter
@@ -210,3 +208,11 @@ GitHub issues_ and pull requests are very welcome! Please read the
 .. |license badge| image:: https://img.shields.io/pypi/l/trio-parallel?color=informational
    :target: `license`_
    :alt: MIT -or- Apache License 2.0
+
+.. _cloudpickle: https://github.com/cloudpipe/cloudpickle
+.. _API: https://trio-parallel.readthedocs.io/en/latest/reference.html
+.. _examples: https://trio-parallel.readthedocs.io/en/latest/examples.html
+.. _threads: https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync
+.. _caveats: https://docs.python.org/3/library/multiprocessing.html#programming-guidelines
+.. _Trio: https://github.com/python-trio/trio
+.. _code of conduct: https://trio.readthedocs.io/en/stable/code-of-conduct.html
