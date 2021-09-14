@@ -1,4 +1,5 @@
 """ Tests of internal cache API ("contract" tests)"""
+import math
 
 import pytest
 import trio
@@ -21,11 +22,11 @@ async def test_prune_cache(cache_and_workertype):
     # setup phase
     cache, worker_type = cache_and_workertype
     dead_worker = worker_type(0, bool, bool)
-    assert not (await dead_worker.run_sync(bool)).unwrap()
+    assert (await dead_worker.run_sync(bool)).unwrap() is False
     with trio.fail_after(1):
-        await dead_worker.wait()
+        assert await dead_worker.wait() is not None
     live_worker = worker_type(None, bool, bool)
-    assert not (await live_worker.run_sync(bool)).unwrap()
+    assert (await live_worker.run_sync(bool)).unwrap() is False
     # put dead worker into the cache on the left
     cache.extend(iter([dead_worker, live_worker]))
     cache.prune()
@@ -97,7 +98,7 @@ async def test_delayed_bad_retire_fn(cache_and_workertype, capfd):
 
     cache.append(worker)
     with pytest.raises(BrokenWorkerError):
-        await cache.shutdown(0.5)
+        cache.shutdown(0.5)
     cache.clear()
     out, err = capfd.readouterr()
     assert "trio-parallel worker process" in err
@@ -118,7 +119,38 @@ async def test_loopy_retire_fn(cache_and_workertype):
     await worker.run_sync(bool)
     await worker.run_sync(bool)
 
+    cache._MAX_JOIN_TIMEOUT = 0.1  # increase coverage in cache.shutdown
     cache.append(worker)
     with pytest.raises(BrokenWorkerError):
-        await cache.shutdown(0.5)
+        cache.shutdown(cache._MAX_JOIN_TIMEOUT * 5)
+    cache.clear()
+
+
+async def test_shutdown(cache_and_workertype):
+    cache, worker_type = cache_and_workertype
+    # test that shutdown actually works
+    worker = worker_type(None, bool, bool)
+    await worker.run_sync(bool)
+    cache.append(worker)
+    cache.shutdown(1)
+    worker = cache.pop()
+    with trio.fail_after(1):
+        assert await worker.wait() is not None
+    # test that math.inf is a valid input
+    # contained in same test with above because we want to first
+    # assert that shutdown works at all!
+    worker = worker_type(None, bool, bool)
+    await worker.run_sync(bool)
+    cache.append(worker)
+    cache.shutdown(math.inf)
+    cache.clear()
+
+
+async def test_shutdown_immediately(cache_and_workertype):
+    cache, worker_type = cache_and_workertype
+    worker = worker_type(None, bool, bool)
+    await worker.run_sync(bool)
+    cache.append(worker)
+    with pytest.raises(BrokenWorkerError):
+        cache.shutdown(0)
     cache.clear()

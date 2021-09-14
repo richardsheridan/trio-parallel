@@ -66,13 +66,13 @@ def default_shutdown_grace_period(grace_period=-1.0):
     """Return and optionally set the default worker cache shutdown grace period.
 
     Args:
-      grace_period (Optional[float]): The time in seconds to wait for workers to
+      grace_period (float): The time in seconds to wait for workers to
           exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
-          Pass `None` to wait forever, as `math.inf` will fail. Pass a negative value
-          to return the current value without modifying it.
+          Pass `math.inf` to wait forever. Pass a negative value or use the default
+          value to return the current value without modifying it.
 
     Returns:
-      Optional[float]: The current grace period in seconds or `None`.
+      float: The current grace period in seconds.
 
     .. note::
 
@@ -80,9 +80,7 @@ def default_shutdown_grace_period(grace_period=-1.0):
 
     global DEFAULT_SHUTDOWN_GRACE_PERIOD
 
-    if grace_period is None:
-        DEFAULT_SHUTDOWN_GRACE_PERIOD = None
-    elif grace_period >= 0.0:
+    if grace_period >= 0.0:
         DEFAULT_SHUTDOWN_GRACE_PERIOD = grace_period
     return DEFAULT_SHUTDOWN_GRACE_PERIOD
 

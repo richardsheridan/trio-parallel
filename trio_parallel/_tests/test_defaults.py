@@ -1,6 +1,7 @@
 """End-to-end integrated tests of default cache"""
 
 import inspect
+import math
 import os
 import subprocess
 import sys
@@ -166,11 +167,13 @@ def test_we_control_atexit_shutdowns():
 def test_change_default_grace_period():
     orig = default_shutdown_grace_period()
     assert orig == default_shutdown_grace_period()
-    for x in (0, None, orig):
+    for x in (0, math.inf, orig):
         assert x == default_shutdown_grace_period(x)
         assert x == default_shutdown_grace_period()
         assert x == default_shutdown_grace_period(-3)
 
     with pytest.raises(TypeError):
         default_shutdown_grace_period("forever")
+    with pytest.raises(TypeError):
+        default_shutdown_grace_period(None)
     assert x == default_shutdown_grace_period()

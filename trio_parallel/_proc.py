@@ -50,6 +50,8 @@ class BrokenWorkerProcessError(BrokenWorkerError):
 
 
 class WorkerProcCache(WorkerCache):
+    _MAX_JOIN_TIMEOUT = 24.0 * 60.0 * 60.0
+
     def prune(self):
         # remove procs that have died from the idle timeout
         while True:
@@ -68,7 +70,13 @@ class WorkerProcCache(WorkerCache):
             worker.shutdown()
         deadline = time.perf_counter() + grace_period
         for worker in self:
-            worker.proc.join(deadline - time.perf_counter())
+            while deadline - time.perf_counter() > self._MAX_JOIN_TIMEOUT:
+                worker.proc.join(self._MAX_JOIN_TIMEOUT)
+                if worker.proc.exitcode is not None:
+                    break
+            else:
+                # guard rare race on macos if exactly == 0.0
+                worker.proc.join((deadline - time.perf_counter() or -0.001))
             if worker.proc.exitcode is None:
                 worker.kill()
                 killed.append(worker.proc)
