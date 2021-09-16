@@ -158,7 +158,7 @@ def test_we_control_atexit_shutdowns():
         [sys.executable, "-c", test_code],
         stderr=subprocess.PIPE,
         check=True,
-        timeout=10,
+        timeout=20,
     )
     assert b"[INFO/MainProcess] process shutting down" in result.stderr
     assert b"calling join() for" not in result.stderr
