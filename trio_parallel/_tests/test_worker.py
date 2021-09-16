@@ -2,6 +2,7 @@
 
     All workers should pass these tests, regardless of implementation
 """
+import math
 
 import pytest
 import trio
@@ -11,7 +12,7 @@ from .._impl import WORKER_MAP
 
 @pytest.fixture(params=list(WORKER_MAP.values()), ids=list(WORKER_MAP.keys()))
 async def worker(request):
-    worker = request.param[0](None, bool, bool)
+    worker = request.param[0](math.inf, bool, bool)
     try:
         yield worker
     finally:

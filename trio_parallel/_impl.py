@@ -112,10 +112,9 @@ async def cache_scope(
     lifetime is required.
 
     Args:
-      idle_timeout (Optional[float]): The time in seconds an idle worker will
+      idle_timeout (float): The time in seconds an idle worker will
           wait for a CPU-bound job before shutting down and releasing its own
-          resources. Pass `None` to wait forever, as `math.inf` will fail.
-          MUST be non-negative if not `None`.
+          resources. Pass `math.inf` to wait forever.
       init (Callable[[], bool]):
           An object to call within the worker before waiting for jobs.
           This is suitable for initializing worker state so that such stateful logic
@@ -128,10 +127,9 @@ async def cache_scope(
           The process-global environment is stable between calls. Among other things,
           that means that storing state in global variables works.
           MUST be callable without arguments.
-      grace_period (Optional[float]): The time in seconds to wait for workers to
+      grace_period (float): The time in seconds to wait for workers to
           exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
-          Pass `None` to wait forever, as `math.inf` will fail.
-          MUST be non-negative if not `None`.
+          Pass `math.inf` to wait forever.
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
@@ -146,14 +144,12 @@ async def cache_scope(
     """
     if not isinstance(worker_type, WorkerType):
         raise TypeError("worker_type must be a member of WorkerType")
-    elif idle_timeout is not None and idle_timeout < 0.0:
-        raise ValueError("idle_timeout must be non-negative or None")
-    elif not callable(init):
+    if not callable(init):
         raise TypeError("init must be callable (with no arguments)")
-    elif not callable(retire):
+    if not callable(retire):
         raise TypeError("retire must be callable (with no arguments)")
-    elif grace_period is not None and grace_period < 0.0:
-        raise ValueError("grace_period must be non-negative or None")
+    idle_timeout = float(idle_timeout)
+    grace_period = float(grace_period)
     worker_class, worker_cache = WORKER_MAP[worker_type]
     worker_context = WorkerContext(
         idle_timeout, init, retire, worker_class, worker_cache()

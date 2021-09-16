@@ -14,7 +14,7 @@ except ImportError:
 import trio
 from outcome import Outcome, capture
 
-from ._abc import WorkerCache, AbstractWorker, BrokenWorkerError
+from . import _abc
 
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
 
@@ -38,7 +38,7 @@ else:
         return FdChannel(receive_fd), FdChannel(send_fd)
 
 
-class BrokenWorkerProcessError(BrokenWorkerError):
+class BrokenWorkerProcessError(_abc.BrokenWorkerError):
     """Raised when a worker process fails or dies unexpectedly.
 
     This error is not typically encountered in normal use, and indicates a severe
@@ -49,9 +49,7 @@ class BrokenWorkerProcessError(BrokenWorkerError):
     """
 
 
-class WorkerProcCache(WorkerCache):
-    _MAX_JOIN_TIMEOUT = 24.0 * 60.0 * 60.0
-
+class WorkerProcCache(_abc.WorkerCache):
     def prune(self):
         # remove procs that have died from the idle timeout
         while True:
@@ -63,20 +61,21 @@ class WorkerProcCache(WorkerCache):
                 self.appendleft(worker)
                 return
 
-    def shutdown(self, grace_period):
+    def shutdown(self, timeout):
         unclean = []
         killed = []
         for worker in self:
             worker.shutdown()
-        deadline = time.perf_counter() + grace_period
+        deadline = time.perf_counter() + timeout
         for worker in self:
-            while deadline - time.perf_counter() > self._MAX_JOIN_TIMEOUT:
-                worker.proc.join(self._MAX_JOIN_TIMEOUT)
+            while timeout > _abc.MAX_TIMEOUT:
+                worker.proc.join(_abc.MAX_TIMEOUT)
                 if worker.proc.exitcode is not None:
                     break
+                timeout = deadline - time.perf_counter()
             else:
                 # guard rare race on macos if exactly == 0.0
-                worker.proc.join((deadline - time.perf_counter() or -0.001))
+                worker.proc.join(timeout or -0.001)
             if worker.proc.exitcode is None:
                 worker.kill()
                 killed.append(worker.proc)
@@ -85,7 +84,7 @@ class WorkerProcCache(WorkerCache):
         if unclean or killed:
             for proc in killed:
                 proc.join()
-            raise BrokenWorkerError(
+            raise _abc.BrokenWorkerError(
                 f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
                 f"and {len(killed)} forceful terminations.",
                 *unclean,
@@ -93,7 +92,7 @@ class WorkerProcCache(WorkerCache):
             )
 
 
-class WorkerSpawnProc(AbstractWorker):
+class WorkerSpawnProc(_abc.AbstractWorker):
     _proc_counter = count()
     mp_context = multiprocessing.get_context("spawn")
 
@@ -146,6 +145,15 @@ class WorkerSpawnProc(AbstractWorker):
             except AttributeError:
                 return dumps(string_result, protocol=HIGHEST_PROTOCOL)
 
+        def poll(timeout):
+            deadline = time.perf_counter() + timeout
+            while timeout > _abc.MAX_TIMEOUT:
+                if recv_pipe.poll(_abc.MAX_TIMEOUT):
+                    return True
+                timeout = deadline - time.perf_counter()
+            else:
+                return recv_pipe.poll(timeout)
+
         # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -156,7 +164,7 @@ class WorkerSpawnProc(AbstractWorker):
             if isinstance(retire, bytes):  # true except on "fork"
                 retire = loads(retire)
             init()
-            while recv_pipe.poll(idle_timeout):
+            while poll(idle_timeout):
                 send_pipe.send_bytes(
                     safe_dumps(capture(handle_job, recv_pipe.recv_bytes()))
                 )

@@ -149,22 +149,22 @@ async def test_cache_type(method, mock_context):
 
 
 async def test_erroneous_scope_inputs(mock_context):
-    with pytest.raises(ValueError):
-        async with cache_scope(idle_timeout=-1):
+    with pytest.raises(TypeError):
+        async with cache_scope(idle_timeout=[-1]):
             assert False, "should be unreachable"
     assert not MockContext.active_contexts
     with pytest.raises(TypeError):
         async with cache_scope(init=0):
             assert False, "should be unreachable"
     with pytest.raises(TypeError):
-        async with cache_scope(retire=0):
+        async with cache_scope(retire=None):
             assert False, "should be unreachable"
     assert not MockContext.active_contexts
     with pytest.raises(TypeError):
         async with cache_scope(worker_type="wrong"):
             assert False, "should be unreachable"
-    with pytest.raises(ValueError):
-        async with cache_scope(grace_period=-2):
+    with pytest.raises(TypeError):
+        async with cache_scope(grace_period=object()):
             assert False, "should be unreachable"
     assert not MockContext.active_contexts
 

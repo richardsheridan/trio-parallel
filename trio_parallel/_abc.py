@@ -11,6 +11,9 @@ from typing import Optional, Callable
 from outcome import Outcome
 
 
+MAX_TIMEOUT = 24.0 * 60.0 * 60.0
+
+
 class BrokenWorkerError(RuntimeError):
     """Raised when a worker fails or dies unexpectedly.
 
@@ -26,11 +29,11 @@ class WorkerCache(deque, ABC):
         while idle in the cache."""
 
     @abstractmethod
-    def shutdown(self, grace_period):
+    def shutdown(self, timeout):
         """Stop and clean up any resources associated with all cached workers.
 
         Args:
-          grace_period: Time in seconds to wait for graceful shutdown before
+          timeout: Time in seconds to wait for graceful shutdown before
               raising.
 
         Raises:
