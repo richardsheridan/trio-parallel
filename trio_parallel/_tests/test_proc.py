@@ -3,7 +3,7 @@
     These are specific to subprocesses and you wouldn't expect these to pass
     with thread or subinterpreter workers.
 """
-
+import math
 
 import trio
 import pytest
@@ -14,7 +14,7 @@ from .._abc import BrokenWorkerError
 
 @pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))
 async def worker(request):
-    worker = request.param[0](None, bool, bool)
+    worker = request.param[0](math.inf, bool, bool)
     try:
         yield worker
     finally:
