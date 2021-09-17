@@ -33,7 +33,7 @@ if os.name == "nt":
 else:
 
     async def wait(fd):
-        from trio._core import wait_readable
+        from trio.lowlevel import wait_readable
 
         return await wait_readable(fd)
 
