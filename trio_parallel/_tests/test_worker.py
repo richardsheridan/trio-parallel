@@ -7,6 +7,7 @@ import math
 import pytest
 import trio
 
+from ._funcs import _null_async_fn
 from .._impl import WORKER_MAP
 
 
@@ -34,10 +35,6 @@ async def test_run_sync_large_job(worker):
     n = 2 ** 20
     x = (await worker.run_sync(bytes, bytearray(n))).unwrap()
     assert len(x) == n
-
-
-async def _null_async_fn():  # pragma: no cover, coroutine called but not run
-    pass
 
 
 async def test_run_sync_coroutine_error(worker):

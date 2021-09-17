@@ -4,6 +4,14 @@ import math
 import pytest
 import trio
 
+from ._funcs import (
+    _init_run_twice,
+    _retire_run_twice,
+    _bad_retire_fn,
+    _delayed_bad_retire_fn,
+    _loopy_retire_fn,
+    _monkeypatch_max_timeout,
+)
 from .._impl import WORKER_MAP
 from .._abc import BrokenWorkerError
 
@@ -16,13 +24,6 @@ def cache_and_workertype(request):
         yield cache, worker_type
     finally:
         cache.shutdown(10)  # internal assertion of clean shutdown
-
-
-def _monkeypatch_max_timeout():
-    from .. import _abc
-
-    _abc.MAX_TIMEOUT = 0.1
-    return True
 
 
 async def test_prune_cache(cache_and_workertype):
@@ -41,20 +42,6 @@ async def test_prune_cache(cache_and_workertype):
     assert dead_worker not in cache
 
 
-_NUM_RUNS_LEFT = 0
-
-
-def _init_run_twice():
-    global _NUM_RUNS_LEFT
-    _NUM_RUNS_LEFT = 2
-
-
-def _retire_run_twice():
-    global _NUM_RUNS_LEFT
-    _NUM_RUNS_LEFT -= 1
-    return _NUM_RUNS_LEFT <= 0
-
-
 async def test_retire(cache_and_workertype):
     cache, worker_type = cache_and_workertype
     worker = worker_type(math.inf, _init_run_twice, _retire_run_twice)
@@ -65,10 +52,6 @@ async def test_retire(cache_and_workertype):
     finally:
         with trio.fail_after(1):
             assert await worker.wait() == 0
-
-
-def _bad_retire_fn():
-    assert False
 
 
 async def test_bad_retire_fn(cache_and_workertype, capfd):
@@ -84,11 +67,6 @@ async def test_bad_retire_fn(cache_and_workertype, capfd):
     out, err = capfd.readouterr()
     assert "trio-parallel worker process" in err
     assert "AssertionError" in err
-
-
-def _delayed_bad_retire_fn():
-    if _retire_run_twice():
-        _bad_retire_fn()
 
 
 async def test_delayed_bad_retire_fn(cache_and_workertype, capfd):
@@ -110,14 +88,6 @@ async def test_delayed_bad_retire_fn(cache_and_workertype, capfd):
     out, err = capfd.readouterr()
     assert "trio-parallel worker process" in err
     assert "AssertionError" in err
-
-
-def _loopy_retire_fn():  # pragma: no cover, will be killed
-    if _retire_run_twice():
-        import time
-
-        while True:
-            time.sleep(1)
 
 
 async def test_loopy_retire_fn(cache_and_workertype, monkeypatch):

@@ -8,6 +8,13 @@ import math
 import trio
 import pytest
 
+from ._funcs import (
+    _lambda,
+    _return_lambda,
+    _raise_ki,
+    _never_halts,
+    _segfault_out_of_bounds_pointer,
+)
 from .._proc import WORKER_PROC_MAP
 from .._abc import BrokenWorkerError
 
@@ -29,13 +36,6 @@ async def worker(request):
                     "tests should be responsible for killing and waiting if "
                     "they do not lead to a graceful shutdown state"
                 )
-
-
-def _never_halts(ev):  # pragma: no cover, worker will be killed
-    # important difference from blocking call is cpu usage
-    ev.set()
-    while True:
-        pass
 
 
 async def test_run_sync_cancel_infinite_loop(worker, manager):
@@ -60,18 +60,6 @@ async def test_run_sync_raises_on_kill(worker, manager):
     exitcode = await worker.wait()
     assert exitcode in (-15, -9, 255)  # 255 for py3.6 forkserver
     assert exc_info.value.args[-1].exitcode == exitcode
-
-
-def _segfault_out_of_bounds_pointer():  # pragma: no cover, worker will be killed
-    # https://wiki.python.org/moin/CrashingPython
-    import ctypes
-
-    i = ctypes.c_char(b"a")
-    j = ctypes.pointer(i)
-    c = 0
-    while True:
-        j[c] = i
-        c += 1
 
 
 async def test_run_sync_raises_on_segfault(worker, capfd):
@@ -125,21 +113,8 @@ async def test_exhaustively_cancel_run_sync2(worker, manager):
     # cancel at result recv is tested elsewhere
 
 
-def _raise_ki():
-    import signal
-
-    trio._util.signal_raise(signal.SIGINT)
-
-
 async def test_ki_does_not_propagate(worker):
     (await worker.run_sync(_raise_ki)).unwrap()
-
-
-_lambda = lambda: None  # pragma: no cover
-
-
-def _return_lambda():
-    return _lambda
 
 
 @pytest.mark.parametrize("job", [_lambda, _return_lambda])

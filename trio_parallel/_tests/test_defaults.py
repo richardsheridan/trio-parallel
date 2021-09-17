@@ -8,6 +8,8 @@ import sys
 
 import pytest
 import trio
+
+from ._funcs import _block_worker, _raise_pid
 from .._impl import DEFAULT_CONTEXT, run_sync, default_shutdown_grace_period
 
 
@@ -16,10 +18,6 @@ def shutdown_cache():
     yield
     DEFAULT_CONTEXT.worker_cache.shutdown(60)
     DEFAULT_CONTEXT.worker_cache.clear()
-
-
-def _raise_pid():
-    raise ValueError(os.getpid())
 
 
 async def test_run_sync(shutdown_cache):
@@ -33,13 +31,6 @@ async def test_run_sync(shutdown_cache):
         await run_sync(_raise_pid, limiter=limiter)
 
     assert excinfo.value.args[0] != trio_pid
-
-
-def _block_worker(block, start, done):
-    # Make the worker block for a controlled amount of time
-    start.set()
-    block.wait()
-    done.set()
 
 
 async def test_entry_cancellation(manager, shutdown_cache):

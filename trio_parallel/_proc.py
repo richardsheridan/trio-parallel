@@ -11,7 +11,6 @@ try:
 except ImportError:
     from pickle import dumps, loads
 
-import trio
 from outcome import Outcome, capture
 
 from . import _abc
@@ -19,22 +18,28 @@ from . import _abc
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
 
 if os.name == "nt":
-    from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
 
     async def wait(obj):
-        return await trio.lowlevel.WaitForSingleObject(obj)
+        from trio.lowlevel import WaitForSingleObject
+
+        return await WaitForSingleObject(obj)
 
     def asyncify_pipes(receive_handle, send_handle):
+        from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
+
         return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
 
 
 else:
-    from ._posix_pipes import FdChannel
 
     async def wait(fd):
-        return await trio.lowlevel.wait_readable(fd)
+        from trio._core import wait_readable
+
+        return await wait_readable(fd)
 
     def asyncify_pipes(receive_fd, send_fd):
+        from ._posix_pipes import FdChannel
+
         return FdChannel(receive_fd), FdChannel(send_fd)
 
 
@@ -118,7 +123,9 @@ class WorkerSpawnProc(_abc.AbstractWorker):
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
-        self._wait_lock = trio.Lock()  # Efficiently multiplex waits
+        from trio import Lock
+
+        self._wait_lock = Lock()  # Efficiently multiplex waits
 
     @staticmethod
     def _work(recv_pipe, send_pipe, idle_timeout, init, retire):
@@ -202,6 +209,8 @@ class WorkerSpawnProc(_abc.AbstractWorker):
             send_pipe.close()
 
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
+        import trio
+
         result = None
         try:
 
