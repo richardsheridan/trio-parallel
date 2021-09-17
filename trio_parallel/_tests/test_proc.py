@@ -25,7 +25,7 @@ async def worker(request):
     try:
         yield worker
     finally:
-        with trio.move_on_after(2) as cs:
+        with trio.move_on_after(5) as cs:
             worker.shutdown()
             await worker.wait()
         if cs.cancelled_caught:
