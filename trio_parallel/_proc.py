@@ -73,6 +73,7 @@ class WorkerProcCache(_abc.WorkerCache):
             worker.shutdown()
         deadline = time.perf_counter() + timeout
         for worker in self:
+            timeout = deadline - time.perf_counter()
             while timeout > _abc.MAX_TIMEOUT:
                 worker.proc.join(_abc.MAX_TIMEOUT)
                 if worker.proc.exitcode is not None:
@@ -80,7 +81,7 @@ class WorkerProcCache(_abc.WorkerCache):
                 timeout = deadline - time.perf_counter()
             else:
                 # guard rare race on macos if exactly == 0.0
-                worker.proc.join(timeout or -0.001)
+                worker.proc.join(timeout or -1e6)
             if worker.proc.exitcode is None:
                 worker.kill()
                 killed.append(worker.proc)
