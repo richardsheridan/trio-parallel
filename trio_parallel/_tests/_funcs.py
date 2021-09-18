@@ -2,6 +2,7 @@
 trio, which adds a long time to every subprocess startup."""
 
 import os
+import sys
 
 
 def _bad_retire_fn():
@@ -87,3 +88,7 @@ def _monkeypatch_max_timeout():
 
     _abc.MAX_TIMEOUT = 0.1
     return True
+
+
+def _no_trio():
+    return "trio" not in sys.modules

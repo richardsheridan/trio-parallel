@@ -14,6 +14,7 @@ from ._funcs import (
     _raise_ki,
     _never_halts,
     _segfault_out_of_bounds_pointer,
+    _no_trio,
 )
 from .._proc import WORKER_PROC_MAP
 from .._abc import BrokenWorkerError
@@ -123,3 +124,7 @@ async def test_unpickleable(job, worker):
 
     with pytest.raises((PicklingError, AttributeError)):
         (await worker.run_sync(job)).unwrap()
+
+
+async def test_no_trio_in_subproc(worker):
+    assert (await worker.run_sync(_no_trio)).unwrap()
