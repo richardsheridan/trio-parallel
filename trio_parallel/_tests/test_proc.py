@@ -127,4 +127,6 @@ async def test_unpickleable(job, worker):
 
 
 async def test_no_trio_in_subproc(worker):
+    if worker.mp_context._name == "fork":
+        pytest.skip("Doesn't matter on WorkerForkProc")
     assert (await worker.run_sync(_no_trio)).unwrap()
