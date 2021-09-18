@@ -5,7 +5,6 @@ from enum import Enum
 from typing import Type, Callable, Optional
 
 import attr
-import trio
 from async_generator import asynccontextmanager
 
 from ._proc import WORKER_PROC_MAP
@@ -13,7 +12,7 @@ from ._abc import WorkerCache, AbstractWorker
 
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
-_limiter_local = trio.lowlevel.RunVar("proc_limiter")
+_limiter_local = None
 
 
 def current_default_worker_limiter():
@@ -25,6 +24,11 @@ def current_default_worker_limiter():
     is initialized to the number of CPUs reported by :func:`os.cpu_count`.
 
     """
+    import trio
+
+    global _limiter_local
+    if _limiter_local is None:
+        _limiter_local = trio.lowlevel.RunVar("proc_limiter")
     try:
         return _limiter_local.get()
     except LookupError:
@@ -142,6 +146,8 @@ async def cache_scope(
        The callables passed to retire MUST not raise! Doing so will result in a
        :class:`BrokenWorkerError` at an indeterminate future :func:`run_sync` call.
     """
+    import trio
+
     if not isinstance(worker_type, WorkerType):
         raise TypeError("worker_type must be a member of WorkerType")
     if not callable(init):
@@ -208,6 +214,8 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
         in normal use.
 
     """
+    import trio
+
     if limiter is None:
         limiter = current_default_worker_limiter()
 
