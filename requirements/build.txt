@@ -4,7 +4,7 @@
 #
 #    pip-compile --allow-unsafe 'requirements\build.in'
 #
-build==0.6.0
+build==0.7.0
     # via -r build.in
 packaging==21.0
     # via
