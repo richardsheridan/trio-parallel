@@ -15,7 +15,11 @@ Running CPU-bound functions in parallel
 Configuring workers
 -------------------
 
-.. autofunction:: cache_scope
+.. autoclass:: WorkerContext
+
+   .. automethod:: run_sync
+
+   .. automethod:: aclose
 
 .. autoclass:: WorkerType
 

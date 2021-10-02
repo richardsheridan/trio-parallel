@@ -2,7 +2,7 @@ import atexit
 import os
 import contextvars
 from enum import Enum
-from typing import Type, Callable, Optional
+from typing import Type, Callable, Any
 
 import attr
 from async_generator import asynccontextmanager
@@ -52,13 +52,90 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
-@attr.s(auto_attribs=True, slots=True, eq=False)
+def _check_positive(instance, attribute, value):
+    if value < 0.0:
+        raise ValueError(f"{attribute} must be greater than 0, was {value}")
+
+
+@attr.s(auto_attribs=True, slots=True, eq=False, on_setattr=attr.setters.frozen)
 class WorkerContext:
-    idle_timeout: Optional[float] = 600.0
-    init: Callable[[], bool] = bool
-    retire: Callable[[], bool] = bool  # always falsey singleton
-    worker_class: Type[AbstractWorker] = WORKER_MAP[WorkerType.SPAWN][0]
-    worker_cache: WorkerCache = attr.ib(factory=WORKER_MAP[WorkerType.SPAWN][1])
+    """Create a new, customized worker context with isolated workers.
+
+    By default, :func:`trio_parallel.run_sync` draws workers from a global cache
+    that is shared across sequential and between concurrent :func:`trio.run()`
+    calls, with workers' lifetimes limited to the life of the main process. This
+    covers most use cases, but for the many edge cases, this class
+    defines `WorkerContext.run_sync` which pulls workers from an
+    isolated cache with behavior specified by the class arguments. It is only
+    advised to use this if specific control over worker type, state, or
+    lifetime is required.
+
+    To release the resources related to a context, call `WorkerContext.aclose`.
+    The context may also be used as an async context manager, which will
+    automatically call `WorkerContext.aclose` when exiting the scope. When the
+    context is garbage collected, it will block in ``__del__`` while trying to shut
+    down all cached workers, so it is recommended to manually call `aclose`.
+
+    Attributes:
+      idle_timeout (float): The time in seconds an idle worker will
+          wait for a CPU-bound job before shutting down and releasing its own
+          resources. Pass `math.inf` to wait forever.
+      init (Callable[[], bool]):
+          An object to call within the worker before waiting for jobs.
+          This is suitable for initializing worker state so that such stateful logic
+          does not need to be included in functions passed to :func:`run_sync`.
+          MUST be callable without arguments.
+      retire (Callable[[], bool]):
+          An object to call within the worker after executing a CPU-bound job.
+          The return value indicates whether worker should be retired (shut down.)
+          By default, workers are never retired.
+          The process-global environment is stable between calls. Among other things,
+          that means that storing state in global variables works.
+          MUST be callable without arguments.
+      grace_period (float): The time in seconds to wait in when closing for workers to
+          exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
+          Pass `math.inf` to wait forever.
+      worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
+
+    Raises:
+      ValueError | TypeError: if an invalid value is passed for an argument, such as a
+          negative timeout.
+      BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
+
+    .. note::
+
+       The callables passed to retire MUST not raise! Doing so will result in a
+       :class:`BrokenWorkerError` at an indeterminate future :func:`run_sync` call.
+    """
+
+    idle_timeout: float = attr.ib(default=600.0, validator=_check_positive)
+    init: Callable[[], bool] = attr.ib(
+        default=bool, validator=attr.validators.is_callable()
+    )
+    retire: Callable[[], bool] = attr.ib(
+        default=bool, validator=attr.validators.is_callable()
+    )
+    grace_period: float = attr.ib(default=30.0, validator=_check_positive)
+    worker_type: WorkerType = attr.ib(
+        default=WorkerType.SPAWN, validator=attr.validators.in_(WorkerType)
+    )
+
+    async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
+        """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
+
+        Uses the customized behavior of the context. See :func:`run_sync` for
+        details.
+
+        Raises:
+            trio.ClosedResourceError: if this method is run on a closed context"""
+
+    async def aclose(self):
+        """Wait for all workers to become idle, then disable the context and shut down
+        all workers.
+
+        Subsequent calls to :meth:`run_sync` will raise `trio.ClosedResourceError`."""
+        if self._wait_chan is None:
+            raise RuntimeError("Cannot asynchronously close the default context")
 
 
 DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
@@ -185,7 +262,7 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     follows the API of :func:`trio.to_thread.run_sync`.
     Other :mod:`multiprocessing` features may work but are not officially
     supported, and all the normal :mod:`multiprocessing` caveats apply.
-    To customize worker behavior, use :func:`trio_parallel.cache_scope`.
+    To customize worker behavior, use :class:`WorkerContext`.
 
     The underlying workers are cached LIFO and reused to minimize latency.
     Global state of the workers is not stable between and across calls.

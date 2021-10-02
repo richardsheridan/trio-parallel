@@ -2,7 +2,7 @@
 
 from ._impl import (
     run_sync,
-    cache_scope,
+    WorkerContext,
     WorkerType,
     current_default_worker_limiter,
     default_shutdown_grace_period,

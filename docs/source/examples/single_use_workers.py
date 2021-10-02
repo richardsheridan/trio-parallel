@@ -29,16 +29,16 @@ async def amain():
     trio_parallel.current_default_worker_limiter().total_tokens = 4
 
     print("single use worker behavior:")
-    async with trio_parallel.cache_scope(retire=after_single_use):
+    async with trio_parallel.WorkerContext(retire=after_single_use) as ctx:
         async with trio.open_nursery() as nursery:
             for i in range(40):
-                nursery.start_soon(trio_parallel.run_sync, worker, i)
+                nursery.start_soon(ctx.run_sync, worker, i)
 
     print("dual use worker behavior:")
-    async with trio_parallel.cache_scope(retire=after_dual_use):
+    async with trio_parallel.WorkerContext(retire=after_dual_use) as ctx:
         async with trio.open_nursery() as nursery:
             for i in range(40):
-                nursery.start_soon(trio_parallel.run_sync, worker, i)
+                nursery.start_soon(ctx.run_sync, worker, i)
 
     print("default behavior:")
     async with trio.open_nursery() as nursery:
