@@ -166,10 +166,11 @@ def default_shutdown_grace_period(grace_period=-1.0):
     return DEFAULT_SHUTDOWN_GRACE_PERIOD
 
 
-@atexit.register
+# @atexit.register
 def graceful_default_shutdown():
     # need to late-bind the context attribute lookup
-    DEFAULT_CONTEXT.worker_cache.shutdown(DEFAULT_SHUTDOWN_GRACE_PERIOD)
+    DEFAULT_CONTEXT._worker_cache.shutdown(DEFAULT_SHUTDOWN_GRACE_PERIOD)
+    DEFAULT_CONTEXT._worker_cache.clear()
 
 
 @asynccontextmanager
