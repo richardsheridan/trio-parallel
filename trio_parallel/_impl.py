@@ -68,7 +68,7 @@ def _check_positive(instance, attribute, value):
         raise ValueError(f"{attribute} must be greater than 0, was {value}")
 
 
-@attr.s(auto_attribs=True, slots=True, eq=False, on_setattr=attr.setters.frozen)
+@attr.s(auto_attribs=True, slots=True, eq=False)
 class WorkerContext(metaclass=NoPublicConstructor):
     """A representation of a context where workers have a custom configuration.
 
@@ -77,32 +77,35 @@ class WorkerContext(metaclass=NoPublicConstructor):
     that created an instance are available for inspection as read-only attributes.
     """
 
-    idle_timeout: float = attr.ib(default=600.0, validator=_check_positive)
+    idle_timeout: float = attr.ib(
+        default=600.0,
+        validator=_check_positive,
+        on_setattr=attr.setters.frozen,
+    )
     init: Callable[[], bool] = attr.ib(
-        default=bool, validator=attr.validators.is_callable()
+        default=bool,
+        validator=attr.validators.is_callable(),
+        on_setattr=attr.setters.frozen,
     )
     retire: Callable[[], bool] = attr.ib(
-        default=bool, validator=attr.validators.is_callable()
+        default=bool,
+        validator=attr.validators.is_callable(),
+        on_setattr=attr.setters.frozen,
     )
-    grace_period: float = attr.ib(default=30.0, validator=_check_positive)
+    grace_period: float = attr.ib(
+        default=30.0,
+        validator=_check_positive,
+        on_setattr=attr.setters.frozen,
+    )
     worker_type: WorkerType = attr.ib(
-        default=WorkerType.SPAWN, validator=attr.validators.in_(WorkerType)
+        default=WorkerType.SPAWN,
+        validator=attr.validators.in_(WorkerType),
+        on_setattr=attr.setters.frozen,
     )
-    _worker_class: Type[AbstractWorker] = attr.ib(
-        repr=False, init=False, on_setattr=attr.setters.NO_OP
-    )
-    _worker_cache: WorkerCache = attr.ib(
-        repr=False, init=False, on_setattr=attr.setters.NO_OP
-    )
-    _sem_chan: Any = attr.ib(
-        default=NullClonableAsyncContext(),
-        repr=False,
-        init=False,
-        on_setattr=attr.setters.NO_OP,
-    )
-    _wait_chan: Any = attr.ib(
-        default=None, repr=False, init=False, on_setattr=attr.setters.NO_OP
-    )
+    _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
+    _worker_cache: WorkerCache = attr.ib(repr=False, init=False)
+    _sem_chan: Any = attr.ib(default=NullClonableAsyncContext(), repr=False, init=False)
+    _wait_chan: Any = attr.ib(default=None, repr=False, init=False)
 
     def __attrs_post_init__(self):
         worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
