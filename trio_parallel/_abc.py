@@ -4,9 +4,9 @@ The idea is that if we keep the interface between the implementation of the
 trio-parallel API minimal, we can put in new workers and options without needing
 frontend rewrites."""
 
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, ABCMeta
 from collections import deque
-from typing import Optional, Callable
+from typing import Optional, Callable, TypeVar, Type, Any
 
 from outcome import Outcome
 
@@ -79,3 +79,34 @@ class AbstractWorker(ABC):
     @abstractmethod
     async def wait(self):
         """Wait for the worker to terminate."""
+
+
+# vendored from trio so that we can lazy import trio
+T = TypeVar("T")
+
+
+class NoPublicConstructor(ABCMeta):
+    """Metaclass that ensures a private constructor.
+
+    If a class uses this metaclass like this::
+
+        class SomeClass(metaclass=NoPublicConstructor):
+            pass
+
+    The metaclass will ensure that no sub class can be created, and that no instance
+    can be initialized.
+
+    If you try to instantiate your class (SomeClass()), a TypeError will be thrown.
+
+    Raises
+    ------
+    - TypeError if a sub class or an instance is created.
+    """
+
+    def __call__(cls, *args, **kwargs):
+        raise TypeError(
+            f"{cls.__module__}.{cls.__qualname__} has no public constructor"
+        )
+
+    def _create(cls: Type[T], *args: Any, **kwargs: Any) -> T:
+        return super().__call__(*args, **kwargs)  # type: ignore

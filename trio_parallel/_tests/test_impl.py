@@ -59,7 +59,8 @@ class MockContext(_impl.WorkerContext):
 
 @pytest.fixture
 def mock_context(monkeypatch):
-    ctx = MockContext()
+    monkeypatch.setattr(_impl, "WorkerContext", MockContext)
+    ctx = MockContext._create()
     monkeypatch.setattr(_impl, "DEFAULT_CONTEXT", ctx)
     return ctx
 
@@ -76,9 +77,13 @@ async def test_context_methods(mock_context):
     assert cs.cancelled_caught
     assert mock_context._worker_cache.pruned_count == 3
     assert mock_context._worker_cache.shutdown_count == 0
-    await mock_context.aclose()
-    assert mock_context._worker_cache.pruned_count == 3
-    assert mock_context._worker_cache.shutdown_count == 1
+
+
+async def test_context_methods2(mock_context):
+    async with _impl.open_worker_context() as ctx:
+        await ctx.run_sync(bool)
+    assert ctx._worker_cache.pruned_count == 1
+    assert ctx._worker_cache.shutdown_count == 1
 
 
 async def test_cancellable(mock_context):
@@ -90,36 +95,50 @@ async def test_cancellable(mock_context):
         assert obsvd_deadline == deadline
 
 
-async def test_cache_scope_args():
-    ctx = MockContext(init=float, retire=int, idle_timeout=33)
-    await ctx.run_sync(bool)
-    worker = ctx._worker_cache.pop()
-    assert worker.init is float
-    assert worker.retire is int
-    assert worker.idle_timeout == 33
+async def test_cache_scope_args(mock_context):
+    async with _impl.open_worker_context(
+        init=float, retire=int, idle_timeout=33
+    ) as ctx:
+        await ctx.run_sync(bool)
+        worker = ctx._worker_cache.pop()
+        assert worker.init is float
+        assert worker.retire is int
+        assert worker.idle_timeout == 33
 
 
 async def test_erroneous_scope_inputs():
     with pytest.raises(TypeError):
-        _impl.WorkerContext(idle_timeout=[-1])
+        async with _impl.open_worker_context(idle_timeout=[-1]):
+            assert False
     with pytest.raises(TypeError):
-        _impl.WorkerContext(init=0)
+        async with _impl.open_worker_context(init=0):
+            assert False
     with pytest.raises(TypeError):
-        _impl.WorkerContext(retire=None)
+        async with _impl.open_worker_context(retire=None):
+            assert False
     with pytest.raises(TypeError):
-        _impl.WorkerContext(grace_period=object())
+        async with _impl.open_worker_context(grace_period=object()):
+            assert False
     with pytest.raises(ValueError):
         with warnings.catch_warnings():  # spurious DeprecationWarning on 3.7
             warnings.simplefilter("ignore")
-            _impl.WorkerContext(worker_type="wrong")
+            async with _impl.open_worker_context(worker_type="wrong"):
+                assert False
     with pytest.raises(ValueError):
-        _impl.WorkerContext(grace_period=-1)
+        async with _impl.open_worker_context(grace_period=-1):
+            assert False
     with pytest.raises(ValueError):
-        _impl.WorkerContext(idle_timeout=-1)
+        async with _impl.open_worker_context(idle_timeout=-1):
+            assert False
 
 
 async def test_worker_returning_none_can_be_cancelled():
     with trio.move_on_after(0.1) as cs:
-        ctx = MockContext(retire=_special_none_making_retire)
+        ctx = MockContext._create(retire=_special_none_making_retire)
         assert await ctx.run_sync(int)
     assert cs.cancelled_caught
+
+
+def test_cannot_instantiate_WorkerContext():
+    with pytest.raises(TypeError):
+        _impl.WorkerContext()

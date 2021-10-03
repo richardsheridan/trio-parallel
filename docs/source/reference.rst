@@ -15,11 +15,10 @@ Running CPU-bound functions in parallel
 Configuring workers
 -------------------
 
+.. autofunction:: open_worker_context
+
 .. autoclass:: WorkerContext
-
-   .. automethod:: run_sync
-
-   .. automethod:: aclose
+   :members:
 
 .. autoclass:: WorkerType
 

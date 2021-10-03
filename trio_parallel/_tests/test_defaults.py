@@ -14,7 +14,7 @@ from .._impl import (
     DEFAULT_CONTEXT,
     run_sync,
     default_shutdown_grace_period,
-    WorkerContext,
+    open_worker_context,
 )
 
 
@@ -130,23 +130,14 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
 
 
 async def test_aclose():
-    with pytest.raises(RuntimeError):
-        await DEFAULT_CONTEXT.aclose()
-    with pytest.raises(RuntimeError):
-        async with DEFAULT_CONTEXT:
-            assert False
-    async with WorkerContext() as ctx:
+    async with open_worker_context() as ctx:
         await ctx.run_sync(bool)
     with pytest.raises(trio.ClosedResourceError):
         await ctx.run_sync(bool)
-    with pytest.raises(trio.ClosedResourceError):
-        async with ctx:
-            assert False
 
 
-async def test_aclose_waits(manager):
+async def test_context_waits(manager):
     # TODO: convert this to a collaboration test
-    ctx = WorkerContext()
     finished = False
     ev = manager.Event()
 
@@ -159,10 +150,9 @@ async def test_aclose_waits(manager):
             finished = True
 
     async with trio.open_nursery() as nursery:
-        await nursery.start(child)
-        ev.set()
-        with trio.fail_after(1):
-            await ctx.aclose()
+        async with open_worker_context() as ctx:
+            await nursery.start(child)
+            ev.set()
         assert finished
 
 
