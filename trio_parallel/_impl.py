@@ -267,7 +267,6 @@ def atexit_shutdown_grace_period(grace_period=-1.0):
 def graceful_default_shutdown():
     # need to late-bind the context attribute lookup
     DEFAULT_CONTEXT._worker_cache.shutdown(ATEXIT_SHUTDOWN_GRACE_PERIOD)
-    DEFAULT_CONTEXT._worker_cache.clear()
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
