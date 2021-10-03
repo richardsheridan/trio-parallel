@@ -52,6 +52,17 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
+class NullClonableAsyncContext:
+    async def __aenter__(self):
+        pass
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def clone(self):
+        return self
+
+
 def _check_positive(instance, attribute, value):
     if value < 0.0:
         raise ValueError(f"{attribute} must be greater than 0, was {value}")
@@ -119,6 +130,26 @@ class WorkerContext:
     worker_type: WorkerType = attr.ib(
         default=WorkerType.SPAWN, validator=attr.validators.in_(WorkerType)
     )
+    _worker_class: Type[AbstractWorker] = attr.ib(
+        repr=False, init=False, on_setattr=attr.setters.NO_OP
+    )
+    _worker_cache: WorkerCache = attr.ib(
+        repr=False, init=False, on_setattr=attr.setters.NO_OP
+    )
+    _sem_chan: Any = attr.ib(
+        default=NullClonableAsyncContext(),
+        repr=False,
+        init=False,
+        on_setattr=attr.setters.NO_OP,
+    )
+    _wait_chan: Any = attr.ib(
+        default=None, repr=False, init=False, on_setattr=attr.setters.NO_OP
+    )
+
+    def __attrs_post_init__(self):
+        worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
+        self._worker_class = worker_class
+        self._worker_cache = worker_cache_class()
 
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
@@ -128,6 +159,31 @@ class WorkerContext:
 
         Raises:
             trio.ClosedResourceError: if this method is run on a closed context"""
+        import trio
+
+        if limiter is None:
+            limiter = current_default_worker_limiter()
+
+        sem = self._sem_chan.clone()
+        async with sem, limiter:
+            self._worker_cache.prune()
+            while True:
+                try:
+                    worker = self._worker_cache.pop()
+                except IndexError:
+                    worker = self._worker_class(
+                        self.idle_timeout, self.init, self.retire
+                    )
+
+                with trio.CancelScope(shield=not cancellable):
+                    result = await worker.run_sync(sync_fn, *args)
+
+                if result is None:
+                    # Prevent uninterruptible loop when KI-protected & cancellable=False
+                    await trio.lowlevel.checkpoint_if_cancelled()
+                else:
+                    self._worker_cache.append(worker)
+                    return result.unwrap()
 
     async def aclose(self):
         """Wait for all workers to become idle, then disable the context and shut down
@@ -136,6 +192,21 @@ class WorkerContext:
         Subsequent calls to :meth:`run_sync` will raise `trio.ClosedResourceError`."""
         if self._wait_chan is None:
             raise RuntimeError("Cannot asynchronously close the default context")
+        self._sem_chan.close()
+        async for _ in self._wait_chan:
+            pass
+
+        import trio
+
+        with trio.CancelScope(shield=True):
+            await trio.to_thread.run_sync(self.__del__)
+
+    def __del__(self):
+        try:
+            self._worker_cache.shutdown(self.grace_period)
+        except AttributeError:
+            # not fully initialized
+            pass
 
 
 DEFAULT_CONTEXT = WorkerContext()  # Mutable and monkeypatch-able!
@@ -166,87 +237,11 @@ def default_shutdown_grace_period(grace_period=-1.0):
     return DEFAULT_SHUTDOWN_GRACE_PERIOD
 
 
-# @atexit.register
+@atexit.register
 def graceful_default_shutdown():
     # need to late-bind the context attribute lookup
     DEFAULT_CONTEXT._worker_cache.shutdown(DEFAULT_SHUTDOWN_GRACE_PERIOD)
     DEFAULT_CONTEXT._worker_cache.clear()
-
-
-@asynccontextmanager
-async def cache_scope(
-    idle_timeout=DEFAULT_CONTEXT.idle_timeout,
-    init=DEFAULT_CONTEXT.retire,
-    retire=DEFAULT_CONTEXT.retire,
-    grace_period=DEFAULT_SHUTDOWN_GRACE_PERIOD,
-    worker_type=WorkerType.SPAWN,
-):
-    """Create a new, customized worker cache with workers confined to
-    a scoped lifetime.
-
-    By default, :func:`trio_parallel.run_sync` draws workers from a global cache
-    that is shared across sequential and between concurrent :func:`trio.run()`
-    calls, with workers' lifetimes limited to the life of the main process. This
-    covers most use cases, but for the many edge cases, this context manager
-    defines a scope wherein each call to :func:`run_sync` pulls workers from an
-    isolated cache with behavior specified by the arguments. It is only advised
-    to use this context manager if specific control over worker type, state, or
-    lifetime is required.
-
-    Args:
-      idle_timeout (float): The time in seconds an idle worker will
-          wait for a CPU-bound job before shutting down and releasing its own
-          resources. Pass `math.inf` to wait forever.
-      init (Callable[[], bool]):
-          An object to call within the worker before waiting for jobs.
-          This is suitable for initializing worker state so that such stateful logic
-          does not need to be included in functions passed to :func:`run_sync`.
-          MUST be callable without arguments.
-      retire (Callable[[], bool]):
-          An object to call within the worker after executing a CPU-bound job.
-          The return value indicates whether worker should be retired (shut down.)
-          By default, workers are never retired.
-          The process-global environment is stable between calls. Among other things,
-          that means that storing state in global variables works.
-          MUST be callable without arguments.
-      grace_period (float): The time in seconds to wait for workers to
-          exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
-          Pass `math.inf` to wait forever.
-      worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
-
-    Raises:
-      ValueError: if an invalid value is passed for an argument, such as a negative
-          timeout.
-      BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
-
-    .. note::
-
-       The callables passed to retire MUST not raise! Doing so will result in a
-       :class:`BrokenWorkerError` at an indeterminate future :func:`run_sync` call.
-    """
-    import trio
-
-    if not isinstance(worker_type, WorkerType):
-        raise TypeError("worker_type must be a member of WorkerType")
-    if not callable(init):
-        raise TypeError("init must be callable (with no arguments)")
-    if not callable(retire):
-        raise TypeError("retire must be callable (with no arguments)")
-    idle_timeout = float(idle_timeout)
-    grace_period = float(grace_period)
-    worker_class, worker_cache = WORKER_MAP[worker_type]
-    worker_context = WorkerContext(
-        idle_timeout, init, retire, worker_class, worker_cache()
-    )
-    token = _worker_context_var.set(worker_context)
-    try:
-        yield
-    finally:
-        _worker_context_var.reset(token)
-        with trio.CancelScope(shield=True):
-            await trio.to_thread.run_sync(
-                worker_context.worker_cache.shutdown, grace_period
-            )
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
@@ -292,27 +287,6 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
         in normal use.
 
     """
-    import trio
-
-    if limiter is None:
-        limiter = current_default_worker_limiter()
-
-    ctx = _worker_context_var.get()
-
-    async with limiter:
-        ctx.worker_cache.prune()
-        while True:
-            try:
-                worker = ctx.worker_cache.pop()
-            except IndexError:
-                worker = ctx.worker_class(ctx.idle_timeout, ctx.init, ctx.retire)
-
-            with trio.CancelScope(shield=not cancellable):
-                result = await worker.run_sync(sync_fn, *args)
-
-            if result is None:
-                # Prevent uninterruptible loop when KI-protected & cancellable=False
-                await trio.lowlevel.checkpoint_if_cancelled()
-            else:
-                ctx.worker_cache.append(worker)
-                return result.unwrap()
+    return await DEFAULT_CONTEXT.run_sync(
+        sync_fn, *args, cancellable=cancellable, limiter=limiter
+    )
