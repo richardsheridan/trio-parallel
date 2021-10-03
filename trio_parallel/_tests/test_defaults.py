@@ -10,7 +10,12 @@ import pytest
 import trio
 
 from ._funcs import _block_worker, _raise_pid
-from .._impl import DEFAULT_CONTEXT, run_sync, default_shutdown_grace_period
+from .._impl import (
+    DEFAULT_CONTEXT,
+    run_sync,
+    default_shutdown_grace_period,
+    WorkerContext,
+)
 
 
 @pytest.fixture
@@ -122,6 +127,43 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
         # Now it exits
     assert child_done
     assert worker_done.is_set()
+
+
+async def test_aclose():
+    with pytest.raises(RuntimeError):
+        await DEFAULT_CONTEXT.aclose()
+    with pytest.raises(RuntimeError):
+        async with DEFAULT_CONTEXT:
+            assert False
+    async with WorkerContext() as ctx:
+        await ctx.run_sync(bool)
+    with pytest.raises(trio.ClosedResourceError):
+        await ctx.run_sync(bool)
+    with pytest.raises(trio.ClosedResourceError):
+        async with ctx:
+            assert False
+
+
+async def test_aclose_waits(manager):
+    # TODO: convert this to a collaboration test
+    ctx = WorkerContext()
+    finished = False
+    ev = manager.Event()
+
+    async def child(task_status):
+        nonlocal finished
+        task_status.started()
+        try:
+            await ctx.run_sync(ev.wait)
+        finally:
+            finished = True
+
+    async with trio.open_nursery() as nursery:
+        await nursery.start(child)
+        ev.set()
+        with trio.fail_after(1):
+            await ctx.aclose()
+        assert finished
 
 
 def _atexit_shutdown():  # pragma: no cover, source code extracted

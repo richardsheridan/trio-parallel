@@ -150,6 +150,12 @@ class WorkerContext:
         worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
         self._worker_class = worker_class
         self._worker_cache = worker_cache_class()
+        # NOTE: we need to lazy-import trio and make sure the default context can be
+        # shared between several trio threads. Apologies for the epicycles.
+        if "DEFAULT_CONTEXT" in globals():
+            import trio
+
+            self._sem_chan, self._wait_chan = trio.open_memory_channel(0)
 
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
@@ -191,15 +197,25 @@ class WorkerContext:
 
         Subsequent calls to :meth:`run_sync` will raise `trio.ClosedResourceError`."""
         if self._wait_chan is None:
-            raise RuntimeError("Cannot asynchronously close the default context")
+            raise RuntimeError("Cannot aclose the default context")
         self._sem_chan.close()
-        async for _ in self._wait_chan:
-            pass
-
         import trio
 
         with trio.CancelScope(shield=True):
+            try:
+                await self._wait_chan.receive()
+            except trio.EndOfChannel:
+                pass
             await trio.to_thread.run_sync(self.__del__)
+
+    async def __aenter__(self):
+        if self._wait_chan is None:
+            raise RuntimeError("Cannot aclose the default context")
+        self._sem_chan.clone().close()  # assert not closed
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.aclose()
 
     def __del__(self):
         try:

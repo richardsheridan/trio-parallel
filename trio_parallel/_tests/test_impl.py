@@ -50,18 +50,9 @@ class MockCache(WorkerCache):
         self.shutdown_count += 1
 
 
-class MockSemaphore:
-    def acquire_nowait(self):
-        pass
-
-    def release_nowait(self):
-        pass
-
-    acquire = trio.lowlevel.checkpoint
-
-
 class MockContext(_impl.WorkerContext):
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
         self._worker_class = MockWorker
         self._worker_cache = MockCache()
 
@@ -85,6 +76,9 @@ async def test_context_methods(mock_context):
     assert cs.cancelled_caught
     assert mock_context._worker_cache.pruned_count == 3
     assert mock_context._worker_cache.shutdown_count == 0
+    await mock_context.aclose()
+    assert mock_context._worker_cache.pruned_count == 3
+    assert mock_context._worker_cache.shutdown_count == 1
 
 
 async def test_cancellable(mock_context):
