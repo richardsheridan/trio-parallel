@@ -13,7 +13,7 @@ from ._funcs import _block_worker, _raise_pid
 from .._impl import (
     DEFAULT_CONTEXT,
     run_sync,
-    default_shutdown_grace_period,
+    atexit_shutdown_grace_period,
     open_worker_context,
 )
 
@@ -188,15 +188,15 @@ def test_we_control_atexit_shutdowns():
 
 
 def test_change_default_grace_period():
-    orig = default_shutdown_grace_period()
-    assert orig == default_shutdown_grace_period()
+    orig = atexit_shutdown_grace_period()
+    assert orig == atexit_shutdown_grace_period()
     for x in (0, math.inf, orig):
-        assert x == default_shutdown_grace_period(x)
-        assert x == default_shutdown_grace_period()
-        assert x == default_shutdown_grace_period(-3)
+        assert x == atexit_shutdown_grace_period(x)
+        assert x == atexit_shutdown_grace_period()
+        assert x == atexit_shutdown_grace_period(-3)
 
     with pytest.raises(TypeError):
-        default_shutdown_grace_period("forever")
+        atexit_shutdown_grace_period("forever")
     with pytest.raises(TypeError):
-        default_shutdown_grace_period(None)
-    assert x == default_shutdown_grace_period()
+        atexit_shutdown_grace_period(None)
+    assert x == atexit_shutdown_grace_period()

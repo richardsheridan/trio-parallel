@@ -12,9 +12,9 @@ Features
 ~~~~~~~~
 
 - Added configuration options for the grace periods permitted to worker caches upon
-  shutdown. This includes a new keyword argument for ``cache_scope`` and the new top
-  level function :func:`default_shutdown_grace_period`. (`#108 <https://github.com/richardsheridan/trio-parallel/issues/108>`__)
-- ``cache_scope`` gained a new argument, ``init``, and ``retire`` is no longer
+  shutdown. This includes a new keyword argument for :func:`open_worker_context` and
+  a new top level function :func:`atexit_shutdown_grace_period`. (`#108 <https://github.com/richardsheridan/trio-parallel/issues/108>`__)
+- :func:`open_worker_context` gained a new argument, ``init``, and ``retire`` is no longer
   called before the first job in the worker. (`#110 <https://github.com/richardsheridan/trio-parallel/issues/110>`__)
 
 
@@ -24,7 +24,7 @@ trio-parallel 1.0.0a0 (2021-07-22)
 Features
 ~~~~~~~~
 
-- The behavior and lifetime of worker processes can now be customized with the ``cache_scope`` context manager. (`#19 <https://github.com/richardsheridan/trio-parallel/issues/19>`__)
+- The behavior and lifetime of worker processes can now be customized with the :func:`open_worker_context` context manager. (`#19 <https://github.com/richardsheridan/trio-parallel/issues/19>`__)
 
 
 trio-parallel 0.5.1 (2021-05-05)

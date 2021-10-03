@@ -1,2 +1,2 @@
-Timeout arguments of ``cache_scope``, ``idle_timeout`` and ``grace_period``, now
-work like trio timeouts, accepting any `~float` value.
+Timeout arguments of :func:`open_worker_context`, ``idle_timeout`` and ``grace_period``,
+now work like trio timeouts, accepting any non-negative `~float` value.

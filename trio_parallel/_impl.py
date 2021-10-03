@@ -17,7 +17,7 @@ _limiter_local = None
 
 def current_default_worker_limiter():
     """Get the default `~trio.CapacityLimiter` used by
-    `trio_parallel.run_sync`.
+    :func:`trio_parallel.run_sync`.
 
     The most common reason to call this would be if you want to modify its
     :attr:`~trio.CapacityLimiter.total_tokens` attribute. This attribute
@@ -72,9 +72,9 @@ def _check_positive(instance, attribute, value):
 class WorkerContext(metaclass=NoPublicConstructor):
     """A representation of a context where workers have a custom configuration.
 
-    Instances of this class are to be created using `open_worker_context`, and cannot
-    be directly instantiated. The arguments to `open_worker_context` that created
-    an instance are available for inspection as read-only attributes.
+    Instances of this class are to be created using :func:`open_worker_context`,
+    and cannot be directly instantiated. The arguments to :func:`open_worker_context`
+    that created an instance are available for inspection as read-only attributes.
     """
 
     idle_timeout: float = attr.ib(default=600.0, validator=_check_positive)
@@ -169,7 +169,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
 
 DEFAULT_CONTEXT = WorkerContext._create()  # monkeypatch-able!
 _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
-DEFAULT_SHUTDOWN_GRACE_PERIOD = 30.0
+ATEXIT_SHUTDOWN_GRACE_PERIOD = 30.0
 
 
 @asynccontextmanager
@@ -177,7 +177,7 @@ async def open_worker_context(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
     init=DEFAULT_CONTEXT.retire,
     retire=DEFAULT_CONTEXT.retire,
-    grace_period=DEFAULT_SHUTDOWN_GRACE_PERIOD,
+    grace_period=ATEXIT_SHUTDOWN_GRACE_PERIOD,
     worker_type=WorkerType.SPAWN,
 ):
     """Create a new, customized worker context with isolated workers.
@@ -236,8 +236,12 @@ async def open_worker_context(
         await ctx._aclose()
 
 
-def default_shutdown_grace_period(grace_period=-1.0):
+def atexit_shutdown_grace_period(grace_period=-1.0):
     """Return and optionally set the default worker cache shutdown grace period.
+
+    This only affects the `atexit` behavior of the default context corresponding to
+    :func:`trio_parallel.run_sync`. Existing and future `WorkerContext` instances
+    are unaffected.
 
     Args:
       grace_period (float): The time in seconds to wait for workers to
@@ -252,17 +256,17 @@ def default_shutdown_grace_period(grace_period=-1.0):
 
        This function is subject to threading race conditions."""
 
-    global DEFAULT_SHUTDOWN_GRACE_PERIOD
+    global ATEXIT_SHUTDOWN_GRACE_PERIOD
 
     if grace_period >= 0.0:
-        DEFAULT_SHUTDOWN_GRACE_PERIOD = grace_period
-    return DEFAULT_SHUTDOWN_GRACE_PERIOD
+        ATEXIT_SHUTDOWN_GRACE_PERIOD = grace_period
+    return ATEXIT_SHUTDOWN_GRACE_PERIOD
 
 
 @atexit.register
 def graceful_default_shutdown():
     # need to late-bind the context attribute lookup
-    DEFAULT_CONTEXT._worker_cache.shutdown(DEFAULT_SHUTDOWN_GRACE_PERIOD)
+    DEFAULT_CONTEXT._worker_cache.shutdown(ATEXIT_SHUTDOWN_GRACE_PERIOD)
     DEFAULT_CONTEXT._worker_cache.clear()
 
 
@@ -280,7 +284,7 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     follows the API of :func:`trio.to_thread.run_sync`.
     Other :mod:`multiprocessing` features may work but are not officially
     supported, and all the normal :mod:`multiprocessing` caveats apply.
-    To customize worker behavior, use :class:`WorkerContext`.
+    To customize worker behavior, use :func:`open_worker_context`.
 
     The underlying workers are cached LIFO and reused to minimize latency.
     Global state of the workers is not stable between and across calls.
