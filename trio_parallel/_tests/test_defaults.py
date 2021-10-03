@@ -16,8 +16,8 @@ from .._impl import DEFAULT_CONTEXT, run_sync, default_shutdown_grace_period
 @pytest.fixture
 def shutdown_cache():
     yield
-    DEFAULT_CONTEXT.worker_cache.shutdown(60)
-    DEFAULT_CONTEXT.worker_cache.clear()
+    DEFAULT_CONTEXT._worker_cache.shutdown(60)
+    DEFAULT_CONTEXT._worker_cache.clear()
 
 
 async def test_run_sync(shutdown_cache):
