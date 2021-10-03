@@ -1,4 +1,5 @@
 """ Tests of public API with mocked-out workers ("collaboration" tests)"""
+import warnings
 from typing import Callable, Optional
 
 import pytest
@@ -114,7 +115,9 @@ async def test_erroneous_scope_inputs():
     with pytest.raises(TypeError):
         _impl.WorkerContext(grace_period=object())
     with pytest.raises(ValueError):
-        _impl.WorkerContext(worker_type="wrong")
+        with warnings.catch_warnings():  # spurious DeprecationWarning on 3.7
+            warnings.simplefilter("ignore")
+            _impl.WorkerContext(worker_type="wrong")
     with pytest.raises(ValueError):
         _impl.WorkerContext(grace_period=-1)
     with pytest.raises(ValueError):
