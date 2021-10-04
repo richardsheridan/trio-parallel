@@ -1,6 +1,5 @@
 import atexit
 import os
-import contextvars
 from enum import Enum
 from typing import Type, Callable, Any
 
@@ -13,6 +12,7 @@ from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
 _limiter_local = None
+ATEXIT_SHUTDOWN_GRACE_PERIOD = 30.0
 
 
 def current_default_worker_limiter():
@@ -166,16 +166,14 @@ class WorkerContext(metaclass=NoPublicConstructor):
 
 
 DEFAULT_CONTEXT = WorkerContext._create()  # intentionally skip open_worker_context
-_worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
-ATEXIT_SHUTDOWN_GRACE_PERIOD = 30.0
 
 
 @asynccontextmanager
 async def open_worker_context(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
-    init=DEFAULT_CONTEXT.retire,
+    init=DEFAULT_CONTEXT.init,
     retire=DEFAULT_CONTEXT.retire,
-    grace_period=ATEXIT_SHUTDOWN_GRACE_PERIOD,
+    grace_period=DEFAULT_CONTEXT.grace_period,
     worker_type=WorkerType.SPAWN,
 ):
     """Create a new, customized worker context with isolated workers.
@@ -266,7 +264,8 @@ def atexit_shutdown_grace_period(grace_period=-1.0):
 
 @atexit.register
 def graceful_default_shutdown():
-    # need to late-bind the context attribute lookup
+    # need to late-bind the context attribute lookup so
+    # don't use atexit.register(fn,*args) form
     DEFAULT_CONTEXT._worker_cache.shutdown(ATEXIT_SHUTDOWN_GRACE_PERIOD)
 
 
