@@ -20,7 +20,7 @@ certifi==2021.5.30
     # via requests
 cffi==1.14.6
     # via trio
-charset-normalizer==2.0.4
+charset-normalizer==2.0.6
     # via requests
 click==8.0.1
     # via
@@ -72,12 +72,12 @@ snowballstemmer==2.1.0
     # via sphinx
 sortedcontainers==2.4.0
     # via trio
-sphinx==4.1.2
+sphinx==4.2.0
     # via
     #   sphinx-rtd-theme
     #   sphinxcontrib-trio
     #   trio-parallel (setup.py)
-sphinx-rtd-theme==0.5.2
+sphinx-rtd-theme==1.0.0
     # via trio-parallel (setup.py)
 sphinxcontrib-applehelp==1.0.2
     # via sphinx
@@ -99,7 +99,7 @@ towncrier==21.3.0
     # via trio-parallel (setup.py)
 trio==0.19.0
     # via trio-parallel (setup.py)
-urllib3==1.26.6
+urllib3==1.26.7
     # via requests
 
 # The following packages are considered to be unsafe in a requirements file:
