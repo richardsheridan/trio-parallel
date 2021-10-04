@@ -104,6 +104,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
     )
     _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
     _worker_cache: WorkerCache = attr.ib(repr=False, init=False)
+    # These are externally initialized in open_worker_context
     _sem_chan: Any = attr.ib(default=NullClonableAsyncContext(), repr=False, init=False)
     _wait_chan: Any = attr.ib(default=None, repr=False, init=False)
 
@@ -111,12 +112,6 @@ class WorkerContext(metaclass=NoPublicConstructor):
         worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
         self._worker_class = worker_class
         self._worker_cache = worker_cache_class()
-        # NOTE: we need to lazy-import trio and make sure the default context can be
-        # shared between several trio threads. Apologies for the epicycles.
-        if "DEFAULT_CONTEXT" in globals():
-            import trio
-
-            self._sem_chan, self._wait_chan = trio.open_memory_channel(0)
 
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
@@ -170,7 +165,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
             )
 
 
-DEFAULT_CONTEXT = WorkerContext._create()  # monkeypatch-able!
+DEFAULT_CONTEXT = WorkerContext._create()  # intentionally skip open_worker_context
 _worker_context_var = contextvars.ContextVar("worker_context", default=DEFAULT_CONTEXT)
 ATEXIT_SHUTDOWN_GRACE_PERIOD = 30.0
 
@@ -232,7 +227,10 @@ async def open_worker_context(
        :func:`WorkerContext.run_sync` call.
 
     """
+    import trio
+
     ctx = WorkerContext._create(idle_timeout, init, retire, grace_period, worker_type)
+    ctx._sem_chan, ctx._wait_chan = trio.open_memory_channel(0)
     try:
         yield ctx
     finally:
