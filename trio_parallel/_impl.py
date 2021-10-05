@@ -11,7 +11,7 @@ from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
 
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
-_limiter_local = None
+limiter_runvar = None
 ATEXIT_SHUTDOWN_GRACE_PERIOD = 30.0
 
 
@@ -26,14 +26,14 @@ def current_default_worker_limiter():
     """
     import trio
 
-    global _limiter_local
-    if _limiter_local is None:
-        _limiter_local = trio.lowlevel.RunVar("proc_limiter")
+    global limiter_runvar
+    if limiter_runvar is None:
+        limiter_runvar = trio.lowlevel.RunVar("trio_parallel")
     try:
-        return _limiter_local.get()
+        return limiter_runvar.get()
     except LookupError:
         limiter = trio.CapacityLimiter(DEFAULT_LIMIT)
-        _limiter_local.set(limiter)
+        limiter_runvar.set(limiter)
         return limiter
 
 
@@ -63,9 +63,9 @@ class NullClonableContext:
         return self
 
 
-def _check_positive(instance, attribute, value):
+def check_non_negative(instance, attribute, value):
     if value < 0.0:
-        raise ValueError(f"{attribute} must be greater than 0, was {value}")
+        raise ValueError(f"{attribute} must be non-negative, was {value}")
 
 
 @attr.s(auto_attribs=True, slots=True, eq=False)
@@ -79,7 +79,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
 
     idle_timeout: float = attr.ib(
         default=600.0,
-        validator=_check_positive,
+        validator=check_non_negative,
         on_setattr=attr.setters.frozen,
     )
     init: Callable[[], bool] = attr.ib(
@@ -94,7 +94,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
     )
     grace_period: float = attr.ib(
         default=30.0,
-        validator=_check_positive,
+        validator=check_non_negative,
         on_setattr=attr.setters.frozen,
     )
     worker_type: WorkerType = attr.ib(
