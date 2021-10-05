@@ -103,14 +103,10 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
     async def child(cancellable):
         nonlocal child_start, child_done
         child_start = True
-        try:
-            return await run_sync(
-                _block_worker, block, worker_start, worker_done, cancellable=cancellable
-            )
-        except trio.Cancelled:
-            assert False
-        finally:
-            child_done = True
+        await run_sync(
+            _block_worker, block, worker_start, worker_done, cancellable=cancellable
+        )
+        child_done = True
 
     block, worker_start, worker_done = manager.Event(), manager.Event(), manager.Event()
     child_start = False
