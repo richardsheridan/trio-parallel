@@ -68,7 +68,7 @@ def check_non_negative(instance, attribute, value):
         raise ValueError(f"{attribute} must be non-negative, was {value}")
 
 
-@attr.s(auto_attribs=True, slots=True, eq=False)
+@attr.s(slots=True, eq=False)
 class WorkerContext(metaclass=NoPublicConstructor):
     """A representation of a context where workers have a custom configuration.
 
