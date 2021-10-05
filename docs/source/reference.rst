@@ -18,10 +18,10 @@ Configuring workers
 .. autofunction:: open_worker_context
    :async-with: ctx
 
-.. autoclass:: WorkerContext
+.. autoclass:: WorkerContext()
    :members:
 
-.. autoclass:: WorkerType
+.. autoclass:: WorkerType()
 
 Exceptions and warnings
 -----------------------
