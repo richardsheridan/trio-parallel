@@ -5,8 +5,7 @@ trio-parallel API minimal, we can put in new workers and options without needing
 frontend rewrites."""
 
 from abc import ABC, abstractmethod, ABCMeta
-from collections import deque
-from typing import Optional, Callable, TypeVar, Type, Any
+from typing import Optional, Callable, TypeVar, Type, Any, Deque
 
 from outcome import Outcome
 
@@ -23,25 +22,6 @@ class BrokenWorkerError(RuntimeError):
     or failing to cleanly shut down within a specified ``grace_period``. (See
     :func:`atexit_shutdown_grace_period` and :func:`open_worker_context`.)
     """
-
-
-class WorkerCache(deque, ABC):
-    @abstractmethod
-    def prune(self):
-        """Clean up any resources associated with workers that have timed out
-        while idle in the cache."""
-
-    @abstractmethod
-    def shutdown(self, timeout):
-        """Stop and clean up any resources associated with all cached workers.
-
-        Args:
-          timeout: Time in seconds to wait for graceful shutdown before
-              raising.
-
-        Raises:
-          BrokenWorkerError: Raised if any workers fail to respond to a graceful
-              shutdown signal within ``grace_period``."""
 
 
 class AbstractWorker(ABC):
@@ -82,6 +62,25 @@ class AbstractWorker(ABC):
     @abstractmethod
     async def wait(self):
         """Wait for the worker to terminate."""
+
+
+class WorkerCache(Deque[AbstractWorker], ABC):
+    @abstractmethod
+    def prune(self):
+        """Clean up any resources associated with workers that have timed out
+        while idle in the cache."""
+
+    @abstractmethod
+    def shutdown(self, timeout):
+        """Stop and clean up any resources associated with all cached workers.
+
+        Args:
+          timeout: Time in seconds to wait for graceful shutdown before
+              raising.
+
+        Raises:
+          BrokenWorkerError: Raised if any workers fail to respond to a graceful
+              shutdown signal within ``grace_period``."""
 
 
 # vendored from trio so that we can lazy import trio
