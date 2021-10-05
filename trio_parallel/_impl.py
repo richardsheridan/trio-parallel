@@ -52,11 +52,11 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
-class NullClonableAsyncContext:
-    async def __aenter__(self):
+class NullClonableContext:
+    def __enter__(self):
         pass
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
     def clone(self):
@@ -105,7 +105,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
     _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
     _worker_cache: WorkerCache = attr.ib(repr=False, init=False)
     # These are externally initialized in open_worker_context
-    _sem_chan: Any = attr.ib(default=NullClonableAsyncContext(), repr=False, init=False)
+    _sem_chan: Any = attr.ib(default=NullClonableContext(), repr=False, init=False)
     _wait_chan: Any = attr.ib(default=None, repr=False, init=False)
 
     def __attrs_post_init__(self):
@@ -126,26 +126,27 @@ class WorkerContext(metaclass=NoPublicConstructor):
         if limiter is None:
             limiter = current_default_worker_limiter()
 
-        sem = self._sem_chan.clone()
-        async with sem, limiter:
-            self._worker_cache.prune()
-            while True:
-                try:
-                    worker = self._worker_cache.pop()
-                except IndexError:
-                    worker = self._worker_class(
-                        self.idle_timeout, self.init, self.retire
-                    )
+        with self._sem_chan.clone():
+            async with limiter:
+                self._worker_cache.prune()
+                while True:
+                    try:
+                        worker = self._worker_cache.pop()
+                    except IndexError:
+                        worker = self._worker_class(
+                            self.idle_timeout, self.init, self.retire
+                        )
 
-                with trio.CancelScope(shield=not cancellable):
-                    result = await worker.run_sync(sync_fn, *args)
+                    with trio.CancelScope(shield=not cancellable):
+                        result = await worker.run_sync(sync_fn, *args)
 
-                if result is None:
-                    # Prevent uninterruptible loop when KI-protected & cancellable=False
-                    await trio.lowlevel.checkpoint_if_cancelled()
-                else:
-                    self._worker_cache.append(worker)
-                    return result.unwrap()
+                    if result is None:
+                        # Prevent uninterruptible loop
+                        # when KI-protected & cancellable=False
+                        await trio.lowlevel.checkpoint_if_cancelled()
+                    else:
+                        self._worker_cache.append(worker)
+                        return result.unwrap()
 
     async def _aclose(self):
         """Wait for all workers to become idle, then disable the context and shut down

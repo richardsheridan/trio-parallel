@@ -107,6 +107,8 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
             return await run_sync(
                 _block_worker, block, worker_start, worker_done, cancellable=cancellable
             )
+        except trio.Cancelled:
+            assert False
         finally:
             child_done = True
 
