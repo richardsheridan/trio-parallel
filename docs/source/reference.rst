@@ -16,6 +16,7 @@ Configuring workers
 -------------------
 
 .. autofunction:: open_worker_context
+   :async-with: ctx
 
 .. autoclass:: WorkerContext
    :members:

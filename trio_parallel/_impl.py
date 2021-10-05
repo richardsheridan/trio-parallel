@@ -183,15 +183,15 @@ async def open_worker_context(
     that is shared across sequential and between concurrent :func:`trio.run()`
     calls, with workers' lifetimes limited to the life of the main process. This
     covers most use cases, but for the many edge cases, this async context manager
-    yields a `WorkerContext` object on which `WorkerContext.run_sync()` pulls workers
+    yields a `WorkerContext` object on which `~WorkerContext.run_sync()` pulls workers
     from an isolated cache with behavior specified by the class arguments. It is only
     advised to use this if specific control over worker type, state, or
     lifetime is required.
 
     The context will automatically wait for any running workers to become idle when
-    exiting the scope. Since this wait cannot be canceled, it is more convenient to
+    exiting the scope. Since this wait cannot be cancelled, it is more convenient to
     only pass the context object to tasks that cannot outlive the scope, for example,
-    by using a nursery.
+    by using a :class:`~trio.Nursery`.
 
     Args:
       idle_timeout (float): The time in seconds an idle worker will

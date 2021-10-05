@@ -44,11 +44,7 @@ else:
 
 
 class BrokenWorkerProcessError(_abc.BrokenWorkerError):
-    """Raised when a worker process fails or dies unexpectedly.
-
-    This error is not typically encountered in normal use, and indicates a severe
-    failure of either trio-parallel or the code that was executing in the worker.
-
+    __doc__ = f"""{_abc.BrokenWorkerError.__doc__}
     The last argument of the exception is the underlying
     :class:`multiprocessing.Process` which may be inspected for e.g. exit codes.
     """
@@ -90,7 +86,7 @@ class WorkerProcCache(_abc.WorkerCache):
         if unclean or killed:
             for proc in killed:
                 proc.join()
-            raise _abc.BrokenWorkerError(
+            raise BrokenWorkerProcessError(
                 f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
                 f"and {len(killed)} forceful terminations.",
                 *unclean,
