@@ -1,3 +1,0 @@
-:func:`open_worker_context` now returns a context object that can be used to run
-functions explicitly in a certain context (:meth:`WorkerContext.run_sync`) rather
-than implicitly altering the behavior of :func:`trio_parallel.run_sync`.
