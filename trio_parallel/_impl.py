@@ -52,15 +52,39 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
-class NullClonableContext:
-    def __enter__(self):
-        pass
+@attr.s(auto_attribs=True, slots=True, eq=False)
+class ContextLifetimeManager:
+    running: int = 0
+    closed: bool = False
+    task: Any = None
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+    async def __aenter__(self):
+        # only async to save indentation
+        if self.closed:
+            import trio
 
-    def clone(self):
-        return self
+            raise trio.ClosedResourceError
+        self.running += 1
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # only async to save indentation
+        self.running -= 1
+        if self.running == 0 and self.task:
+            import trio
+
+            trio.lowlevel.reschedule(self.task)
+
+    async def wait_and_close(self):
+        assert not self.closed
+        self.closed = True
+        if self.running != 0:
+            import trio
+
+            self.task = trio.lowlevel.current_task()
+            await trio.lowlevel.wait_task_rescheduled(
+                lambda _: trio.lowlevel.Abort.FAILED  # pragma: no cover
+            )
+            self.task = None
 
 
 def check_non_negative(instance, attribute, value):
@@ -104,9 +128,9 @@ class WorkerContext(metaclass=NoPublicConstructor):
     )
     _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
     _worker_cache: WorkerCache = attr.ib(repr=False, init=False)
-    # These are externally initialized in open_worker_context
-    _sem_chan: Any = attr.ib(default=NullClonableContext(), repr=False, init=False)
-    _wait_chan: Any = attr.ib(default=None, repr=False, init=False)
+    _lifetime: ContextLifetimeManager = attr.ib(
+        factory=ContextLifetimeManager, repr=False, init=False
+    )
 
     def __attrs_post_init__(self):
         worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
@@ -126,41 +150,36 @@ class WorkerContext(metaclass=NoPublicConstructor):
         if limiter is None:
             limiter = current_default_worker_limiter()
 
-        with self._sem_chan.clone():
-            async with limiter:
-                self._worker_cache.prune()
-                while True:
-                    try:
-                        worker = self._worker_cache.pop()
-                    except IndexError:
-                        worker = self._worker_class(
-                            self.idle_timeout, self.init, self.retire
-                        )
+        async with limiter, self._lifetime:
+            self._worker_cache.prune()
+            while True:
+                try:
+                    worker = self._worker_cache.pop()
+                except IndexError:
+                    worker = self._worker_class(
+                        self.idle_timeout, self.init, self.retire
+                    )
 
-                    with trio.CancelScope(shield=not cancellable):
-                        result = await worker.run_sync(sync_fn, *args)
+                with trio.CancelScope(shield=not cancellable):
+                    result = await worker.run_sync(sync_fn, *args)
 
-                    if result is None:
-                        # Prevent uninterruptible loop
-                        # when KI-protected & cancellable=False
-                        await trio.lowlevel.checkpoint_if_cancelled()
-                    else:
-                        self._worker_cache.append(worker)
-                        return result.unwrap()
+                if result is None:
+                    # Prevent uninterruptible loop
+                    # when KI-protected & cancellable=False
+                    await trio.lowlevel.checkpoint_if_cancelled()
+                else:
+                    self._worker_cache.append(worker)
+                    return result.unwrap()
 
     async def _aclose(self):
         """Wait for all workers to become idle, then disable the context and shut down
         all workers.
 
         Subsequent calls to :meth:`run_sync` will raise `trio.ClosedResourceError`."""
-        self._sem_chan.close()
         import trio
 
         with trio.CancelScope(shield=True):
-            try:
-                await self._wait_chan.receive()
-            except trio.EndOfChannel:
-                pass
+            await self._lifetime.wait_and_close()
             await trio.to_thread.run_sync(
                 self._worker_cache.shutdown, self.grace_period
             )
@@ -226,10 +245,7 @@ async def open_worker_context(
        :func:`WorkerContext.run_sync` call.
 
     """
-    import trio
-
     ctx = WorkerContext._create(idle_timeout, init, retire, grace_period, worker_type)
-    ctx._sem_chan, ctx._wait_chan = trio.open_memory_channel(0)
     try:
         yield ctx
     finally:

@@ -137,20 +137,22 @@ async def test_aclose():
 async def test_context_waits(manager):
     # TODO: convert this to a collaboration test
     finished = False
-    ev = manager.Event()
+    block = manager.Event()
+    start = manager.Event()
+    done = manager.Event()
 
-    async def child(task_status):
+    async def child():
         nonlocal finished
-        task_status.started()
         try:
-            await ctx.run_sync(ev.wait)
+            await ctx.run_sync(_block_worker, block, start, done)
         finally:
             finished = True
 
     async with trio.open_nursery() as nursery:
         async with open_worker_context() as ctx:
-            await nursery.start(child)
-            ev.set()
+            nursery.start_soon(child)
+            await trio.to_thread.run_sync(start.wait, cancellable=True)
+            block.set()
         assert finished
 
 
