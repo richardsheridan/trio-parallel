@@ -5,6 +5,21 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.0.0a2 (2021-10-08)
+----------------------------------
+
+Features
+~~~~~~~~
+
+- Opportunistically use ``cloudpickle`` to serialize jobs and results. (`#115 <https://github.com/richardsheridan/trio-parallel/issues/115>`__)
+- Timeout arguments of :func:`open_worker_context`, ``idle_timeout`` and ``grace_period``,
+  now work like trio timeouts, accepting any non-negative `~float` value. (`#116 <https://github.com/richardsheridan/trio-parallel/issues/116>`__)
+- Worker process startup is now faster, by importing trio lazily (`#117 <https://github.com/richardsheridan/trio-parallel/issues/117>`__)
+- :func:`open_worker_context` now returns a context object that can be used to run
+  functions explicitly in a certain context (:meth:`WorkerContext.run_sync`) rather
+  than implicitly altering the behavior of :func:`trio_parallel.run_sync`. (`#127 <https://github.com/richardsheridan/trio-parallel/issues/127>`__)
+
+
 trio-parallel 1.0.0a1 (2021-09-05)
 ----------------------------------
 
@@ -12,9 +27,9 @@ Features
 ~~~~~~~~
 
 - Added configuration options for the grace periods permitted to worker caches upon
-  shutdown. This includes a new keyword argument for :func:`cache_scope` and the new top
-  level function :func:`default_shutdown_grace_period`. (`#108 <https://github.com/richardsheridan/trio-parallel/issues/108>`__)
-- :func:`cache_scope` gained a new argument, ``init``, and ``retire`` is no longer
+  shutdown. This includes a new keyword argument for :func:`open_worker_context` and
+  a new top level function :func:`atexit_shutdown_grace_period`. (`#108 <https://github.com/richardsheridan/trio-parallel/issues/108>`__)
+- :func:`open_worker_context` gained a new argument, ``init``, and ``retire`` is no longer
   called before the first job in the worker. (`#110 <https://github.com/richardsheridan/trio-parallel/issues/110>`__)
 
 
@@ -24,7 +39,7 @@ trio-parallel 1.0.0a0 (2021-07-22)
 Features
 ~~~~~~~~
 
-- The behavior and lifetime of worker processes can now be customized with the :func:`cache_scope` context manager. (`#19 <https://github.com/richardsheridan/trio-parallel/issues/19>`__)
+- The behavior and lifetime of worker processes can now be customized with the :func:`open_worker_context` context manager. (`#19 <https://github.com/richardsheridan/trio-parallel/issues/19>`__)
 
 
 trio-parallel 0.5.1 (2021-05-05)

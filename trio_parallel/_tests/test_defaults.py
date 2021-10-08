@@ -10,14 +10,19 @@ import pytest
 import trio
 
 from ._funcs import _block_worker, _raise_pid
-from .._impl import DEFAULT_CONTEXT, run_sync, default_shutdown_grace_period
+from .._impl import (
+    DEFAULT_CONTEXT,
+    run_sync,
+    atexit_shutdown_grace_period,
+    open_worker_context,
+)
 
 
 @pytest.fixture
 def shutdown_cache():
     yield
-    DEFAULT_CONTEXT.worker_cache.shutdown(60)
-    DEFAULT_CONTEXT.worker_cache.clear()
+    DEFAULT_CONTEXT._worker_cache.shutdown(60)
+    DEFAULT_CONTEXT._worker_cache.clear()
 
 
 async def test_run_sync(shutdown_cache):
@@ -98,12 +103,10 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
     async def child(cancellable):
         nonlocal child_start, child_done
         child_start = True
-        try:
-            return await run_sync(
-                _block_worker, block, worker_start, worker_done, cancellable=cancellable
-            )
-        finally:
-            child_done = True
+        await run_sync(
+            _block_worker, block, worker_start, worker_done, cancellable=cancellable
+        )
+        child_done = True
 
     block, worker_start, worker_done = manager.Event(), manager.Event(), manager.Event()
     child_start = False
@@ -122,6 +125,35 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
         # Now it exits
     assert child_done
     assert worker_done.is_set()
+
+
+async def test_aclose():
+    async with open_worker_context() as ctx:
+        await ctx.run_sync(bool)
+    with pytest.raises(trio.ClosedResourceError):
+        await ctx.run_sync(bool)
+
+
+async def test_context_waits(manager):
+    # TODO: convert this to a collaboration test
+    finished = False
+    block = manager.Event()
+    start = manager.Event()
+    done = manager.Event()
+
+    async def child():
+        nonlocal finished
+        try:
+            await ctx.run_sync(_block_worker, block, start, done)
+        finally:
+            finished = True
+
+    async with trio.open_nursery() as nursery:
+        async with open_worker_context() as ctx:
+            nursery.start_soon(child)
+            await trio.to_thread.run_sync(start.wait, cancellable=True)
+            block.set()
+        assert finished
 
 
 def _atexit_shutdown():  # pragma: no cover, source code extracted
@@ -156,15 +188,15 @@ def test_we_control_atexit_shutdowns():
 
 
 def test_change_default_grace_period():
-    orig = default_shutdown_grace_period()
-    assert orig == default_shutdown_grace_period()
+    orig = atexit_shutdown_grace_period()
+    assert orig == atexit_shutdown_grace_period()
     for x in (0, math.inf, orig):
-        assert x == default_shutdown_grace_period(x)
-        assert x == default_shutdown_grace_period()
-        assert x == default_shutdown_grace_period(-3)
+        assert x == atexit_shutdown_grace_period(x)
+        assert x == atexit_shutdown_grace_period()
+        assert x == atexit_shutdown_grace_period(-3)
 
     with pytest.raises(TypeError):
-        default_shutdown_grace_period("forever")
+        atexit_shutdown_grace_period("forever")
     with pytest.raises(TypeError):
-        default_shutdown_grace_period(None)
-    assert x == default_shutdown_grace_period()
+        atexit_shutdown_grace_period(None)
+    assert x == atexit_shutdown_grace_period()

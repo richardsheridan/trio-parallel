@@ -4,9 +4,8 @@ The idea is that if we keep the interface between the implementation of the
 trio-parallel API minimal, we can put in new workers and options without needing
 frontend rewrites."""
 
-from abc import ABC, abstractmethod
-from collections import deque
-from typing import Optional, Callable
+from abc import ABC, abstractmethod, ABCMeta
+from typing import Optional, Callable, TypeVar, Type, Any, Deque
 
 from outcome import Outcome
 
@@ -19,26 +18,10 @@ class BrokenWorkerError(RuntimeError):
 
     This error is not typically encountered in normal use, and indicates a severe
     failure of either trio-parallel or the code that was executing in the worker.
+    Some example failures may include segfaults, being killed by an external signal,
+    or failing to cleanly shut down within a specified ``grace_period``. (See
+    :func:`atexit_shutdown_grace_period` and :func:`open_worker_context`.)
     """
-
-
-class WorkerCache(deque, ABC):
-    @abstractmethod
-    def prune(self):
-        """Clean up any resources associated with workers that have timed out
-        while idle in the cache."""
-
-    @abstractmethod
-    def shutdown(self, timeout):
-        """Stop and clean up any resources associated with all cached workers.
-
-        Args:
-          timeout: Time in seconds to wait for graceful shutdown before
-              raising.
-
-        Raises:
-          BrokenWorkerError: Raised if any workers fail to respond to a graceful
-              shutdown signal within ``grace_period``."""
 
 
 class AbstractWorker(ABC):
@@ -79,3 +62,53 @@ class AbstractWorker(ABC):
     @abstractmethod
     async def wait(self):
         """Wait for the worker to terminate."""
+
+
+class WorkerCache(Deque[AbstractWorker], ABC):
+    @abstractmethod
+    def prune(self):
+        """Clean up any resources associated with workers that have timed out
+        while idle in the cache."""
+
+    @abstractmethod
+    def shutdown(self, timeout):
+        """Stop and clean up any resources associated with all cached workers.
+
+        Args:
+          timeout: Time in seconds to wait for graceful shutdown before
+              raising.
+
+        Raises:
+          BrokenWorkerError: Raised if any workers fail to respond to a graceful
+              shutdown signal within ``grace_period``."""
+
+
+# vendored from trio so that we can lazy import trio
+T = TypeVar("T")
+
+
+class NoPublicConstructor(ABCMeta):
+    """Metaclass that ensures a private constructor.
+
+    If a class uses this metaclass like this::
+
+        class SomeClass(metaclass=NoPublicConstructor):
+            pass
+
+    The metaclass will ensure that no sub class can be created, and that no instance
+    can be initialized.
+
+    If you try to instantiate your class (SomeClass()), a TypeError will be thrown.
+
+    Raises
+    ------
+    - TypeError if a sub class or an instance is created.
+    """
+
+    def __call__(cls, *args, **kwargs):
+        raise TypeError(
+            f"{cls.__module__}.{cls.__qualname__} has no public constructor"
+        )
+
+    def _create(cls: Type[T], *args: Any, **kwargs: Any) -> T:
+        return super().__call__(*args, **kwargs)  # type: ignore

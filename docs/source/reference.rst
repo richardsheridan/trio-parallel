@@ -10,14 +10,18 @@ Running CPU-bound functions in parallel
 
 .. autofunction:: current_default_worker_limiter
 
-.. autofunction:: default_shutdown_grace_period
+.. autofunction:: atexit_shutdown_grace_period
 
 Configuring workers
 -------------------
 
-.. autofunction:: cache_scope
+.. autofunction:: open_worker_context
+   :async-with: ctx
 
-.. autoclass:: WorkerType
+.. autoclass:: WorkerContext()
+   :members:
+
+.. autoclass:: WorkerType()
 
 Exceptions and warnings
 -----------------------

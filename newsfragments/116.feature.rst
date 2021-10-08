@@ -1,2 +1,0 @@
-Timeout arguments of :func:`cache_scope`, ``idle_timeout`` and ``grace_period``, now
-work like trio timeouts, accepting any `~float` value.
