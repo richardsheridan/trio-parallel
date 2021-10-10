@@ -259,8 +259,6 @@ class SpawnProcWorker(_abc.AbstractWorker):
         self._send_pipe.close()
 
     def kill(self):
-        if self.proc.pid is None:
-            return
         try:
             self.proc.kill()
         except AttributeError:
@@ -270,7 +268,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
         if self.proc.exitcode is not None:
             return self.proc.exitcode
         if self.proc.pid is None:
-            return None  # killed before started
+            return None  # waiting before started
         async with self._wait_lock:
             await wait(self.proc.sentinel)
         # fix a macos race: Trio GH#1296
