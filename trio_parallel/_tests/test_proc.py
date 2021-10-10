@@ -23,6 +23,7 @@ from .._abc import BrokenWorkerError
 @pytest.fixture(params=list(WORKER_PROC_MAP.values()), ids=list(WORKER_PROC_MAP.keys()))
 async def worker(request):
     worker = request.param[0](math.inf, bool, bool)
+    await worker.start()
     try:
         yield worker
     finally:
@@ -89,17 +90,6 @@ async def test_run_sync_raises_on_segfault(worker, capfd):
 
 # to test that cancellation does not ever leave a living process behind
 # currently requires manually targeting all but last checkpoints
-
-
-async def test_exhaustively_cancel_run_sync1(worker):
-    if worker.mp_context._name == "fork":
-        pytest.skip("Doesn't exist on ForkProcWorker")
-    # cancel at startup
-    with trio.fail_after(1):
-        with trio.move_on_after(0) as cs:
-            assert (await worker.run_sync(int)).unwrap()  # will return zero
-        assert cs.cancelled_caught
-        assert await worker.wait() is None
 
 
 async def test_exhaustively_cancel_run_sync2(worker, manager):

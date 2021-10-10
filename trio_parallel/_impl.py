@@ -154,14 +154,14 @@ class WorkerContext(metaclass=NoPublicConstructor):
         async with limiter, self._lifetime:
             self._worker_cache.prune()
             while True:
-                try:
-                    worker = self._worker_cache.pop()
-                except IndexError:
-                    worker = self._worker_class(
-                        self.idle_timeout, self.init, self.retire
-                    )
-
                 with trio.CancelScope(shield=not cancellable):
+                    try:
+                        worker = self._worker_cache.pop()
+                    except IndexError:
+                        worker = self._worker_class(
+                            self.idle_timeout, self.init, self.retire
+                        )
+                        await worker.start()
                     result = await worker.run_sync(sync_fn, *args)
 
                 if result is None:

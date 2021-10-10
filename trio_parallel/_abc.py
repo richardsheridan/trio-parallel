@@ -35,6 +35,10 @@ class AbstractWorker(ABC):
         pass
 
     @abstractmethod
+    async def start(self):
+        """Perform async startup tasks that really should be in init."""
+
+    @abstractmethod
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         """Run the sync_fn in a worker.
 

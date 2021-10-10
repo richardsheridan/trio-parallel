@@ -14,6 +14,7 @@ from .._impl import WORKER_MAP
 @pytest.fixture(params=list(WORKER_MAP.values()), ids=list(WORKER_MAP.keys()))
 async def worker(request):
     worker = request.param[0](math.inf, bool, bool)
+    await worker.start()
     try:
         yield worker
     finally:
@@ -25,6 +26,17 @@ async def worker(request):
                 "tests should be responsible for killing and waiting if they do not "
                 "lead to a graceful shutdown state"
             )
+
+
+async def test_cancel_start(worker):
+    # awkwardly we don't want the started worker provided by the fixture
+    worker = type(worker)(math.inf, bool, bool)
+    # cancel at startup
+    with trio.fail_after(1):
+        with trio.move_on_after(0) as cs:
+            await worker.start()
+        assert cs.cancelled_caught
+        assert await worker.wait() is None
 
 
 async def test_run_sync(worker):

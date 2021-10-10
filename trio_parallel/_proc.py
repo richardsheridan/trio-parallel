@@ -205,18 +205,19 @@ class SpawnProcWorker(_abc.AbstractWorker):
             send_pipe.send_bytes(dumps(None, protocol=HIGHEST_PROTOCOL))
             send_pipe.close()
 
+    async def start(self):
+        import trio
+
+        await trio.to_thread.run_sync(self.proc.start)
+        # XXX: We must explicitly close these after start to see child closures
+        self._child_send_pipe.close()
+        self._child_recv_pipe.close()
+
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         import trio
 
         result = None
         try:
-
-            if self.proc.pid is None:
-                await trio.to_thread.run_sync(self.proc.start)
-                # XXX: We must explicitly close these after start to see child closures
-                self._child_send_pipe.close()
-                self._child_recv_pipe.close()
-
             try:
                 await self._send_chan.send(
                     dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
@@ -317,17 +318,18 @@ if "fork" in _all_start_methods:  # pragma: no branch
             del self._retire
             super()._work(recv_pipe, send_pipe, idle_timeout, init, retire)
 
-        async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
-            if self.proc.pid is None:
-                # on fork, doing start() in a thread is racy, and should be
-                # fast enough to be considered non-blocking anyway
-                self.proc.start()
-                # XXX: We must explicitly close these after start to see child closures
-                self._child_send_pipe.close()
-                self._child_recv_pipe.close()
-                del self._init
-                del self._retire
-            return await super().run_sync(sync_fn, *args)
+        async def start(self):
+            import trio
+
+            await trio.lowlevel.checkpoint_if_cancelled()
+            # on fork, doing start() in a thread is racy, and should be
+            # fast enough to be considered non-blocking anyway
+            self.proc.start()
+            # XXX: We must explicitly close these after start to see child closures
+            self._child_send_pipe.close()
+            self._child_recv_pipe.close()
+            del self._init
+            del self._retire
 
     WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache
 
