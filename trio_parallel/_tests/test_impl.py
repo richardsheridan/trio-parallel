@@ -109,27 +109,27 @@ async def test_cache_scope_args(mock_context):
 async def test_erroneous_scope_inputs():
     with pytest.raises(TypeError):
         async with _impl.open_worker_context(idle_timeout=[-1]):
-            assert False
+            pytest.fail("should be unreachable")
     with pytest.raises(TypeError):
         async with _impl.open_worker_context(init=0):
-            assert False
+            pytest.fail("should be unreachable")
     with pytest.raises(TypeError):
         async with _impl.open_worker_context(retire=None):
-            assert False
+            pytest.fail("should be unreachable")
     with pytest.raises(TypeError):
         async with _impl.open_worker_context(grace_period=object()):
-            assert False
+            pytest.fail("should be unreachable")
     with pytest.raises(ValueError):
         with warnings.catch_warnings():  # spurious DeprecationWarning on 3.7
             warnings.simplefilter("ignore")
             async with _impl.open_worker_context(worker_type="wrong"):
-                assert False
+                pytest.fail("should be unreachable")
     with pytest.raises(ValueError):
         async with _impl.open_worker_context(grace_period=-1):
-            assert False
+            pytest.fail("should be unreachable")
     with pytest.raises(ValueError):
         async with _impl.open_worker_context(idle_timeout=-1):
-            assert False
+            pytest.fail("should be unreachable")
 
 
 async def test_worker_returning_none_can_be_cancelled():
