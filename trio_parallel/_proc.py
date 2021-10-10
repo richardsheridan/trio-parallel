@@ -94,7 +94,7 @@ class WorkerProcCache(_abc.WorkerCache):
             )
 
 
-class WorkerSpawnProc(_abc.AbstractWorker):
+class SpawnProcWorker(_abc.AbstractWorker):
     _proc_counter = count()
     mp_context = multiprocessing.get_context("spawn")
 
@@ -284,20 +284,20 @@ class WorkerSpawnProc(_abc.AbstractWorker):
             self._receive_chan.detach()
 
 
-WORKER_PROC_MAP = {"spawn": (WorkerSpawnProc, WorkerProcCache)}
+WORKER_PROC_MAP = {"spawn": (SpawnProcWorker, WorkerProcCache)}
 
 _all_start_methods = set(multiprocessing.get_all_start_methods())
 
 if "forkserver" in _all_start_methods:  # pragma: no branch
 
-    class WorkerForkserverProc(WorkerSpawnProc):
+    class ForkserverProcWorker(SpawnProcWorker):
         mp_context = multiprocessing.get_context("forkserver")
 
-    WORKER_PROC_MAP["forkserver"] = WorkerForkserverProc, WorkerProcCache
+    WORKER_PROC_MAP["forkserver"] = ForkserverProcWorker, WorkerProcCache
 
 if "fork" in _all_start_methods:  # pragma: no branch
 
-    class WorkerForkProc(WorkerSpawnProc):
+    class ForkProcWorker(SpawnProcWorker):
         mp_context = multiprocessing.get_context("fork")
 
         def __init__(self, idle_timeout, init, retire):
@@ -326,6 +326,6 @@ if "fork" in _all_start_methods:  # pragma: no branch
                 del self._retire
             return await super().run_sync(sync_fn, *args)
 
-    WORKER_PROC_MAP["fork"] = WorkerForkProc, WorkerProcCache
+    WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache
 
 del _all_start_methods

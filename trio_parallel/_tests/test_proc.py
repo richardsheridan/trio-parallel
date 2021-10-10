@@ -93,7 +93,7 @@ async def test_run_sync_raises_on_segfault(worker, capfd):
 
 async def test_exhaustively_cancel_run_sync1(worker):
     if worker.mp_context._name == "fork":
-        pytest.skip("Doesn't exist on WorkerForkProc")
+        pytest.skip("Doesn't exist on ForkProcWorker")
     # cancel at startup
     with trio.fail_after(1):
         with trio.move_on_after(0) as cs:
@@ -128,5 +128,5 @@ async def test_unpickleable(job, worker):
 
 async def test_no_trio_in_subproc(worker):
     if worker.mp_context._name == "fork":
-        pytest.skip("Doesn't matter on WorkerForkProc")
+        pytest.skip("Doesn't matter on ForkProcWorker")
     assert (await worker.run_sync(_no_trio)).unwrap()

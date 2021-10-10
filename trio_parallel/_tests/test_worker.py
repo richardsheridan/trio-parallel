@@ -44,7 +44,7 @@ async def test_run_sync_coroutine_error(worker):
 
 async def test_clean_exit_on_shutdown(worker, capfd):
     if worker.mp_context._name == "forkserver":
-        pytest.skip("capfd doesn't work on WorkerForkserverProc")
+        pytest.skip("capfd doesn't work on ForkserverProcWorker")
     # This could happen on weird __del__/weakref/atexit situations.
     # It was not visible on normal, clean exits because multiprocessing
     # would call terminate before pipes were GC'd.
