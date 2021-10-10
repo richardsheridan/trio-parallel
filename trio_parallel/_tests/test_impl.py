@@ -23,6 +23,9 @@ class MockWorker(AbstractWorker):
         self.init = init
         self.retire = retire
 
+    async def start(self):
+        await trio.lowlevel.checkpoint()
+
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         await trio.lowlevel.checkpoint()
         if self.retire is not _special_none_making_retire:

@@ -40,6 +40,7 @@ async def worker(request):
 
 
 async def test_run_sync_cancel_infinite_loop(worker, manager):
+    await worker.start()
     ev = manager.Event()
 
     async with trio.open_nursery() as nursery:
@@ -51,6 +52,7 @@ async def test_run_sync_cancel_infinite_loop(worker, manager):
 
 
 async def test_run_sync_raises_on_kill(worker, manager):
+    await worker.start()
     ev = manager.Event()
     await worker.run_sync(int)  # running start so actual test is less racy
     with pytest.raises(BrokenWorkerError) as exc_info, trio.fail_after(5):
@@ -64,6 +66,7 @@ async def test_run_sync_raises_on_kill(worker, manager):
 
 
 async def test_run_sync_raises_on_segfault(worker, capfd):
+    await worker.start()
     # This test was flaky on CI across several platforms and implementations.
     # I can reproduce it locally if there is some other process using the rest
     # of the CPU (F@H in this case) although I cannot explain why running this
@@ -91,18 +94,8 @@ async def test_run_sync_raises_on_segfault(worker, capfd):
 # currently requires manually targeting all but last checkpoints
 
 
-async def test_exhaustively_cancel_run_sync1(worker):
-    if worker.mp_context._name == "fork":
-        pytest.skip("Doesn't exist on ForkProcWorker")
-    # cancel at startup
-    with trio.fail_after(1):
-        with trio.move_on_after(0) as cs:
-            assert (await worker.run_sync(int)).unwrap()  # will return zero
-        assert cs.cancelled_caught
-        assert await worker.wait() is None
-
-
-async def test_exhaustively_cancel_run_sync2(worker, manager):
+async def test_exhaustively_cancel_run_sync(worker, manager):
+    await worker.start()
     # cancel at job send if we reuse the worker
     ev = manager.Event()
     await worker.run_sync(int)
@@ -115,11 +108,13 @@ async def test_exhaustively_cancel_run_sync2(worker, manager):
 
 
 async def test_ki_does_not_propagate(worker):
+    await worker.start()
     (await worker.run_sync(_raise_ki)).unwrap()
 
 
 @pytest.mark.parametrize("job", [_lambda, _return_lambda])
 async def test_unpickleable(job, worker):
+    await worker.start()
     from pickle import PicklingError
 
     with pytest.raises((PicklingError, AttributeError)):
@@ -129,4 +124,5 @@ async def test_unpickleable(job, worker):
 async def test_no_trio_in_subproc(worker):
     if worker.mp_context._name == "fork":
         pytest.skip("Doesn't matter on ForkProcWorker")
+    await worker.start()
     assert (await worker.run_sync(_no_trio)).unwrap()
