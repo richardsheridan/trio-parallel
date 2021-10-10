@@ -53,10 +53,10 @@ class FdChannel(Channel[bytes]):
             if not num_recvd:
                 if not result_bytes:
                     raise trio.EndOfChannel
-                else:  # pragma: no cover
+                else:  # pragma: no cover, edge case from mp.Pipe
                     raise OSError("got end of file during message")
             result_bytes.extend(partial_result)
-            if num_recvd > size:  # pragma: no cover
+            if num_recvd > size:  # pragma: no cover, edge case from mp.Pipe
                 raise RuntimeError("Oversized response")
             else:
                 size -= num_recvd
@@ -65,5 +65,5 @@ class FdChannel(Channel[bytes]):
     def detach(self):
         self._stream._fd_holder.fd = -1
 
-    async def aclose(self):  # pragma: no cover
+    async def aclose(self):  # pragma: no cover, not used in this lib
         return await self._stream.aclose()

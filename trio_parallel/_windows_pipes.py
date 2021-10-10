@@ -23,7 +23,7 @@ class PipeSendChannel(SendChannel[bytes]):
     def detach(self):
         self._pss._handle_holder.handle = -1
 
-    async def aclose(self):  # pragma: no cover
+    async def aclose(self):  # pragma: no cover, not used in this lib
         await self._pss._handle_holder.aclose()
 
 
@@ -43,7 +43,7 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
                 received = await self._receive_some_into(buffer)
             except OSError as e:
                 if e.winerror != ErrorCodes.ERROR_MORE_DATA:
-                    raise  # pragma: no cover
+                    raise  # pragma: no cover, real OSError we can't generate
                 left = peek_pipe_message_left(self._handle_holder.handle)
                 # preallocate memory to avoid an extra copy of very large messages
                 newbuffer = bytearray(DEFAULT_RECEIVE_SIZE + left)
@@ -57,14 +57,14 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
                 return buffer
 
     async def _receive_some_into(self, buffer):
-        if self._handle_holder.closed:  # pragma: no cover
+        if self._handle_holder.closed:  # pragma: no cover, never closed in this lib
             raise trio.ClosedResourceError("this pipe is already closed")
         try:
             return await trio.lowlevel.readinto_overlapped(
                 self._handle_holder.handle, buffer
             )
         except BrokenPipeError:
-            if self._handle_holder.closed:  # pragma: no cover
+            if self._handle_holder.closed:  # pragma: no cover, never closed in this lib
                 raise trio.ClosedResourceError(
                     "another task closed this pipe"
                 ) from None
@@ -80,5 +80,5 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
     def detach(self):
         self._handle_holder.handle = -1
 
-    async def aclose(self):  # pragma: no cover
+    async def aclose(self):  # pragma: no cover, not used in this lib
         await self._handle_holder.aclose()

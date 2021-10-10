@@ -81,9 +81,9 @@ async def test_run_sync_raises_on_segfault(worker, capfd):
         exitcode = await worker.wait()
         assert exitcode  # not sure if we expect a universal value, but not 0 or None
         assert e.args[-1].exitcode == exitcode
-    except trio.TooSlowError:  # pragma: no cover
+    except trio.TooSlowError:  # pragma: no cover, only hit rarely in CI
         pytest.xfail("Unable to cause segfault after 55 seconds.")
-    else:  # pragma: no cover
+    else:  # pragma: no cover, leads to failure case
         pytest.fail("No error was raised on segfault.")
 
 

@@ -82,6 +82,7 @@ class ContextLifetimeManager:
 
             self.task = trio.lowlevel.current_task()
             await trio.lowlevel.wait_task_rescheduled(
+                # never cancelled anyway
                 lambda _: trio.lowlevel.Abort.FAILED  # pragma: no cover
             )
             self.task = None

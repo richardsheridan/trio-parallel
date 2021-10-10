@@ -72,7 +72,7 @@ def _raise_ki():
     trio._util.signal_raise(signal.SIGINT)
 
 
-_lambda = lambda: None  # pragma: no cover
+_lambda = lambda: None  # pragma: no cover, never run
 
 
 def _return_lambda():

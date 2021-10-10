@@ -277,7 +277,8 @@ class SpawnProcWorker(_abc.AbstractWorker):
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: Trio GH#174, GH#1767
-        # multiprocessing will close them for us
+        # multiprocessing will close them for us if initialized
+        # but practically they are always initialized, hence pragma
         if hasattr(self, "_send_chan"):  # pragma: no branch
             self._send_chan.detach()
         if hasattr(self, "_receive_chan"):  # pragma: no branch
