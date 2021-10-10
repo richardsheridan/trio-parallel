@@ -228,7 +228,9 @@ class SpawnProcWorker(_abc.AbstractWorker):
                 result = loads(await self._receive_chan.receive())
             except trio.EndOfChannel:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
-                result = await self.wait()  # skip wait in finally block
+                # preserve return code before hitting kill() in BaseException handler
+                # also assign something to result to skip wait() in finally block
+                result = await self.wait()
                 raise BrokenWorkerProcessError(
                     "Worker died unexpectedly:", self.proc
                 ) from None
