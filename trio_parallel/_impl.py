@@ -54,6 +54,8 @@ optimization if workers need to be killed/restarted often.
 
 @attr.s(auto_attribs=True, slots=True, eq=False)
 class ContextLifetimeManager:
+    # NOTE: the value of `running` is unreliable in DEFAULT_CONTEXT when
+    # multiple threads may concurrently have trio runs.
     running: int = 0
     closed: bool = False
     task: Any = None
@@ -74,7 +76,7 @@ class ContextLifetimeManager:
 
             trio.lowlevel.reschedule(self.task)
 
-    async def wait_and_close(self):
+    async def close_and_wait(self):
         assert not self.closed
         self.closed = True
         if self.running != 0:
@@ -93,7 +95,7 @@ def check_non_negative(instance, attribute, value):
         raise ValueError(f"{attribute} must be non-negative, was {value}")
 
 
-@attr.s(slots=True, eq=False)
+@attr.s(frozen=True, eq=False)
 class WorkerContext(metaclass=NoPublicConstructor):
     """A representation of a context where workers have a custom configuration.
 
@@ -105,27 +107,22 @@ class WorkerContext(metaclass=NoPublicConstructor):
     idle_timeout: float = attr.ib(
         default=600.0,
         validator=check_non_negative,
-        on_setattr=attr.setters.frozen,
     )
     init: Callable[[], bool] = attr.ib(
         default=bool,
         validator=attr.validators.is_callable(),
-        on_setattr=attr.setters.frozen,
     )
     retire: Callable[[], bool] = attr.ib(
         default=bool,
         validator=attr.validators.is_callable(),
-        on_setattr=attr.setters.frozen,
     )
     grace_period: float = attr.ib(
         default=30.0,
         validator=check_non_negative,
-        on_setattr=attr.setters.frozen,
     )
     worker_type: WorkerType = attr.ib(
         default=WorkerType.SPAWN,
         validator=attr.validators.in_(WorkerType),
-        on_setattr=attr.setters.frozen,
     )
     _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
     _worker_cache: WorkerCache = attr.ib(repr=False, init=False)
@@ -135,8 +132,8 @@ class WorkerContext(metaclass=NoPublicConstructor):
 
     def __attrs_post_init__(self):
         worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
-        self._worker_class = worker_class
-        self._worker_cache = worker_cache_class()
+        self.__dict__["_worker_class"] = worker_class
+        self.__dict__["_worker_cache"] = worker_cache_class()
 
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
@@ -173,14 +170,10 @@ class WorkerContext(metaclass=NoPublicConstructor):
                     return result.unwrap()
 
     async def _aclose(self):
-        """Wait for all workers to become idle, then disable the context and shut down
-        all workers.
-
-        Subsequent calls to :meth:`run_sync` will raise `trio.ClosedResourceError`."""
         import trio
 
         with trio.CancelScope(shield=True):
-            await self._lifetime.wait_and_close()
+            await self._lifetime.close_and_wait()
             await trio.to_thread.run_sync(
                 self._worker_cache.shutdown, self.grace_period
             )

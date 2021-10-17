@@ -56,8 +56,8 @@ class MockCache(WorkerCache):
 class MockContext(_impl.WorkerContext):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
-        self._worker_class = MockWorker
-        self._worker_cache = MockCache()
+        self.__dict__["_worker_class"] = MockWorker
+        self.__dict__["_worker_cache"] = MockCache()
 
 
 @pytest.fixture
