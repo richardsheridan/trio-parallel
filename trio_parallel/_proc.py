@@ -77,7 +77,7 @@ class WorkerProcCache(_abc.WorkerCache):
                 timeout = deadline - time.perf_counter()
             else:
                 # guard rare race on macos if exactly == 0.0
-                worker.proc.join(timeout or -1e6)
+                worker.proc.join(timeout or -0.1)
             if worker.proc.exitcode is None:
                 worker.kill()
                 killed.append(worker.proc)
