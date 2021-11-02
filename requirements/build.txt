@@ -14,7 +14,7 @@ pep517==0.10.0
     # via build
 pyparsing==2.4.7
     # via packaging
-setuptools_scm[toml]==6.3.2
+setuptools-scm[toml]==6.3.2
     # via -r build.in
 setuptools-scm-git-archive==1.1
     # via -r build.in
@@ -28,7 +28,7 @@ wheel==0.37.0
     # via -r build.in
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==58.1.0
+setuptools==58.4.0
     # via
     #   -r build.in
     #   setuptools-scm
