@@ -14,7 +14,7 @@ attrs==21.2.0
     #   trio
 cffi==1.15.0
     # via trio
-idna==3.2
+idna==3.3
     # via trio
 outcome==1.1.0
     # via
