@@ -197,7 +197,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v2.2.2
       - name: Install coverage
-        run: pip install coverage[toml]
+        run: pip install -r requirements/coverage.txt
       - name: Run coverage
         run: |
           coverage combine
