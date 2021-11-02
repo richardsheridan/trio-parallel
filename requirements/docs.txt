@@ -54,7 +54,7 @@ outcome==1.1.0
     # via
     #   trio
     #   trio-parallel (setup.py)
-packaging==21.0
+packaging==21.2
     # via sphinx
 pycparser==2.20
     # via cffi
