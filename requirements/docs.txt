@@ -22,7 +22,7 @@ cffi==1.14.6
     # via trio
 charset-normalizer==2.0.6
     # via requests
-click==8.0.1
+click==8.0.3
     # via
     #   click-default-group
     #   towncrier
