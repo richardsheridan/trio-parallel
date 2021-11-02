@@ -41,7 +41,7 @@ py==1.10.0
     # via pytest
 pycparser==2.20
     # via cffi
-pyparsing==2.4.7
+pyparsing==3.0.4
     # via packaging
 pytest==6.2.5
     # via
