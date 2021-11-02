@@ -24,7 +24,7 @@ coverage[toml]==5.5
     # via
     #   pytest-cov
     #   trio-parallel (setup.py)
-idna==3.2
+idna==3.3
     # via trio
 iniconfig==1.1.1
     # via pytest

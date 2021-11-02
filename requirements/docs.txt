@@ -36,7 +36,7 @@ docutils==0.16
     # via
     #   sphinx
     #   sphinx-rtd-theme
-idna==3.2
+idna==3.3
     # via
     #   requests
     #   trio
