@@ -4,7 +4,7 @@
 #
 #    pip-compile 'requirements\lint.in'
 #
-black==21.9b0
+black==21.10b0
     # via -r lint.in
 click==8.0.1
     # via black
