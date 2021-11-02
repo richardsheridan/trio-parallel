@@ -16,7 +16,7 @@ attrs==21.2.0
     #   outcome
     #   pytest
     #   trio
-cffi==1.14.6
+cffi==1.15.0
     # via trio
 colorama==0.4.4
     # via pytest
