@@ -196,6 +196,8 @@ jobs:
           name: Coverage
       - name: Setup python
         uses: actions/setup-python@v2.2.2
+        with:
+          python-version: "3.9"
       - name: Install coverage
         run: pip install -r requirements/coverage.txt
       - name: Run coverage
