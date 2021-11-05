@@ -5,6 +5,6 @@
 #    pip-compile 'requirements\coverage.in'
 #
 coverage[toml]==6.1.1
-    # via -r requirements\coverage.in
+    # via -r coverage.in
 tomli==1.2.2
     # via coverage
