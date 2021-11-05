@@ -6,7 +6,7 @@
 #
 build==0.7.0
     # via -r build.in
-packaging==21.0
+packaging==21.2
     # via
     #   build
     #   setuptools-scm
