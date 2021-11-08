@@ -39,7 +39,7 @@ pluggy==1.0.0
     # via pytest
 py==1.11.0
     # via pytest
-pycparser==2.20
+pycparser==2.21
     # via cffi
 pyparsing==2.4.7
     # via packaging
