@@ -108,11 +108,11 @@ class WorkerContext(metaclass=NoPublicConstructor):
         default=600.0,
         validator=check_non_negative,
     )
-    init: Callable[[], bool] = attr.ib(
+    init: Callable[[], Any] = attr.ib(
         default=bool,
         validator=attr.validators.is_callable(),
     )
-    retire: Callable[[], bool] = attr.ib(
+    retire: Callable[[], Any] = attr.ib(
         default=bool,
         validator=attr.validators.is_callable(),
     )
