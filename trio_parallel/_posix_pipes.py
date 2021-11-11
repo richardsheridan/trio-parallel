@@ -8,6 +8,9 @@ from trio.abc import Channel
 assert os.name != "nt" or not TYPE_CHECKING
 
 
+# We copy the wire protocol code from multiprocessing.connection.Connection
+# but asyncifiy it with FdStream so as a derivative work this notice is required:
+# Copyright © Python Software Foundation; All Rights Reserved
 class FdChannel(Channel[bytes]):
     """Represents a message stream over a pipe object."""
 
