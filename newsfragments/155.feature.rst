@@ -1,2 +1,0 @@
-Added an API to view statistics about a `WorkerContext`, specifically counting
-``idle_workers`` and ``running_workers``.

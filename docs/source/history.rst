@@ -5,6 +5,19 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.0.0b0 (2021-11-12)
+----------------------------------
+
+With this release I consider the project "feature complete" although, as a beta
+release still, I would be open to PRs for new features with a strong motivation.
+
+Features
+~~~~~~~~
+
+- Added an API to view statistics about a `WorkerContext`, specifically counting
+  ``idle_workers`` and ``running_workers``. (`#155 <https://github.com/richardsheridan/trio-parallel/issues/155>`__)
+
+
 trio-parallel 1.0.0a2 (2021-10-08)
 ----------------------------------
 
