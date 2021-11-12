@@ -93,6 +93,12 @@ class ContextLifetimeManager:
             self.task = None
 
 
+@attr.s(auto_attribs=True, slots=True, frozen=True)
+class WorkerContextStatistics:
+    idle_workers: int
+    running_workers: int
+
+
 def check_non_negative(instance, attribute, value):
     if value < 0.0:
         raise ValueError(f"{attribute} must be non-negative, was {value}")
@@ -105,6 +111,13 @@ class WorkerContext(metaclass=NoPublicConstructor):
     Instances of this class are to be created using :func:`open_worker_context`,
     and cannot be directly instantiated. The arguments to :func:`open_worker_context`
     that created an instance are available for inspection as read-only attributes.
+
+    This class provides a ``statistics()`` method, which returns an object with the
+    following fields:
+
+    * ``idle_workers``: The number of live workers currently stored in the context's
+      cache.
+    * ``running_workers``: The number of workers currently executing jobs.
     """
 
     idle_timeout: float = attr.ib(
@@ -181,8 +194,29 @@ class WorkerContext(metaclass=NoPublicConstructor):
                 self._worker_cache.shutdown, self.grace_period
             )
 
+    def statistics(self):
+        self._worker_cache.prune()
+        return WorkerContextStatistics(
+            idle_workers=len(self._worker_cache),
+            running_workers=self._lifetime.entrances - self._lifetime.exits,
+        )
+
 
 DEFAULT_CONTEXT = WorkerContext._create()  # intentionally skip open_worker_context
+
+
+def default_context_statistics():
+    """Return the statistics corresponding to the default context.
+
+    Because the default context used by `trio_parallel.run_sync` is a private
+    implementation detail, this function serves to provide public access to the default
+    context statistics object.
+
+    .. note::
+
+       The statistics are only eventually consistent in the case of multiple trio
+       threads concurrently using `trio_parallel.run_sync`."""
+    return DEFAULT_CONTEXT.statistics()
 
 
 @asynccontextmanager
