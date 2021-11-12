@@ -1,6 +1,7 @@
 import atexit
 import os
 from enum import Enum
+from itertools import count
 from typing import Type, Callable, Any
 
 import attr
@@ -52,13 +53,15 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
-@attr.s(auto_attribs=True, slots=True, eq=False)
+@attr.s(slots=True, eq=False)
 class ContextLifetimeManager:
-    # NOTE: the value of `running` is unreliable in DEFAULT_CONTEXT when
-    # multiple threads may concurrently have trio runs.
-    running: int = 0
-    closed: bool = False
-    task: Any = None
+    entrances = attr.ib(0)
+    exits = attr.ib(0)
+    closed = attr.ib(False)
+    task = attr.ib(None)
+    # Counters are used for thread safety of the default cache
+    enter_counter = attr.ib(factory=lambda: count(1))
+    exit_counter = attr.ib(factory=lambda: count(1))
 
     async def __aenter__(self):
         # only async to save indentation
@@ -66,12 +69,12 @@ class ContextLifetimeManager:
             import trio
 
             raise trio.ClosedResourceError
-        self.running += 1
+        self.entrances = next(self.enter_counter)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # only async to save indentation
-        self.running -= 1
-        if self.running == 0 and self.task:
+        self.exits = next(self.exit_counter)
+        if self.task and self.entrances - self.exits == 0:
             import trio
 
             trio.lowlevel.reschedule(self.task)
@@ -79,7 +82,7 @@ class ContextLifetimeManager:
     async def close_and_wait(self):
         assert not self.closed
         self.closed = True
-        if self.running != 0:
+        if self.entrances - self.exits != 0:
             import trio
 
             self.task = trio.lowlevel.current_task()
