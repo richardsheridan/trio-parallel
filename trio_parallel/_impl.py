@@ -1,6 +1,7 @@
 import atexit
 import os
 from enum import Enum
+from itertools import count
 from typing import Type, Callable, Any
 
 import attr
@@ -52,13 +53,15 @@ optimization if workers need to be killed/restarted often.
 ``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
 
 
-@attr.s(auto_attribs=True, slots=True, eq=False)
+@attr.s(slots=True, eq=False)
 class ContextLifetimeManager:
-    # NOTE: the value of `running` is unreliable in DEFAULT_CONTEXT when
-    # multiple threads may concurrently have trio runs.
-    running: int = 0
-    closed: bool = False
-    task: Any = None
+    entrances = attr.ib(0)
+    exits = attr.ib(0)
+    closed = attr.ib(False)
+    task = attr.ib(None)
+    # Counters are used for thread safety of the default cache
+    enter_counter = attr.ib(factory=lambda: count(1))
+    exit_counter = attr.ib(factory=lambda: count(1))
 
     async def __aenter__(self):
         # only async to save indentation
@@ -66,12 +69,12 @@ class ContextLifetimeManager:
             import trio
 
             raise trio.ClosedResourceError
-        self.running += 1
+        self.entrances = next(self.enter_counter)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # only async to save indentation
-        self.running -= 1
-        if self.running == 0 and self.task:
+        self.exits = next(self.exit_counter)
+        if self.task and self.entrances - self.exits == 0:
             import trio
 
             trio.lowlevel.reschedule(self.task)
@@ -79,7 +82,7 @@ class ContextLifetimeManager:
     async def close_and_wait(self):
         assert not self.closed
         self.closed = True
-        if self.running != 0:
+        if self.entrances - self.exits != 0:
             import trio
 
             self.task = trio.lowlevel.current_task()
@@ -88,6 +91,12 @@ class ContextLifetimeManager:
                 lambda _: trio.lowlevel.Abort.FAILED  # pragma: no cover
             )
             self.task = None
+
+
+@attr.s(auto_attribs=True, slots=True, frozen=True)
+class WorkerContextStatistics:
+    idle_workers: int
+    running_workers: int
 
 
 def check_non_negative(instance, attribute, value):
@@ -102,6 +111,13 @@ class WorkerContext(metaclass=NoPublicConstructor):
     Instances of this class are to be created using :func:`open_worker_context`,
     and cannot be directly instantiated. The arguments to :func:`open_worker_context`
     that created an instance are available for inspection as read-only attributes.
+
+    This class provides a ``statistics()`` method, which returns an object with the
+    following fields:
+
+    * ``idle_workers``: The number of live workers currently stored in the context's
+      cache.
+    * ``running_workers``: The number of workers currently executing jobs.
     """
 
     idle_timeout: float = attr.ib(
@@ -178,8 +194,29 @@ class WorkerContext(metaclass=NoPublicConstructor):
                 self._worker_cache.shutdown, self.grace_period
             )
 
+    def statistics(self):
+        self._worker_cache.prune()
+        return WorkerContextStatistics(
+            idle_workers=len(self._worker_cache),
+            running_workers=self._lifetime.entrances - self._lifetime.exits,
+        )
+
 
 DEFAULT_CONTEXT = WorkerContext._create()  # intentionally skip open_worker_context
+
+
+def default_context_statistics():
+    """Return the statistics corresponding to the default context.
+
+    Because the default context used by `trio_parallel.run_sync` is a private
+    implementation detail, this function serves to provide public access to the default
+    context statistics object.
+
+    .. note::
+
+       The statistics are only eventually consistent in the case of multiple trio
+       threads concurrently using `trio_parallel.run_sync`."""
+    return DEFAULT_CONTEXT.statistics()
 
 
 @asynccontextmanager

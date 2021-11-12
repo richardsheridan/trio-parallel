@@ -15,6 +15,7 @@ from .._impl import (
     run_sync,
     atexit_shutdown_grace_period,
     open_worker_context,
+    default_context_statistics,
 )
 
 
@@ -200,3 +201,10 @@ def test_change_default_grace_period():
     with pytest.raises(TypeError):
         atexit_shutdown_grace_period(None)
     assert x == atexit_shutdown_grace_period()
+
+
+def test_get_default_context_stats():
+    s = default_context_statistics()
+    assert hasattr(s, "idle_workers")
+    assert hasattr(s, "running_workers")
+    assert s == DEFAULT_CONTEXT.statistics()

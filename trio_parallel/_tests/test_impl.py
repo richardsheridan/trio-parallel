@@ -46,6 +46,11 @@ class MockCache(WorkerCache):
 
     def prune(self):
         self.pruned_count += 1
+        while self:
+            worker = self.popleft()
+            if worker.retire is not _special_none_making_retire:
+                self.appendleft(worker)
+                return
 
     def shutdown(self, grace_period):
         for worker in self:
@@ -84,9 +89,19 @@ async def test_context_methods(mock_context):
 
 async def test_context_methods2(mock_context):
     async with _impl.open_worker_context() as ctx:
+        s = ctx.statistics()
+        assert s.idle_workers == 0
+        assert s.running_workers == 0
         await ctx.run_sync(bool)
-    assert ctx._worker_cache.pruned_count == 1
+        s = ctx.statistics()
+        assert s.idle_workers == 1
+        assert s.running_workers == 0
+        assert ctx._worker_cache.pruned_count == 3
     assert ctx._worker_cache.shutdown_count == 1
+    s = ctx.statistics()
+    assert s.idle_workers == 0
+    assert s.running_workers == 0
+    assert ctx._worker_cache.pruned_count == 4
 
 
 async def test_cancellable(mock_context):

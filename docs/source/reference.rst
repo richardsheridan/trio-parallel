@@ -12,6 +12,8 @@ Running CPU-bound functions in parallel
 
 .. autofunction:: atexit_shutdown_grace_period
 
+.. autofunction:: default_context_statistics
+
 Configuring workers
 -------------------
 
