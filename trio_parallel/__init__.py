@@ -7,5 +7,6 @@ from ._impl import (
     WorkerType,
     current_default_worker_limiter,
     atexit_shutdown_grace_period,
+    default_context_statistics,
 )
 from ._abc import BrokenWorkerError
