@@ -55,8 +55,6 @@ optimization if workers need to be killed/restarted often.
 
 @attr.s(slots=True, eq=False)
 class ContextLifetimeManager:
-    entrances = attr.ib(0)
-    exits = attr.ib(0)
     closed = attr.ib(False)
     task = attr.ib(None)
     # Counters are used for thread safety of the default cache
@@ -69,12 +67,12 @@ class ContextLifetimeManager:
             import trio
 
             raise trio.ClosedResourceError
-        self.entrances = next(self.enter_counter)
+        next(self.enter_counter)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # only async to save indentation
-        self.exits = next(self.exit_counter)
-        if self.task and self.entrances - self.exits == 0:
+        next(self.exit_counter)
+        if self.task and self.calc_running() == 0:
             import trio
 
             trio.lowlevel.reschedule(self.task)
@@ -82,7 +80,7 @@ class ContextLifetimeManager:
     async def close_and_wait(self):
         assert not self.closed
         self.closed = True
-        if self.entrances - self.exits != 0:
+        if self.calc_running() != 0:
             import trio
 
             self.task = trio.lowlevel.current_task()
@@ -91,6 +89,13 @@ class ContextLifetimeManager:
                 lambda _: trio.lowlevel.Abort.FAILED  # pragma: no cover
             )
             self.task = None
+
+    def calc_running(self):
+        # __reduce__ is the only count API that can extract the internal int value
+        # without incrementing it. Let's hope it's stable!!
+        return (
+            self.enter_counter.__reduce__()[1][0] - self.exit_counter.__reduce__()[1][0]
+        )
 
 
 @attr.s(auto_attribs=True, slots=True, frozen=True)
@@ -198,7 +203,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
         self._worker_cache.prune()
         return WorkerContextStatistics(
             idle_workers=len(self._worker_cache),
-            running_workers=self._lifetime.entrances - self._lifetime.exits,
+            running_workers=self._lifetime.calc_running(),
         )
 
 
