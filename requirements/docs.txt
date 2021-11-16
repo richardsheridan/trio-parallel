@@ -44,7 +44,7 @@ imagesize==1.3.0
     # via sphinx
 incremental==21.3.0
     # via towncrier
-jinja2==3.0.2
+jinja2==3.0.3
     # via
     #   sphinx
     #   towncrier
