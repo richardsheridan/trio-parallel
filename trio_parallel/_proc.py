@@ -11,7 +11,7 @@ try:
 except ImportError:
     from pickle import dumps, loads
 
-from outcome import Outcome, capture
+from outcome import Outcome, capture, Error
 
 from . import _abc
 
@@ -120,9 +120,6 @@ class SpawnProcWorker(_abc.AbstractWorker):
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
-        from trio import Lock
-
-        self._wait_lock = Lock()  # Efficiently multiplex waits
 
     @staticmethod
     def _work(recv_pipe, send_pipe, idle_timeout, init, retire):
@@ -143,11 +140,10 @@ class SpawnProcWorker(_abc.AbstractWorker):
             return ret
 
         def safe_dumps(result):
-            string_result = capture(dumps, result, protocol=HIGHEST_PROTOCOL)
             try:
-                return string_result.value
-            except AttributeError:
-                return dumps(string_result, protocol=HIGHEST_PROTOCOL)
+                return dumps(result, protocol=HIGHEST_PROTOCOL)
+            except BaseException as exc:
+                return dumps(Error(exc), protocol=HIGHEST_PROTOCOL)
 
         def poll(timeout):
             deadline = time.perf_counter() + timeout
@@ -216,39 +212,36 @@ class SpawnProcWorker(_abc.AbstractWorker):
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         import trio
 
-        result = None
+        try:
+            job = dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
+        except BaseException as exc:
+            return Error(exc)
+
         try:
             try:
-                await self._send_chan.send(
-                    dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
-                )
+                await self._send_chan.send(job)
             except trio.BrokenResourceError:
+                with trio.CancelScope(shield=True):
+                    await self.wait()
                 return None
 
             try:
-                result = loads(await self._receive_chan.receive())
+                return loads(await self._receive_chan.receive())
             except trio.EndOfChannel:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
-                # preserve return code before hitting kill() in BaseException handler
-                # also assign something to result to skip wait() in finally block
-                result = await self.wait()
+                with trio.CancelScope(shield=True):
+                    await self.wait()
                 raise BrokenWorkerProcessError(
                     "Worker died unexpectedly:", self.proc
                 ) from None
-
-            return result
-
         except BaseException:
             # cancellations require kill by contract
             # other exceptions will almost certainly leave us in an
             # unrecoverable state requiring kill as well
             self.kill()
+            with trio.CancelScope(shield=True):
+                await self.wait()
             raise
-        finally:  # Convoluted branching, but the concept is simple
-            if result is None:  # pragma: no branch
-                # something interrupted a normal result, proc MUST be dying
-                with trio.CancelScope(shield=True):
-                    await self.wait()  # pragma: no branch
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
@@ -269,8 +262,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             return self.proc.exitcode
         if self.proc.pid is None:
             return None  # waiting before started
-        async with self._wait_lock:
-            await wait(self.proc.sentinel)
+        await wait(self.proc.sentinel)
         # fix a macos race: Trio GH#1296
         self.proc.join()
         # unfortunately join does not return exitcode
