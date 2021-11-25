@@ -34,35 +34,39 @@ Example
 
 .. code-block:: python
 
+    import functools
     import multiprocessing
     import trio
     import trio_parallel
-    import time
 
 
-    def hard_work(n, x):
-        t = time.perf_counter() + n
-        y = x
-        while time.perf_counter() < t:
-            x = not x
-        print(y, "transformed into", x)
-        return x
-
-
-    async def too_slow():
-        await trio_parallel.run_sync(hard_work, 20, False, cancellable=True)
+    def loop(n):
+        # Arbitrary CPU-bound work
+        for _ in range(n):
+            pass
+        print("Loops completed:", n)
 
 
     async def amain():
-        t0 = time.perf_counter()
+        t0 = trio.current_time()
         async with trio.open_nursery() as nursery:
-            nursery.start_soon(trio_parallel.run_sync, hard_work, 2, True)
-            nursery.start_soon(trio_parallel.run_sync, hard_work, 1, False)
-            nursery.start_soon(too_slow)
-            result = await trio_parallel.run_sync(hard_work, 1.5, None)
+            # Do CPU-bound work in parallel
+            for i in [6, 7, 8] * 4:
+                nursery.start_soon(trio_parallel.run_sync, loop, 10 ** i)
+            # Event loop remains responsive
+            t1 = trio.current_time()
+            await trio.sleep(0)
+            print("Scheduling latency:", trio.current_time() - t1)
+            # This job could take far too long, make it cancellable!
+            nursery.start_soon(
+                functools.partial(
+                    trio_parallel.run_sync, loop, 10 ** 20, cancellable=True
+                )
+            )
+            await trio.sleep(2)
+            # Only explicitly cancellable jobs are killed on cancel
             nursery.cancel_scope.cancel()
-        print("got", result, "in", time.perf_counter() - t0, "seconds")
-        # prints 2.xxx
+        print("Total runtime:", trio.current_time() - t0)
 
 
     if __name__ == "__main__":
@@ -70,7 +74,7 @@ Example
         trio.run(amain)
 
 
-Additional examples_ and the full API_ are available in the documentation_
+Additional examples and the full API are available in the documentation_.
 
 Features
 --------
@@ -102,9 +106,11 @@ How does trio-parallel run Python code in parallel?
 
 Currently, this project is based on ``multiprocessing`` subprocesses and
 has all the usual multiprocessing caveats_ (``freeze_support``, pickleable objects
-only). The case for basing these workers on multiprocessing is that it keeps a lot of
+only, executing the ``__main__`` module).
+The case for basing these workers on multiprocessing is that it keeps a lot of
 complexity outside of the project while offering a set of quirks that users are
 likely already familiar with.
+
 The pickling limitations can be partially alleviated by installing cloudpickle_.
 
 Can I have my workers talk to each other?
@@ -124,8 +130,9 @@ to spawn additional Trio runs and have them talk to each other over sockets.
 Can I let my workers outlive the main Trio process?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The worker processes are started with the ``daemon`` flag for lifetime management,
-so this use case is not supported.
+No. Trio's structured concurrency strictly bounds job runs to within a given
+``trio.run`` call, while cached idle workers are shutdown and killed if necessary
+by our ``atexit`` handler, so this use case is not supported.
 
 How should I map a function over a collection of arguments?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -133,8 +140,11 @@ How should I map a function over a collection of arguments?
 This is fully possible but we leave the implementation of that up to you. Think
 of us as a `loky <https://loky.readthedocs.io/en/stable/index.html>`_ for your
 `joblib <https://joblib.readthedocs.io/en/latest/>`_, but natively async and Trionic.
-Some example parallelism patterns can be found in the documentation_.
-Also, look into `trimeter <https://github.com/python-trio/trimeter>`_?
+We take care of the worker handling so that you can focus on the best concurrency
+for your application. That said, some example parallelism patterns can be found in
+the documentation_.
+
+Also, look into `aiometer <https://github.com/florimondmanca/aiometer>`_?
 
 Contributing
 ------------
@@ -210,8 +220,6 @@ and pull requests are very welcome! Please read the `code of conduct`_.
    :alt: MIT -or- Apache License 2.0
 
 .. _cloudpickle: https://github.com/cloudpipe/cloudpickle
-.. _API: https://trio-parallel.readthedocs.io/en/latest/reference.html
-.. _examples: https://trio-parallel.readthedocs.io/en/latest/examples.html
 .. _threads: https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync
 .. _caveats: https://docs.python.org/3/library/multiprocessing.html#programming-guidelines
 .. _Trio: https://github.com/python-trio/trio
