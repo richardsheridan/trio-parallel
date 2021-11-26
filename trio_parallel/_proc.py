@@ -16,6 +16,7 @@ from outcome import Outcome, capture, Error
 from . import _abc
 
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
+ACK = b"0x06"
 
 if os.name == "nt":
 
@@ -158,6 +159,9 @@ class SpawnProcWorker(_abc.AbstractWorker):
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
+        # Signal successful startup.
+        send_pipe.send_bytes(ACK)
+
         try:
             if isinstance(init, bytes):  # true except on "fork"
                 init = loads(init)
@@ -208,6 +212,16 @@ class SpawnProcWorker(_abc.AbstractWorker):
         # XXX: We must explicitly close these after start to see child closures
         self._child_send_pipe.close()
         self._child_recv_pipe.close()
+
+        async def wait_then_fail():
+            await self.wait()
+            raise BrokenWorkerProcessError("Worker failed to start", self.proc)
+
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(wait_then_fail)
+            code = await self._receive_chan.receive()
+            assert code == ACK
+            nursery.cancel_scope.cancel()
 
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         import trio
@@ -320,6 +334,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
             self._child_recv_pipe.close()
             del self._init
             del self._retire
+            self._receive_chan.receive(1)
 
     WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache
 
