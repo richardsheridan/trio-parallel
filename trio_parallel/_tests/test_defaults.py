@@ -188,6 +188,24 @@ def test_we_control_atexit_shutdowns():
     assert b"calling join() for" not in result.stderr
 
 
+def test_startup_failure_doesnt_hang(pytester):
+    # Failing to guard startup against worker spawn recursion is the only failure
+    # case of startup that I have run into.
+    test_file = pytester.makepyfile(
+        "import trio,trio_parallel; trio.run(trio_parallel.run_sync, int)"
+    )
+    result = subprocess.run(
+        # note str used because cpython subprocess added the feature
+        # to understand path-like objects in version 3.8
+        [sys.executable, str(test_file)],
+        stderr=subprocess.PIPE,
+        check=False,  # we expect a failure
+        timeout=20,
+    )
+    # assert not result.stderr
+    assert result.returncode
+
+
 def test_change_default_grace_period():
     orig = atexit_shutdown_grace_period()
     assert orig == atexit_shutdown_grace_period()

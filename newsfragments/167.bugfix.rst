@@ -1,0 +1,2 @@
+Fixed a hang that occurred on failed worker subprocess spawns that mostly occurred
+when multiprocessing spawn recursion was not guarded.
