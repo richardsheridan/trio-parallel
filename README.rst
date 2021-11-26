@@ -90,11 +90,14 @@ Features
 
 - Cross-platform
 - ``print`` just works
-- Automatic, opportunistic use of cloudpickle_
-- Automatic LIFO caching of subprocesses
-- Cancel seriously misbehaving code
+- Seamless interoperation with
 
-  - currently via SIGKILL/TerminateProcess
+  - coverage.py_
+  - viztracer_
+  - cloudpickle_
+
+- Automatic LIFO caching of subprocesses
+- Cancel seriously misbehaving code via SIGKILL/TerminateProcess
 
 - Convert segfaults and other scary things to catchable errors
 
@@ -219,6 +222,8 @@ and pull requests are very welcome! Please read the `code of conduct`_.
    :target: `license`_
    :alt: MIT -or- Apache License 2.0
 
+.. _coverage.py: https://coverage.readthedocs.io/
+.. _viztracer: https://viztracer.readthedocs.io/
 .. _cloudpickle: https://github.com/cloudpipe/cloudpickle
 .. _threads: https://trio.readthedocs.io/en/stable/reference-core.html#trio.to_thread.run_sync
 .. _caveats: https://docs.python.org/3/library/multiprocessing.html#programming-guidelines
