@@ -1,5 +1,5 @@
-Examples
-========
+Example concurrency patterns
+============================
 
 Parallel, ordered map and gather
 --------------------------------
