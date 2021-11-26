@@ -1,0 +1,4 @@
+/* Get rid of the horrible red for literal content */
+.rst-content tt.literal, .rst-content tt.literal, .rst-content code.literal {
+    color: #222 !important;
+}
