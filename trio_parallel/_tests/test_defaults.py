@@ -195,7 +195,9 @@ def test_startup_failure_doesnt_hang(pytester):
         "import trio,trio_parallel; trio.run(trio_parallel.run_sync, int)"
     )
     result = subprocess.run(
-        [sys.executable, test_file],
+        # note str used because cpython subprocess added the feature
+        # to understand path-like objects in version 3.8
+        [sys.executable, str(test_file)],
         stderr=subprocess.PIPE,
         check=False,  # we expect a failure
         timeout=20,
