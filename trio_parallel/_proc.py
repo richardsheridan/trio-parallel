@@ -334,7 +334,8 @@ if "fork" in _all_start_methods:  # pragma: no branch
             self._child_recv_pipe.close()
             del self._init
             del self._retire
-            self._receive_chan.receive(1)
+            code = await self._receive_chan.receive()
+            assert code == ACK
 
     WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache
 
