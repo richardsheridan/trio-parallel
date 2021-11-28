@@ -226,3 +226,21 @@ def test_get_default_context_stats():
     assert hasattr(s, "idle_workers")
     assert hasattr(s, "running_workers")
     assert s == DEFAULT_CONTEXT.statistics()
+
+
+def test_sequential_runs(shutdown_cache):
+    async def run_with_timeout():
+        with trio.fail_after(5):
+            return await run_sync(os.getpid, cancellable=True)
+
+    assert trio.run(run_with_timeout) == trio.run(run_with_timeout)
+
+
+async def test_concurrent_runs(shutdown_cache):
+    async def worker(i):
+        for _ in range(30):
+            assert await run_sync(int, i) == i
+
+    async with trio.open_nursery() as n:
+        for i in range(2):
+            n.start_soon(trio.to_thread.run_sync, trio.run, worker, i)
