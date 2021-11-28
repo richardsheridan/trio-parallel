@@ -107,6 +107,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
         import trio
 
         self._channels = trio.lowlevel.RunVar("channels")
+        self._channels_to_close = set()
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
         self._organize_channels()
@@ -130,7 +131,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
 
     def _organize_channels(self):
         channels = asyncify_pipes(self._recv_pipe.fileno(), self._send_pipe.fileno())
-        self._channels_to_close = {*channels}
+        self._channels_to_close |= {*channels}
         self._channels.set(channels)
         return channels
 
@@ -318,7 +319,7 @@ if "forkserver" in _all_start_methods:  # pragma: no branch
 
     WORKER_PROC_MAP["forkserver"] = ForkserverProcWorker, WorkerProcCache
 
-if 0 and "fork" in _all_start_methods:  # pragma: no branch
+if "fork" in _all_start_methods:  # pragma: no branch
 
     class ForkProcWorker(SpawnProcWorker):
         mp_context = multiprocessing.get_context("fork")
