@@ -40,6 +40,8 @@ async def worker(request):
 
 
 async def test_run_sync_cancel_infinite_loop(worker, manager):
+    if worker.mp_context._name == "fork":
+        pytest.skip("bork on ForkProcWorker")
     await worker.start()
     ev = manager.Event()
 
