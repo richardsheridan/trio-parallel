@@ -54,6 +54,8 @@ async def test_run_sync_cancel_infinite_loop(worker, manager):
 
 
 async def test_run_sync_raises_on_kill(worker, manager):
+    if worker.mp_context._name == "fork":
+        pytest.skip("bork on ForkProcWorker")
     await worker.start()
     ev = manager.Event()
     await worker.run_sync(int)  # running start so actual test is less racy
