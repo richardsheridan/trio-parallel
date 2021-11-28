@@ -2,7 +2,7 @@ import atexit
 import os
 from enum import Enum
 from itertools import count
-from typing import Type, Callable, Any
+from typing import Type, Callable, Any, Dict
 
 import attr
 from async_generator import asynccontextmanager
@@ -149,16 +149,20 @@ class WorkerContext(metaclass=NoPublicConstructor):
         default=WorkerType.SPAWN,
         validator=attr.validators.in_(WorkerType),
     )
-    _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
-    _worker_cache: WorkerCache = attr.ib(repr=False, init=False)
     _lifetime: ContextLifetimeManager = attr.ib(
         factory=ContextLifetimeManager, repr=False, init=False
     )
+    _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
+    _cache_class: Type[WorkerCache] = attr.ib(repr=False, init=False)
+    _worker_caches: Dict[int, WorkerCache] = attr.ib(
+        factory=dict, repr=False, init=False
+    )
 
     def __attrs_post_init__(self):
-        worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
+        worker_class, cache_class = WORKER_MAP[self.worker_type]
         self.__dict__["_worker_class"] = worker_class
-        self.__dict__["_worker_cache"] = worker_cache_class()
+        self.__dict__["_cache_class"] = cache_class
+        self.__dict__["_worker_caches"] = {-1: cache_class()}
 
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
@@ -173,12 +177,22 @@ class WorkerContext(metaclass=NoPublicConstructor):
         if limiter is None:
             limiter = current_default_worker_limiter()
 
+        try:
+            iocp = trio.lowlevel.current_iocp()
+        except AttributeError:
+            worker_cache = self._worker_caches[-1]
+        else:
+            try:
+                worker_cache = self._worker_caches[iocp]
+            except KeyError:
+                worker_cache = self._worker_caches[iocp] = self._cache_class()
+
         async with limiter, self._lifetime:
-            self._worker_cache.prune()
+            worker_cache.prune()
             while True:
                 with trio.CancelScope(shield=not cancellable):
                     try:
-                        worker = self._worker_cache.pop()
+                        worker = worker_cache.pop()
                     except IndexError:
                         worker = self._worker_class(
                             self.idle_timeout, self.init, self.retire
@@ -191,7 +205,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
                     # when KI-protected & cancellable=False
                     await trio.lowlevel.checkpoint_if_cancelled()
                 else:
-                    self._worker_cache.append(worker)
+                    worker_cache.append(worker)
                     return result.unwrap()
 
     async def _aclose(self):
@@ -199,14 +213,16 @@ class WorkerContext(metaclass=NoPublicConstructor):
 
         with trio.CancelScope(shield=True):
             await self._lifetime.close_and_wait()
-            await trio.to_thread.run_sync(
-                self._worker_cache.shutdown, self.grace_period
-            )
+            for cache in self._worker_caches.values():
+                await trio.to_thread.run_sync(cache.shutdown, self.grace_period)
 
     def statistics(self):
-        self._worker_cache.prune()
+        idle = 0
+        for cache in self._worker_caches.values():
+            cache.prune()
+            idle += len(cache)
         return WorkerContextStatistics(
-            idle_workers=len(self._worker_cache),
+            idle_workers=idle,
             running_workers=self._lifetime.calc_running(),
         )
 
@@ -316,7 +332,12 @@ def atexit_shutdown_grace_period(grace_period=-1.0):
 def graceful_default_shutdown():
     # need to late-bind the context attribute lookup so
     # don't use atexit.register(fn,*args) form
-    DEFAULT_CONTEXT._worker_cache.shutdown(ATEXIT_SHUTDOWN_GRACE_PERIOD)
+    import time
+
+    deadline = time.perf_counter() - ATEXIT_SHUTDOWN_GRACE_PERIOD
+    for cache in DEFAULT_CONTEXT._worker_caches.values():
+        cache.shutdown(deadline - time.perf_counter())
+        cache.clear()
 
 
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):

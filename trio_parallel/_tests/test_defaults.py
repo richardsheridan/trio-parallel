@@ -22,8 +22,9 @@ from .._impl import (
 @pytest.fixture
 def shutdown_cache():
     yield
-    DEFAULT_CONTEXT._worker_cache.shutdown(60)
-    DEFAULT_CONTEXT._worker_cache.clear()
+    for _, cache in DEFAULT_CONTEXT._worker_caches.items():
+        cache.shutdown(60)
+        cache.clear()
 
 
 async def test_run_sync(shutdown_cache):
@@ -233,7 +234,9 @@ def test_sequential_runs(shutdown_cache):
         with trio.fail_after(5):
             return await run_sync(os.getpid, cancellable=True)
 
-    assert trio.run(run_with_timeout) == trio.run(run_with_timeout)
+    same_pid = trio.run(run_with_timeout) == trio.run(run_with_timeout)
+    if os.name != "nt":
+        assert same_pid
 
 
 async def test_concurrent_runs(shutdown_cache):
