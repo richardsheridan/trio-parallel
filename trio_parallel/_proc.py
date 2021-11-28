@@ -319,7 +319,7 @@ if "forkserver" in _all_start_methods:  # pragma: no branch
 
     WORKER_PROC_MAP["forkserver"] = ForkserverProcWorker, WorkerProcCache
 
-if "fork" in _all_start_methods:  # pragma: no branch
+if 0 and "fork" in _all_start_methods:  # pragma: no branch
 
     class ForkProcWorker(SpawnProcWorker):
         mp_context = multiprocessing.get_context("fork")
