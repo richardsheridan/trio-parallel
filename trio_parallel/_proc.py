@@ -28,7 +28,11 @@ if os.name == "nt":
     def asyncify_pipes(receive_handle, send_handle):
         from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
 
-        return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
+        dup = multiprocessing.reduction.duplicate
+
+        return PipeReceiveChannel(dup(receive_handle)), PipeSendChannel(
+            dup(send_handle)
+        )
 
 
 else:
@@ -41,7 +45,7 @@ else:
     def asyncify_pipes(receive_fd, send_fd):
         from ._posix_pipes import FdChannel
 
-        return FdChannel(receive_fd), FdChannel(send_fd)
+        return FdChannel(os.dup(receive_fd)), FdChannel(os.dup(send_fd))
 
 
 class BrokenWorkerProcessError(_abc.BrokenWorkerError):
@@ -100,11 +104,13 @@ class SpawnProcWorker(_abc.AbstractWorker):
     mp_context = multiprocessing.get_context("spawn")
 
     def __init__(self, idle_timeout, init, retire):
+        import trio
+
+        self._channels = trio.lowlevel.RunVar("channels")
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
-        self._receive_chan, self._send_chan = asyncify_pipes(
-            self._recv_pipe.fileno(), self._send_pipe.fileno()
-        )
+        self._organize_channels()
+
         if init is not None:  # true except on "fork"
             init = dumps(init, protocol=HIGHEST_PROTOCOL)
         if retire is not None:  # true except on "fork"
@@ -121,6 +127,12 @@ class SpawnProcWorker(_abc.AbstractWorker):
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
         )
+
+    def _organize_channels(self):
+        channels = asyncify_pipes(self._recv_pipe.fileno(), self._send_pipe.fileno())
+        self._channels_to_close = {*channels}
+        self._channels.set(channels)
+        return channels
 
     @staticmethod
     def _work(recv_pipe, send_pipe, idle_timeout, init, retire):
@@ -219,7 +231,8 @@ class SpawnProcWorker(_abc.AbstractWorker):
 
         async with trio.open_nursery() as nursery:
             nursery.start_soon(wait_then_fail)
-            code = await self._receive_chan.receive()
+            receive_chan, _ = self._channels.get()
+            code = await receive_chan.receive()
             assert code == ACK
             nursery.cancel_scope.cancel()
 
@@ -232,17 +245,22 @@ class SpawnProcWorker(_abc.AbstractWorker):
             return Error(exc)
 
         try:
+            receive_chan, send_chan = self._channels.get()
+        except LookupError:
+            receive_chan, send_chan = self._organize_channels()
+
+        try:
             try:
-                await self._send_chan.send(job)
+                await send_chan.send(job)
             except trio.BrokenResourceError:
                 with trio.CancelScope(shield=True):
                     await self.wait()
                 return None
 
             try:
-                return loads(await self._receive_chan.receive())
+                return loads(await receive_chan.receive())
             except trio.EndOfChannel:
-                self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
+                self.shutdown()  # edge case: free proc spinning on recv_bytes
                 with trio.CancelScope(shield=True):
                     await self.wait()
                 raise BrokenWorkerProcessError(
@@ -264,6 +282,9 @@ class SpawnProcWorker(_abc.AbstractWorker):
 
     def shutdown(self):
         self._send_pipe.close()
+        self._recv_pipe.close()
+        for chan in self._channels_to_close:
+            chan._close()
 
     def kill(self):
         try:
@@ -283,13 +304,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
         return self.proc.exitcode
 
     def __del__(self):
-        # Avoid __del__ errors on cleanup: Trio GH#174, GH#1767
-        # multiprocessing will close them for us if initialized
-        # but practically they are always initialized, hence pragma
-        if hasattr(self, "_send_chan"):  # pragma: no branch
-            self._send_chan.detach()
-        if hasattr(self, "_receive_chan"):  # pragma: no branch
-            self._receive_chan.detach()
+        self.shutdown()
 
 
 WORKER_PROC_MAP = {"spawn": (SpawnProcWorker, WorkerProcCache)}
@@ -314,8 +329,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
             super().__init__(idle_timeout, None, None)
 
         def _work(self, recv_pipe, send_pipe, idle_timeout, init, retire):
-            self._send_pipe.close()
-            self._recv_pipe.close()
+            self.shutdown()  # to close all pipes and channels on the wrong side
             init = self._init
             del self._init
             retire = self._retire
@@ -334,7 +348,8 @@ if "fork" in _all_start_methods:  # pragma: no branch
             self._child_recv_pipe.close()
             del self._init
             del self._retire
-            code = await self._receive_chan.receive()
+            receive_chan, _ = self._channels.get()
+            code = await receive_chan.receive()
             assert code == ACK
 
     WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache

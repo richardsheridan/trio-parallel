@@ -70,3 +70,6 @@ class FdChannel(Channel[bytes]):
 
     async def aclose(self):  # pragma: no cover, not used in this lib
         return await self._stream.aclose()
+
+    def _close(self):
+        self._stream._fd_holder._raw_close()

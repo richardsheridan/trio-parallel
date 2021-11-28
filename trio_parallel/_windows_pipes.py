@@ -23,6 +23,9 @@ class PipeSendChannel(SendChannel[bytes]):
     def detach(self):
         self._pss._handle_holder.handle = -1
 
+    def _close(self):  # pragma: no cover, not used in this lib
+        self._pss._handle_holder._close()
+
     async def aclose(self):  # pragma: no cover, not used in this lib
         await self._pss._handle_holder.aclose()
 
@@ -79,6 +82,9 @@ class PipeReceiveChannel(ReceiveChannel[bytes]):
 
     def detach(self):
         self._handle_holder.handle = -1
+
+    def _close(self):  # pragma: no cover, not used in this lib
+        self._handle_holder._close()
 
     async def aclose(self):  # pragma: no cover, not used in this lib
         await self._handle_holder.aclose()
