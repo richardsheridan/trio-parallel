@@ -334,7 +334,7 @@ def graceful_default_shutdown():
     # don't use atexit.register(fn,*args) form
     import time
 
-    deadline = time.perf_counter() - ATEXIT_SHUTDOWN_GRACE_PERIOD
+    deadline = time.perf_counter() + ATEXIT_SHUTDOWN_GRACE_PERIOD
     for cache in DEFAULT_CONTEXT._worker_caches.values():
         cache.shutdown(deadline - time.perf_counter())
         cache.clear()
