@@ -66,13 +66,13 @@ By default, ``trio-parallel`` will cache as many workers as the system has CPUs
 dispatch of CPU-bound work in the vast majority of cases. There are two ways to modify
 this behavior. The first is the ``limiter`` argument of :func:`run_sync`, which
 permits you to limit the concurrency of a specific function dispatch. In some cases,
-it may be useful to modify the default limit, which will affect all :func:`run_sync`
-calls
+it may be useful to modify the default limiter, which will affect all :func:`run_sync`
+calls.
 
 .. autofunction:: current_default_worker_limiter
 
-Errors and Exceptions
----------------------
+Cancellation and Exceptions
+---------------------------
 
 Unlike threads, subprocesses are strongly isolated from the parent process, which
 allows two important features that cannot be portably implemented in threads:
@@ -80,11 +80,13 @@ allows two important features that cannot be portably implemented in threads:
   - Forceful cancellation: a deadlocked call or infinite loop can be cancelled
     by completely terminating the process.
   - Protection from errors: if a call segfaults or an extension module has an
-    unrecoverable error, the worker may die but :func:`trio_parallel.run_sync` will raise
-    :exc:`trio_parallel.BrokenWorkerError` and carry on.
+    unrecoverable error, the worker may die but :func:`trio_parallel.run_sync`
+    will raise :exc:`trio_parallel.BrokenWorkerError` and carry on.
 
 In both cases the workers die suddenly and violently, and at an unpredictable point
-in the execution of the dispatched function, so avoid using the cancellation feature
+in the execution of the dispatched function.
+
+We recommend to avoid using the cancellation feature
 if loss of intermediate results, writes to the filesystem, or shared memory writes
 may leave the larger system in an incoherent state.
 
@@ -108,12 +110,25 @@ lifetime is required.
 .. autoclass:: WorkerContext()
    :members:
 
+One typical use case for configuring workers is to set a policy for taking a worker
+out of service. For this, use the ``retire`` argument. This example shows how to
+build (trivial) stateless and stateful worker retirement policies.
+
+.. literalinclude:: examples/single_use_workers.py
+
+A more realistic use-case might examine the worker process's memory usage (e.g. with
+`psutil <https://psutil.readthedocs.io/en/latest/>`_) and retire if usage is too high.
+
+If you are retiring workers frequently, like in the single-use case, a large amount
+of process startup overhead will be incurred with the default worker type. If your
+platform supports it, an alternate `WorkerType` might cut that overhead down.
+
 .. autoclass:: WorkerType()
 
 Internal Esoterica
 ------------------
 
-You probably won't need these... but create an issue if you do and need help!
+You probably won't use these... but create an issue if you do and need help!
 
 .. autofunction:: atexit_shutdown_grace_period
 

@@ -1,8 +1,5 @@
-import multiprocessing
+import trio, trio_parallel
 import os
-
-import trio
-import trio_parallel
 
 
 def worker(i):
@@ -47,5 +44,4 @@ async def amain():
 
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()
     trio.run(amain)
