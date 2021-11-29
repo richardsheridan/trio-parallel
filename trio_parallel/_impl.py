@@ -175,11 +175,9 @@ class WorkerContext(metaclass=NoPublicConstructor):
             limiter = current_default_worker_limiter()
 
         try:
-            iocp = trio.lowlevel.current_iocp()
+            worker_cache = self._worker_caches[trio.lowlevel.current_iocp()]
         except AttributeError:
             worker_cache = self._worker_caches[-1]
-        else:
-            worker_cache = self._worker_caches[iocp]
 
         async with limiter, self._lifetime:
             worker_cache.prune()
