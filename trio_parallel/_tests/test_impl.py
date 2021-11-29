@@ -129,18 +129,13 @@ async def test_cache_scope_args(mock_context):
         init=float, retire=int, idle_timeout=33
     ) as ctx:
         await ctx.run_sync(bool)
-        for cache in ctx._worker_caches.values():
-            if cache:
-                worker = cache.pop()
-                assert worker.init is float
-                assert worker.retire is int
-                assert worker.idle_timeout == 33
-                assert not cache
-                break
-        else:  # pragma: no cover
-            assert False
-        for cache in ctx._worker_caches.values():
-            assert not cache
+        _, cache = ctx._worker_caches.popitem()
+        assert not ctx._worker_caches
+        worker = cache.pop()
+        assert not cache
+        assert worker.init is float
+        assert worker.retire is int
+        assert worker.idle_timeout == 33
 
 
 async def test_erroneous_scope_inputs():
