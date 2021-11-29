@@ -1,2 +1,2 @@
-Fixed a hang on Windows when trying to use :mod:`trio_parallel` in sequential and
-concurrent Trio runs.
+Fixed a hang on Windows when trying to use :meth:`WorkerContext.run_sync` in sequential
+and concurrent Trio runs.
