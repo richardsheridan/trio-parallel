@@ -19,8 +19,9 @@ The main interface for ``trio-parallel`` is :func:`run_sync`:
 
 .. note::
 
-    :func:`trio_parallel.run_sync` does not work in general at the REPL due to the
-    use of the `multiprocessing` ``spawn`` context.
+    :func:`trio_parallel.run_sync` does not work with functions defined at the REPL
+    or in a Jupyter notebook cell due to the use of the `multiprocessing` ``spawn``
+    context... *unless* cloudpickle_ is also installed!
 
 A minimal program that dispatches work with :func:`run_sync` looks like this:
 
@@ -133,3 +134,5 @@ You probably won't use these... but create an issue if you do and need help!
 .. autofunction:: atexit_shutdown_grace_period
 
 .. autofunction:: default_context_statistics
+
+.. _cloudpickle: https://github.com/cloudpipe/cloudpickle
