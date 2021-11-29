@@ -218,6 +218,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             raise BrokenWorkerProcessError("Worker failed to start", self.proc)
 
         async with trio.open_nursery() as nursery:
+            nursery.cancel_scope.shield = True
             nursery.start_soon(wait_then_fail)
             code = await self._receive_chan.receive()
             assert code == ACK
@@ -334,7 +335,8 @@ if "fork" in _all_start_methods:  # pragma: no branch
             self._child_recv_pipe.close()
             del self._init
             del self._retire
-            code = await self._receive_chan.receive()
+            with trio.CancelScope(shield=True):
+                code = await self._receive_chan.receive()
             assert code == ACK
 
     WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache
