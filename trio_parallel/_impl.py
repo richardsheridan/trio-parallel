@@ -150,11 +150,11 @@ class WorkerContext(metaclass=NoPublicConstructor):
         default=WorkerType.SPAWN,
         validator=attr.validators.in_(WorkerType),
     )
+    _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
+    _worker_caches: Dict[int, WorkerCache] = attr.ib(repr=False, init=False)
     _lifetime: ContextLifetimeManager = attr.ib(
         factory=ContextLifetimeManager, repr=False, init=False
     )
-    _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
-    _worker_caches: Dict[int, WorkerCache] = attr.ib(repr=False, init=False)
 
     def __attrs_post_init__(self):
         worker_class, cache_class = WORKER_MAP[self.worker_type]

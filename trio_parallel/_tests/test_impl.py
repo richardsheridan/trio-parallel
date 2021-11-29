@@ -77,22 +77,22 @@ def mock_context(monkeypatch):
 async def test_context_methods(mock_context):
     await run_sync(bool)
     await run_sync(bool)
-    assert (
-        sum(cache.pruned_count for cache in mock_context._worker_caches.values()) == 2
+    assert 2 == sum(
+        cache.pruned_count for cache in mock_context._worker_caches.values()
     )
-    assert (
-        sum(cache.shutdown_count for cache in mock_context._worker_caches.values()) == 0
+    assert 0 == sum(
+        cache.shutdown_count for cache in mock_context._worker_caches.values()
     )
     await run_sync(bool)
     with trio.CancelScope() as cs:
         cs.cancel()
         await run_sync(bool)
     assert cs.cancelled_caught
-    assert (
-        sum(cache.pruned_count for cache in mock_context._worker_caches.values()) == 3
+    assert 3 == sum(
+        cache.pruned_count for cache in mock_context._worker_caches.values()
     )
-    assert (
-        sum(cache.shutdown_count for cache in mock_context._worker_caches.values()) == 0
+    assert 0 == sum(
+        cache.shutdown_count for cache in mock_context._worker_caches.values()
     )
 
 
@@ -106,12 +106,12 @@ async def test_context_methods2(mock_context):
         s = ctx.statistics()
         assert s.idle_workers == 1
         assert s.running_workers == 0
-        assert sum(cache.pruned_count for cache in ctx._worker_caches.values()) == 2
-    assert sum(cache.shutdown_count for cache in ctx._worker_caches.values()) == 1
+        assert 2 == sum(cache.pruned_count for cache in ctx._worker_caches.values())
+    assert 1 == sum(cache.shutdown_count for cache in ctx._worker_caches.values())
     s = ctx.statistics()
     assert s.idle_workers == 0
     assert s.running_workers == 0
-    assert sum(cache.pruned_count for cache in ctx._worker_caches.values()) == 3
+    assert 3 == sum(cache.pruned_count for cache in ctx._worker_caches.values())
 
 
 async def test_cancellable(mock_context):
