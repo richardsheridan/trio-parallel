@@ -96,7 +96,6 @@ async def test_context_methods(mock_context):
     )
 
 
-# TODO: get cross-platform prune/shutdown counts
 # TODO: test running workers != 0
 async def test_context_methods2(mock_context):
     async with _impl.open_worker_context() as ctx:
@@ -107,12 +106,12 @@ async def test_context_methods2(mock_context):
         s = ctx.statistics()
         assert s.idle_workers == 1
         assert s.running_workers == 0
-        # assert sum(cache.pruned_count for cache in ctx._worker_caches.values()) == 3
-    # assert sum(cache.shutdown_count for cache in ctx._worker_caches.values()) == 1
+        assert sum(cache.pruned_count for cache in ctx._worker_caches.values()) == 2
+    assert sum(cache.shutdown_count for cache in ctx._worker_caches.values()) == 1
     s = ctx.statistics()
     assert s.idle_workers == 0
     assert s.running_workers == 0
-    # assert sum(cache.pruned_count for cache in ctx._worker_caches.values()) == 4
+    assert sum(cache.pruned_count for cache in ctx._worker_caches.values()) == 3
 
 
 async def test_cancellable(mock_context):
