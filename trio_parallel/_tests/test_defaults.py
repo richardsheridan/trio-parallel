@@ -231,7 +231,7 @@ def test_get_default_context_stats():
 
 def test_sequential_runs(shutdown_cache):
     async def run_with_timeout():
-        with trio.fail_after(5):
+        with trio.fail_after(10):
             return await run_sync(os.getpid, cancellable=True)
 
     same_pid = trio.run(run_with_timeout) == trio.run(run_with_timeout)
