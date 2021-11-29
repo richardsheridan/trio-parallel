@@ -1,5 +1,6 @@
 """ Tests of public API with mocked-out workers ("collaboration" tests)"""
 import warnings
+from collections import defaultdict
 from typing import Callable, Optional
 
 import pytest
@@ -62,8 +63,7 @@ class MockContext(_impl.WorkerContext):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
         self.__dict__["_worker_class"] = MockWorker
-        self.__dict__["_cache_class"] = MockCache
-        self.__dict__["_worker_caches"] = {-1: MockCache()}
+        self.__dict__["_worker_caches"] = defaultdict(MockCache)
 
 
 @pytest.fixture

@@ -1,5 +1,6 @@
 import atexit
 import os
+from collections import defaultdict
 from enum import Enum
 from itertools import count
 from typing import Type, Callable, Any, Dict
@@ -153,16 +154,12 @@ class WorkerContext(metaclass=NoPublicConstructor):
         factory=ContextLifetimeManager, repr=False, init=False
     )
     _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
-    _cache_class: Type[WorkerCache] = attr.ib(repr=False, init=False)
-    _worker_caches: Dict[int, WorkerCache] = attr.ib(
-        factory=dict, repr=False, init=False
-    )
+    _worker_caches: Dict[int, WorkerCache] = attr.ib(repr=False, init=False)
 
     def __attrs_post_init__(self):
         worker_class, cache_class = WORKER_MAP[self.worker_type]
         self.__dict__["_worker_class"] = worker_class
-        self.__dict__["_cache_class"] = cache_class
-        self.__dict__["_worker_caches"] = {-1: cache_class()}
+        self.__dict__["_worker_caches"] = defaultdict(cache_class)
 
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
@@ -182,10 +179,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
         except AttributeError:
             worker_cache = self._worker_caches[-1]
         else:
-            try:
-                worker_cache = self._worker_caches[iocp]
-            except KeyError:
-                worker_cache = self._worker_caches[iocp] = self._cache_class()
+            worker_cache = self._worker_caches[iocp]
 
         async with limiter, self._lifetime:
             worker_cache.prune()
