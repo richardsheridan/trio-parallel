@@ -22,8 +22,8 @@ from .._impl import (
 @pytest.fixture
 def shutdown_cache():
     yield
-    for _, cache in DEFAULT_CONTEXT._worker_caches.items():
-        cache.shutdown(60)
+    for cache in DEFAULT_CONTEXT._worker_caches.values():
+        cache.shutdown(50)
         cache.clear()
 
 
@@ -241,8 +241,13 @@ def test_sequential_runs(shutdown_cache):
 
 async def test_concurrent_runs(shutdown_cache):
     async def worker(i):
-        for _ in range(30):
-            assert await run_sync(int, i) == i
+        with trio.fail_after(10):
+            assert await run_sync(int, i, cancellable=True) == i
+            for _ in range(30):
+                assert await run_sync(int, i, cancellable=True) == i
+            with trio.move_on_after(0.5):
+                while True:
+                    assert await run_sync(int, i, cancellable=True) == i
 
     async with trio.open_nursery() as n:
         for i in range(2):
