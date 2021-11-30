@@ -57,8 +57,6 @@ longer than in a thread when dealing with large arguments or a cold cache.
 Therefore, we recommend avoiding worker process dispatch
 for synchronous functions with an expected duration of less than about 1 ms.
 
-.. TODO literalinclude:: examples/cancellation.py
-
 Controlling Concurrency
 -----------------------
 
@@ -81,15 +79,27 @@ allows two important features that cannot be portably implemented in threads:
   - Forceful cancellation: a deadlocked call or infinite loop can be cancelled
     by completely terminating the process.
   - Protection from errors: if a call segfaults or an extension module has an
-    unrecoverable error, the worker may die but :func:`trio_parallel.run_sync`
-    will raise :exc:`trio_parallel.BrokenWorkerError` and carry on.
+    unrecoverable error, the worker may die but the main process will raise
+    a normal Python exception.
 
-In both cases the workers die suddenly and violently, and at an unpredictable point
-in the execution of the dispatched function.
+Cancellation
+~~~~~~~~~~~~
+
+Cancellation of :func:`trio_parallel.run_sync` is modeled after
+:func:`trio.to_thread.run_sync`, with a ``cancellable`` keyword argument that
+defaults to ``False``. Entry is an unconditional checkpoint, i.e. regardless of
+the value of ``cancellable``. The only difference in behavior comes upon cancellation
+when ``cancellable=True``. A Trio thread will be abandoned to run in the background
+while this package will kill the worker with ``SIGKILL``/``TerminateProcess``:
+
+.. literalinclude:: examples/cancellation.py
 
 We recommend to avoid using the cancellation feature
 if loss of intermediate results, writes to the filesystem, or shared memory writes
 may leave the larger system in an incoherent state.
+
+Exceptions
+~~~~~~~~~~
 
 .. autoexception:: BrokenWorkerError
 
