@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2.4.0
       - name: Setup python
-        uses: actions/setup-python@v2.3.0
+        uses: actions/setup-python@v2.3.1
         with:
           python-version: '3.8'
       - name: Pip cache
@@ -54,7 +54,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup python
-        uses: actions/setup-python@v2.3.0
+        uses: actions/setup-python@v2.3.1
       - name: Pip cache
         uses: actions/cache@v2.1.6
         with:
@@ -126,7 +126,7 @@ jobs:
             arch: x86
     steps:
       - name: Setup python
-        uses: actions/setup-python@v2.3.0
+        uses: actions/setup-python@v2.3.1
         with:
           python-version: '${{ matrix.python }}'
           architecture: '${{ matrix.arch }}'
@@ -195,7 +195,7 @@ jobs:
         with:
           name: Coverage
       - name: Setup python
-        uses: actions/setup-python@v2.3.0
+        uses: actions/setup-python@v2.3.1
         with:
           python-version: "3.9"
       - name: Install coverage
