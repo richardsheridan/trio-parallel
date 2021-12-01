@@ -163,6 +163,43 @@ jobs:
           path: "*coverage*${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}*"
           if-no-files-found: error
 
+  Examples:
+    name: 'Test examples ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})'
+    timeout-minutes: 10
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+          - macos-latest
+        python:
+          - '3.9'
+        arch:
+          - x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2.4.0
+      - name: Setup python
+        uses: actions/setup-python@v2.3.0
+        with:
+          python-version: '${{ matrix.python }}'
+          architecture: '${{ matrix.arch }}'
+      - name: Pip cache
+        uses: actions/cache@v2.1.6
+        with:
+          path: |
+            ~/AppData/Local/pip/Cache
+            ~/.cache/pip
+            ~/Library/Caches/pip
+          key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/requirements/test.txt') }}
+      - name: Run tests
+        run: |
+          python -m pip install -r requirements/test.txt
+          python -m pip install -e .[test] --no-deps
+          python -m pytest --no-cov docs/source
+
   Codecov: # Codecov is naughty and will be forever isolated
     name: Codecov
     if: always()
@@ -216,7 +253,7 @@ jobs:
   Publish:
     name: Publish
     if: github.event_name == 'release'
-    needs: [ Blacken, Build, Test, Codecov, Coverage ]
+    needs: [ Blacken, Build, Examples, Test, Codecov, Coverage ]
     timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:

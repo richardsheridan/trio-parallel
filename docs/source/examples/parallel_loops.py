@@ -8,10 +8,10 @@ def loop(i=0):
         i += 1
     print("Loops completed:", i)
 
-async def amain(n):
+async def amain():
     async with trio.open_nursery() as nursery:
         for i in range(4):
             nursery.start_soon(trio_parallel.run_sync, loop)
 
 if __name__ == "__main__":
-    trio.run(amain, 4)
+    trio.run(amain)
