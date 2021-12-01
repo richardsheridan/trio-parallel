@@ -54,17 +54,17 @@ async def data_generator(*, task_status, limiter=None):
 
 
 def clean_data(j, data):
-    time.sleep(secrets.randbelow(2) / 10)
+    time.sleep(secrets.randbelow(2) / 20)
     return j, data.replace("deadbeef", "f00dbeef")
 
 
 def load_data(j, data):
-    time.sleep(secrets.randbelow(2) / 10)
+    time.sleep(secrets.randbelow(2) / 20)
     return j, binascii.unhexlify(data)
 
 
 def compute(j, data):
-    time.sleep(secrets.randbelow(2) / 10)
+    time.sleep(secrets.randbelow(2) / 20)
     n = 0
     for value in data:
         if value % 2:

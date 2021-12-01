@@ -45,12 +45,16 @@ WorkerType = Enum(
 )
 WorkerType.__doc__ = """An Enum of available kinds of workers.
 
+Instances of this Enum can be passed to :func:`open_worker_context` to customize
+worker startup behavior.
+
 Currently, these correspond to the values of
 :func:`multiprocessing.get_all_start_methods`, which vary by platform.
 ``WorkerType.SPAWN`` is the default and is supported on all platforms.
 ``WorkerType.FORKSERVER`` is available on POSIX platforms and could be an
 optimization if workers need to be killed/restarted often.
-``WorkerType.FORK`` is available on POSIX for experimentation, but not recommended."""
+``WorkerType.FORK`` is available on POSIX for experimentation, but not
+recommended."""
 
 
 @attr.s(slots=True, eq=False)
@@ -111,7 +115,7 @@ def check_non_negative(instance, attribute, value):
 
 @attr.s(frozen=True, eq=False)
 class WorkerContext(metaclass=NoPublicConstructor):
-    """A representation of a context where workers have a custom configuration.
+    """A reification of a context where workers have a custom configuration.
 
     Instances of this class are to be created using :func:`open_worker_context`,
     and cannot be directly instantiated. The arguments to :func:`open_worker_context`
@@ -159,7 +163,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
 
-        Uses the customized attributes of the context. See
+        Behaves according to the customized attributes of the context. See
         :func:`trio_parallel.run_sync()` for details.
 
         Raises:
@@ -234,15 +238,6 @@ async def open_worker_context(
 ):
     """Create a new, customized worker context with isolated workers.
 
-    By default, :func:`trio_parallel.run_sync` draws workers from a global cache
-    that is shared across sequential and between concurrent :func:`trio.run()`
-    calls, with workers' lifetimes limited to the life of the main process. This
-    covers most use cases, but for the many edge cases, this async context manager
-    yields a `WorkerContext` object on which `~WorkerContext.run_sync()` pulls workers
-    from an isolated cache with behavior specified by the class arguments. It is only
-    advised to use this if specific control over worker type, state, or
-    lifetime is required.
-
     The context will automatically wait for any running workers to become idle when
     exiting the scope. Since this wait cannot be cancelled, it is more convenient to
     only pass the context object to tasks that cannot outlive the scope, for example,
@@ -274,7 +269,7 @@ async def open_worker_context(
           negative timeout.
       BrokenWorkerError: if a worker does not shut down cleanly when exiting the scope.
 
-    .. note::
+    .. warning::
 
        The callables passed to retire MUST not raise! Doing so will result in a
        :class:`BrokenWorkerError` at an indeterminate future
@@ -291,6 +286,8 @@ async def open_worker_context(
 def atexit_shutdown_grace_period(grace_period=-1.0):
     """Return and optionally set the default worker cache shutdown grace period.
 
+    You might need this if you have a long-running `atexit` function, such as those
+    installed by ``coverage.py`` or ``viztracer``.
     This only affects the `atexit` behavior of the default context corresponding to
     :func:`trio_parallel.run_sync`. Existing and future `WorkerContext` instances
     are unaffected.
@@ -298,8 +295,8 @@ def atexit_shutdown_grace_period(grace_period=-1.0):
     Args:
       grace_period (float): The time in seconds to wait for workers to
           exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
-          Pass `math.inf` to wait forever. Pass a negative value or use the default
-          value to return the current value without modifying it.
+          Pass `math.inf` to wait forever. Pass a negative value or no argument
+          to return the current value without modifying it.
 
     Returns:
       float: The current grace period in seconds.

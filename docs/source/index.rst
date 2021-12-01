@@ -13,9 +13,8 @@
 .. toctree::
    :maxdepth: 2
 
-   motivation.rst
-   examples.rst
    reference.rst
+   examples.rst
    history.rst
 
 ====================

@@ -1,8 +1,5 @@
-import multiprocessing
+import trio, trio_parallel
 import os
-
-import trio
-import trio_parallel
 
 
 def worker(i):
@@ -31,21 +28,20 @@ async def amain():
     print("single use worker behavior:")
     async with trio_parallel.open_worker_context(retire=after_single_use) as ctx:
         async with trio.open_nursery() as nursery:
-            for i in range(40):
+            for i in range(10):
                 nursery.start_soon(ctx.run_sync, worker, i)
 
     print("dual use worker behavior:")
     async with trio_parallel.open_worker_context(retire=after_dual_use) as ctx:
         async with trio.open_nursery() as nursery:
-            for i in range(40):
+            for i in range(10):
                 nursery.start_soon(ctx.run_sync, worker, i)
 
     print("default behavior:")
     async with trio.open_nursery() as nursery:
-        for i in range(40):
+        for i in range(10):
             nursery.start_soon(trio_parallel.run_sync, worker, i)
 
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()
     trio.run(amain)
