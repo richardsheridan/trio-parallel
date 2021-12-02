@@ -1,5 +1,6 @@
 import atexit
 import os
+import sys
 from enum import Enum
 from itertools import count
 from typing import Type, Callable, Any
@@ -156,9 +157,9 @@ class WorkerContext(metaclass=NoPublicConstructor):
     )
 
     def __attrs_post_init__(self):
-        worker_class, worker_cache_class = WORKER_MAP[self.worker_type]
+        worker_class, cache_class = WORKER_MAP[self.worker_type]
         self.__dict__["_worker_class"] = worker_class
-        self.__dict__["_worker_cache"] = worker_cache_class()
+        self.__dict__["_worker_cache"] = cache_class()
 
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
@@ -194,14 +195,14 @@ class WorkerContext(metaclass=NoPublicConstructor):
                     self._worker_cache.append(worker)
                     return result.unwrap()
 
-    async def _aclose(self):
+    async def _aclose(self, grace_period=None):
         import trio
 
+        if grace_period is None:
+            grace_period = self.grace_period
         with trio.CancelScope(shield=True):
             await self._lifetime.close_and_wait()
-            await trio.to_thread.run_sync(
-                self._worker_cache.shutdown, self.grace_period
-            )
+            await trio.to_thread.run_sync(self._worker_cache.shutdown, grace_period)
 
     def statistics(self):
         self._worker_cache.prune()
@@ -211,7 +212,45 @@ class WorkerContext(metaclass=NoPublicConstructor):
         )
 
 
-DEFAULT_CONTEXT = WorkerContext._create()  # intentionally skip open_worker_context
+# intentionally skip open_worker_context
+DEFAULT_CONTEXT = WorkerContext._create()
+DEFAULT_CONTEXT_RUNVAR = None
+if sys.platform == "win32":
+
+    async def close_at_run_end(ctx):
+        import trio
+
+        try:
+            await trio.sleep_forever()
+        finally:
+            await ctx._aclose(ATEXIT_SHUTDOWN_GRACE_PERIOD)
+
+    def get_default_context():
+        import trio
+
+        global DEFAULT_CONTEXT_RUNVAR
+
+        if DEFAULT_CONTEXT_RUNVAR is None:
+            DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
+        try:
+            ctx = DEFAULT_CONTEXT_RUNVAR.get()
+        except LookupError:
+            ctx = WorkerContext._create()
+            DEFAULT_CONTEXT_RUNVAR.set(ctx)
+            trio.lowlevel.spawn_system_task(close_at_run_end, ctx)
+        return ctx
+
+
+else:
+
+    def get_default_context():
+        return DEFAULT_CONTEXT
+
+    @atexit.register
+    def graceful_default_shutdown():
+        # need to late-bind the context attribute lookup so
+        # don't use atexit.register(fn,*args) form
+        DEFAULT_CONTEXT._worker_cache.shutdown(ATEXIT_SHUTDOWN_GRACE_PERIOD)
 
 
 def default_context_statistics():
@@ -225,7 +264,7 @@ def default_context_statistics():
 
        The statistics are only eventually consistent in the case of multiple trio
        threads concurrently using `trio_parallel.run_sync`."""
-    return DEFAULT_CONTEXT.statistics()
+    return get_default_context().statistics()
 
 
 @asynccontextmanager
@@ -312,13 +351,6 @@ def atexit_shutdown_grace_period(grace_period=-1.0):
     return ATEXIT_SHUTDOWN_GRACE_PERIOD
 
 
-@atexit.register
-def graceful_default_shutdown():
-    # need to late-bind the context attribute lookup so
-    # don't use atexit.register(fn,*args) form
-    DEFAULT_CONTEXT._worker_cache.shutdown(ATEXIT_SHUTDOWN_GRACE_PERIOD)
-
-
 async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
     """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
 
@@ -362,6 +394,6 @@ async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
         in normal use.
 
     """
-    return await DEFAULT_CONTEXT.run_sync(
+    return await get_default_context().run_sync(
         sync_fn, *args, cancellable=cancellable, limiter=limiter
     )

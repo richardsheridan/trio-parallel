@@ -1,11 +1,11 @@
-import os
+import sys
 import struct
 from typing import TYPE_CHECKING
 
 import trio
 from trio.abc import Channel
 
-assert os.name != "nt" or not TYPE_CHECKING
+assert not sys.platform == "win32" or not TYPE_CHECKING
 
 
 # We copy the wire protocol code from multiprocessing.connection.Connection

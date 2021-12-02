@@ -12,6 +12,7 @@ import trio
 from ._funcs import _block_worker, _raise_pid
 from .._impl import (
     DEFAULT_CONTEXT,
+    get_default_context,
     run_sync,
     atexit_shutdown_grace_period,
     open_worker_context,
@@ -22,7 +23,7 @@ from .._impl import (
 @pytest.fixture
 def shutdown_cache():
     yield
-    DEFAULT_CONTEXT._worker_cache.shutdown(60)
+    DEFAULT_CONTEXT._worker_cache.shutdown(50)
     DEFAULT_CONTEXT._worker_cache.clear()
 
 
@@ -221,8 +222,33 @@ def test_change_default_grace_period():
     assert x == atexit_shutdown_grace_period()
 
 
-def test_get_default_context_stats():
+async def test_get_default_context_stats():
     s = default_context_statistics()
     assert hasattr(s, "idle_workers")
     assert hasattr(s, "running_workers")
-    assert s == DEFAULT_CONTEXT.statistics()
+    assert s == get_default_context().statistics()
+
+
+def test_sequential_runs(shutdown_cache):
+    async def run_with_timeout():
+        with trio.fail_after(10):
+            return await run_sync(os.getpid, cancellable=True)
+
+    same_pid = trio.run(run_with_timeout) == trio.run(run_with_timeout)
+    if not sys.platform == "win32":
+        assert same_pid
+
+
+async def test_concurrent_runs(shutdown_cache):
+    async def worker(i):
+        with trio.fail_after(10):
+            assert await run_sync(int, i, cancellable=True) == i
+            for _ in range(30):
+                assert await run_sync(int, i, cancellable=True) == i
+            with trio.move_on_after(0.5):
+                while True:
+                    assert await run_sync(int, i, cancellable=True) == i
+
+    async with trio.open_nursery() as n:
+        for i in range(2):
+            n.start_soon(trio.to_thread.run_sync, trio.run, worker, i)

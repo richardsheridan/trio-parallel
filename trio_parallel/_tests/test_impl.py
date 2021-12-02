@@ -66,11 +66,16 @@ class MockContext(_impl.WorkerContext):
 
 
 @pytest.fixture
-def mock_context(monkeypatch):
+async def mock_context(monkeypatch):
     monkeypatch.setattr(_impl, "WorkerContext", MockContext)
     ctx = MockContext._create()
     monkeypatch.setattr(_impl, "DEFAULT_CONTEXT", ctx)
-    return ctx
+    monkeypatch.setattr(
+        _impl, "DEFAULT_CONTEXT_RUNVAR", trio.lowlevel.RunVar("win32_ctx")
+    )
+    token = _impl.DEFAULT_CONTEXT_RUNVAR.set(ctx)
+    yield ctx
+    _impl.DEFAULT_CONTEXT_RUNVAR.reset(token)
 
 
 async def test_context_methods(mock_context):
@@ -119,6 +124,7 @@ async def test_cache_scope_args(mock_context):
     ) as ctx:
         await ctx.run_sync(bool)
         worker = ctx._worker_cache.pop()
+        assert not ctx._worker_cache
         assert worker.init is float
         assert worker.retire is int
         assert worker.idle_timeout == 33

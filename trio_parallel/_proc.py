@@ -1,4 +1,4 @@
-import os
+import sys
 import multiprocessing
 import time
 
@@ -18,7 +18,7 @@ from . import _abc
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
 ACK = b"0x06"
 
-if os.name == "nt":
+if sys.platform == "win32":
 
     async def wait(obj):
         from trio.lowlevel import WaitForSingleObject
@@ -159,11 +159,10 @@ class SpawnProcWorker(_abc.AbstractWorker):
         # between processes. (Trio will take charge via cancellation.)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
 
-        # Signal successful startup.
-        send_pipe.send_bytes(ACK)
-
         try:
             if isinstance(init, bytes):  # true except on "fork"
+                # Signal successful startup to spawn/forkserver parents.
+                send_pipe.send_bytes(ACK)
                 init = loads(init)
             if isinstance(retire, bytes):  # true except on "fork"
                 retire = loads(retire)
@@ -213,13 +212,20 @@ class SpawnProcWorker(_abc.AbstractWorker):
         self._child_send_pipe.close()
         self._child_recv_pipe.close()
 
+        # The following is mainly needed in the case of accidental recursive spawn
         async def wait_then_fail():
             await self.wait()
             raise BrokenWorkerProcessError("Worker failed to start", self.proc)
 
         async with trio.open_nursery() as nursery:
             nursery.start_soon(wait_then_fail)
-            code = await self._receive_chan.receive()
+            try:
+                code = await self._receive_chan.receive()
+            except BaseException:
+                self.kill()
+                with trio.CancelScope(shield=True):
+                    await self.wait()
+                raise
             assert code == ACK
             nursery.cancel_scope.cancel()
 
@@ -334,8 +340,6 @@ if "fork" in _all_start_methods:  # pragma: no branch
             self._child_recv_pipe.close()
             del self._init
             del self._retire
-            code = await self._receive_chan.receive()
-            assert code == ACK
 
     WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache
 
