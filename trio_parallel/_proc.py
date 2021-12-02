@@ -1,4 +1,4 @@
-import os
+import sys
 import multiprocessing
 import time
 
@@ -18,7 +18,7 @@ from . import _abc
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
 ACK = b"0x06"
 
-if os.name == "nt":
+if sys.platform == "win32":
 
     async def wait(obj):
         from trio.lowlevel import WaitForSingleObject

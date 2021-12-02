@@ -1,6 +1,5 @@
 """ Tests of public API with mocked-out workers ("collaboration" tests)"""
 import warnings
-from collections import defaultdict
 from typing import Callable, Optional
 
 import pytest
@@ -63,40 +62,36 @@ class MockContext(_impl.WorkerContext):
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
         self.__dict__["_worker_class"] = MockWorker
-        self.__dict__["_worker_caches"] = defaultdict(MockCache)
+        self.__dict__["_worker_cache"] = MockCache()
 
 
 @pytest.fixture
-def mock_context(monkeypatch):
+async def mock_context(monkeypatch):
     monkeypatch.setattr(_impl, "WorkerContext", MockContext)
     ctx = MockContext._create()
     monkeypatch.setattr(_impl, "DEFAULT_CONTEXT", ctx)
-    return ctx
+    monkeypatch.setattr(
+        _impl, "DEFAULT_CONTEXT_RUNVAR", trio.lowlevel.RunVar("win32_ctx")
+    )
+    token = _impl.DEFAULT_CONTEXT_RUNVAR.set(ctx)
+    yield ctx
+    _impl.DEFAULT_CONTEXT_RUNVAR.reset(token)
 
 
 async def test_context_methods(mock_context):
     await run_sync(bool)
     await run_sync(bool)
-    assert 2 == sum(
-        cache.pruned_count for cache in mock_context._worker_caches.values()
-    )
-    assert 0 == sum(
-        cache.shutdown_count for cache in mock_context._worker_caches.values()
-    )
+    assert mock_context._worker_cache.pruned_count == 2
+    assert mock_context._worker_cache.shutdown_count == 0
     await run_sync(bool)
     with trio.CancelScope() as cs:
         cs.cancel()
         await run_sync(bool)
     assert cs.cancelled_caught
-    assert 3 == sum(
-        cache.pruned_count for cache in mock_context._worker_caches.values()
-    )
-    assert 0 == sum(
-        cache.shutdown_count for cache in mock_context._worker_caches.values()
-    )
+    assert mock_context._worker_cache.pruned_count == 3
+    assert mock_context._worker_cache.shutdown_count == 0
 
 
-# TODO: test running workers != 0
 async def test_context_methods2(mock_context):
     async with _impl.open_worker_context() as ctx:
         s = ctx.statistics()
@@ -106,12 +101,12 @@ async def test_context_methods2(mock_context):
         s = ctx.statistics()
         assert s.idle_workers == 1
         assert s.running_workers == 0
-        assert 2 == sum(cache.pruned_count for cache in ctx._worker_caches.values())
-    assert 1 == sum(cache.shutdown_count for cache in ctx._worker_caches.values())
+        assert ctx._worker_cache.pruned_count == 3
+    assert ctx._worker_cache.shutdown_count == 1
     s = ctx.statistics()
     assert s.idle_workers == 0
     assert s.running_workers == 0
-    assert 3 == sum(cache.pruned_count for cache in ctx._worker_caches.values())
+    assert ctx._worker_cache.pruned_count == 4
 
 
 async def test_cancellable(mock_context):
@@ -128,10 +123,8 @@ async def test_cache_scope_args(mock_context):
         init=float, retire=int, idle_timeout=33
     ) as ctx:
         await ctx.run_sync(bool)
-        _, cache = ctx._worker_caches.popitem()
-        assert not ctx._worker_caches
-        worker = cache.pop()
-        assert not cache
+        worker = ctx._worker_cache.pop()
+        assert not ctx._worker_cache
         assert worker.init is float
         assert worker.retire is int
         assert worker.idle_timeout == 33
