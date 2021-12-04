@@ -5,11 +5,28 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.0.0 (2021-12-04)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Fixed a hang on failed worker subprocess spawns that mostly occurred upon
+  accidental multiprocessing recursive spawn. (`#167 <https://github.com/richardsheridan/trio-parallel/issues/167>`__)
+- Fixed a hang on Windows when trying to use :meth:`WorkerContext.run_sync` in sequential
+  and concurrent Trio runs. (`#171 <https://github.com/richardsheridan/trio-parallel/issues/171>`__)
+
+
+Improved Documentation
+~~~~~~~~~~~~~~~~~~~~~~
+
+- Revamped documentation with tested examples. (`#168 <https://github.com/richardsheridan/trio-parallel/issues/168>`__)
+
+
 trio-parallel 1.0.0b0 (2021-11-12)
 ----------------------------------
 
-With this release I consider the project "feature complete" although, as a beta
-release still, I would be open to PRs for new features with a strong motivation.
+With this release I consider the project "feature complete".
 
 Features
 ~~~~~~~~
