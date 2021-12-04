@@ -1,5 +1,4 @@
-import trio, trio_parallel
-import os
+import trio, trio_parallel, os
 
 
 def worker(i):

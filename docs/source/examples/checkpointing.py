@@ -1,5 +1,4 @@
-from time import sleep
-import trio, trio_parallel
+import trio, trio_parallel, time
 
 async def check_scheduling_latency():
     for _ in range(10):
@@ -10,7 +9,7 @@ async def check_scheduling_latency():
 async def amain():
     async with trio.open_nursery() as nursery:
         nursery.start_soon(check_scheduling_latency)
-        await trio_parallel.run_sync(sleep, 1)
+        await trio_parallel.run_sync(time.sleep, 1)
 
 if __name__ == "__main__":
     trio.run(amain)

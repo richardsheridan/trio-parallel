@@ -1,5 +1,4 @@
-import time
-import trio, trio_parallel
+import trio, trio_parallel, time
 
 def loop(i=0):
     deadline = time.perf_counter() + 1
