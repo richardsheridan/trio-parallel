@@ -1,5 +1,4 @@
-import trio, trio_parallel
-import time
+import trio, trio_parallel, time
 
 def hello_delayed_world():
     print("Hello")
