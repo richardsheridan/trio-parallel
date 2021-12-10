@@ -229,14 +229,18 @@ async def test_get_default_context_stats():
     assert s == get_default_context().statistics()
 
 
+@pytest.mark.xfail(
+    sys.platform == "win32",
+    reason="Default cache is not global on Windows",
+    raises=AssertionError,
+)
 def test_sequential_runs(shutdown_cache):
     async def run_with_timeout():
         with trio.fail_after(10):
             return await run_sync(os.getpid, cancellable=True)
 
     same_pid = trio.run(run_with_timeout) == trio.run(run_with_timeout)
-    if not sys.platform == "win32":
-        assert same_pid
+    assert same_pid
 
 
 async def test_concurrent_runs(shutdown_cache):
