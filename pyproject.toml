@@ -13,7 +13,8 @@ underlines = ["-", "~", "^"]
 issue_format = "`#{issue} <https://github.com/richardsheridan/trio-parallel/issues/{issue}>`__"
 
 [tool.pytest.ini_options]
-addopts = "--pyargs -W error -r a --verbose --cov --cov-config=pyproject.toml --cov-context=test"
+addopts = "--pyargs -r a --verbose --cov --cov-config=pyproject.toml --cov-context=test"
+filterwarnings = ["error"]
 xfail_strict = true
 faulthandler_timeout = 60
 
