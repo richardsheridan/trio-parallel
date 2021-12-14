@@ -144,7 +144,7 @@ jobs:
             ~/Library/Caches/pip
           key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/requirements/test.txt') }}
       - name: Download build artifact
-        uses: actions/download-artifact@v2.0.10
+        uses: actions/download-artifact@v2.1.0
         with:
           name: Build
           path: dist
@@ -212,7 +212,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2.4.0
       - name: Download coverage artifact
-        uses: actions/download-artifact@v2.0.10
+        uses: actions/download-artifact@v2.1.0
         with:
           name: Coverage
       - name: Upload to Codecov
@@ -230,7 +230,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2.4.0
       - name: Download coverage artifact
-        uses: actions/download-artifact@v2.0.10
+        uses: actions/download-artifact@v2.1.0
         with:
           name: Coverage
       - name: Setup python
@@ -258,7 +258,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v2.0.10
+        uses: actions/download-artifact@v2.1.0
         with:
           name: Build
           path: dist
