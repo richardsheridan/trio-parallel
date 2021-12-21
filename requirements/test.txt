@@ -58,7 +58,7 @@ sortedcontainers==2.4.0
     # via trio
 toml==0.10.2
     # via pytest
-tomli==1.2.2
+tomli==1.2.3
     # via coverage
 trio==0.19.0
     # via
