@@ -24,7 +24,7 @@ tomli==1.2.3
     # via
     #   build
     #   setuptools-scm
-wheel==0.37.0
+wheel==0.37.1
     # via -r build.in
 
 # The following packages are considered to be unsafe in a requirements file:
