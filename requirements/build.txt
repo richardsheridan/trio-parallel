@@ -20,7 +20,7 @@ setuptools-scm-git-archive==1.1
     # via -r build.in
 toml==0.10.2
     # via pep517
-tomli==1.2.2
+tomli==1.2.3
     # via
     #   build
     #   setuptools-scm
