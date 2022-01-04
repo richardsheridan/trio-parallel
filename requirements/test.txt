@@ -11,7 +11,7 @@ async-generator==1.10
     #   trio-parallel (setup.py)
 atomicwrites==1.4.0
     # via pytest
-attrs==21.2.0
+attrs==21.4.0
     # via
     #   outcome
     #   pytest

@@ -10,7 +10,7 @@ async-generator==1.10
     # via
     #   trio
     #   trio-parallel (setup.py)
-attrs==21.2.0
+attrs==21.4.0
     # via
     #   outcome
     #   trio
