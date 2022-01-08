@@ -150,6 +150,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
         self.__dict__["_worker_class"] = worker_class
         self.__dict__["_worker_cache"] = cache_class()
 
+    @trio.lowlevel.enable_ki_protection
     async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
 
@@ -189,6 +190,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
             await self._lifetime.close_and_wait()
             await trio.to_thread.run_sync(self._worker_cache.shutdown, grace_period)
 
+    @trio.lowlevel.enable_ki_protection
     def statistics(self):
         self._worker_cache.prune()
         return WorkerContextStatistics(
@@ -202,12 +204,14 @@ DEFAULT_CONTEXT = WorkerContext._create()
 DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
 if sys.platform == "win32":
 
+    @trio.lowlevel.enable_ki_protection
     async def close_at_run_end(ctx):
         try:
             await trio.sleep_forever()
         finally:
             await ctx._aclose(ATEXIT_SHUTDOWN_GRACE_PERIOD)
 
+    @trio.lowlevel.enable_ki_protection
     def get_default_context():
         try:
             ctx = DEFAULT_CONTEXT_RUNVAR.get()
@@ -243,6 +247,7 @@ def default_context_statistics():
     return get_default_context().statistics()
 
 
+@trio.lowlevel.enable_ki_protection
 @asynccontextmanager
 async def open_worker_context(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
