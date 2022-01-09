@@ -8,7 +8,7 @@ import math
 import trio
 import pytest
 
-from ._funcs import (
+from _trio_parallel_workers._funcs import (
     _lambda,
     _return_lambda,
     _raise_ki,

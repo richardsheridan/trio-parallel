@@ -10,9 +10,6 @@ from typing import Optional, Callable, TypeVar, Type, Any, Deque
 from outcome import Outcome
 
 
-MAX_TIMEOUT = 24.0 * 60.0 * 60.0
-
-
 class BrokenWorkerError(RuntimeError):
     """Raised when a worker fails or dies unexpectedly.
 
@@ -87,7 +84,7 @@ class WorkerCache(Deque[AbstractWorker], ABC):
               shutdown signal within ``grace_period``."""
 
 
-# vendored from trio so that we can lazy import trio
+# vendored from trio so it's not Final and we can subclass a test fake
 T = TypeVar("T")
 
 

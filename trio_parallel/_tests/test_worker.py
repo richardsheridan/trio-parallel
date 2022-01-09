@@ -7,7 +7,7 @@ import math
 import pytest
 import trio
 
-from ._funcs import _null_async_fn
+from _trio_parallel_workers._funcs import _null_async_fn
 from .._impl import WORKER_MAP
 
 

@@ -9,7 +9,7 @@ import sys
 import pytest
 import trio
 
-from ._funcs import _block_worker, _raise_pid
+from _trio_parallel_workers._funcs import _block_worker, _raise_pid
 from .._impl import (
     DEFAULT_CONTEXT,
     get_default_context,

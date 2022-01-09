@@ -1,0 +1,94 @@
+import time
+from pickle import HIGHEST_PROTOCOL
+
+try:
+    from cloudpickle import dumps, loads
+except ImportError:
+    from pickle import dumps, loads
+
+from outcome import capture, Error
+
+MAX_TIMEOUT = 24.0 * 60.0 * 60.0
+ACK = b"0x06"
+
+
+def worker_behavior(recv_pipe, send_pipe, idle_timeout, init, retire):
+    import inspect
+    import signal
+
+    def handle_job(job):
+        fn, args = loads(job)
+        ret = fn(*args)
+        if inspect.iscoroutine(ret):
+            # Manually close coroutine to avoid RuntimeWarnings
+            ret.close()
+            raise TypeError(
+                "trio-parallel worker expected a sync function, but {!r} appears "
+                "to be asynchronous".format(getattr(fn, "__qualname__", fn))
+            )
+
+        return ret
+
+    def safe_dumps(result):
+        try:
+            return dumps(result, protocol=HIGHEST_PROTOCOL)
+        except BaseException as exc:
+            return dumps(Error(exc), protocol=HIGHEST_PROTOCOL)
+
+    def poll(timeout):
+        deadline = time.perf_counter() + timeout
+        while timeout > MAX_TIMEOUT:
+            if recv_pipe.poll(MAX_TIMEOUT):
+                return True
+            timeout = deadline - time.perf_counter()
+        else:
+            return recv_pipe.poll(timeout)
+
+    # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
+    # between processes. (Trio will take charge via cancellation.)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    try:
+        if isinstance(init, bytes):  # true except on "fork"
+            # Signal successful startup to spawn/forkserver parents.
+            send_pipe.send_bytes(ACK)
+            init = loads(init)
+        if isinstance(retire, bytes):  # true except on "fork"
+            retire = loads(retire)
+        init()
+        while poll(idle_timeout):
+            send_pipe.send_bytes(
+                safe_dumps(capture(handle_job, recv_pipe.recv_bytes()))
+            )
+            if retire():
+                break
+    except (BrokenPipeError, EOFError):
+        # Graceful shutdown: If the main process closes the pipes, we will
+        # observe one of these exceptions and can simply exit quietly.
+        # Closing pipes manually fixed some __del__ flakiness in CI
+        send_pipe.close()
+        recv_pipe.close()
+        return
+    except BaseException:
+        # Ensure BrokenWorkerError raised in the main proc.
+        send_pipe.close()
+        # recv_pipe must remain open and clear until the main proc closes it.
+        try:
+            while True:
+                recv_pipe.recv_bytes()
+        except EOFError:
+            pass
+        raise
+    else:
+        # Clean idle shutdown or retirement: close recv_pipe first to minimize
+        # subsequent race.
+        recv_pipe.close()
+        # Race condition: it is possible to sneak a write through in the main process
+        # between the while loop predicate and recv_pipe.close(). Naively, this would
+        # make a clean shutdown look like a broken worker. By sending a sentinel
+        # value, we can indicate to a waiting main process that we have hit this
+        # race condition and need a restart. However, the send MUST be non-blocking
+        # to free this process's resources in a timely manner. Therefore, this message
+        # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
+        send_pipe.send_bytes(dumps(None, protocol=HIGHEST_PROTOCOL))
+        send_pipe.close()
