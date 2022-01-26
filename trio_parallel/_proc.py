@@ -20,27 +20,23 @@ import _trio_parallel_workers as tp_workers
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
 
 if sys.platform == "win32":
+    from trio.lowlevel import WaitForSingleObject
+    from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
 
     async def wait(obj):
-        from trio.lowlevel import WaitForSingleObject
-
         return await WaitForSingleObject(obj)
 
     def asyncify_pipes(receive_handle, send_handle):
-        from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
-
         return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
 
 else:
+    from trio.lowlevel import wait_readable
+    from ._posix_pipes import FdChannel
 
     async def wait(fd):
-        from trio.lowlevel import wait_readable
-
         return await wait_readable(fd)
 
     def asyncify_pipes(receive_fd, send_fd):
-        from ._posix_pipes import FdChannel
-
         return FdChannel(receive_fd), FdChannel(send_fd)
 
 
