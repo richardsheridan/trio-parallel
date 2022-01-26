@@ -1,5 +1,7 @@
-import time
+import signal
+from inspect import iscoroutine
 from pickle import HIGHEST_PROTOCOL
+from time import perf_counter
 
 try:
     from cloudpickle import dumps, loads
@@ -12,42 +14,40 @@ MAX_TIMEOUT = 24.0 * 60.0 * 60.0
 ACK = b"0x06"
 
 
+def handle_job(job):
+    fn, args = loads(job)
+    ret = fn(*args)
+    if iscoroutine(ret):
+        # Manually close coroutine to avoid RuntimeWarnings
+        ret.close()
+        raise TypeError(
+            "trio-parallel worker expected a sync function, but {!r} appears "
+            "to be asynchronous".format(getattr(fn, "__qualname__", fn))
+        )
+    return ret
+
+
+def safe_dumps(result):
+    try:
+        return dumps(result, protocol=HIGHEST_PROTOCOL)
+    except BaseException as exc:
+        return dumps(Error(exc), protocol=HIGHEST_PROTOCOL)
+
+
+def safe_poll(recv_pipe, timeout):
+    deadline = perf_counter() + timeout
+    while timeout > MAX_TIMEOUT:
+        if recv_pipe.poll(MAX_TIMEOUT):
+            return True
+        timeout = deadline - perf_counter()
+    else:
+        return recv_pipe.poll(timeout)
+
+
 def worker_behavior(recv_pipe, send_pipe, idle_timeout, init, retire):
-    import inspect
-    import signal
-
-    def handle_job(job):
-        fn, args = loads(job)
-        ret = fn(*args)
-        if inspect.iscoroutine(ret):
-            # Manually close coroutine to avoid RuntimeWarnings
-            ret.close()
-            raise TypeError(
-                "trio-parallel worker expected a sync function, but {!r} appears "
-                "to be asynchronous".format(getattr(fn, "__qualname__", fn))
-            )
-
-        return ret
-
-    def safe_dumps(result):
-        try:
-            return dumps(result, protocol=HIGHEST_PROTOCOL)
-        except BaseException as exc:
-            return dumps(Error(exc), protocol=HIGHEST_PROTOCOL)
-
-    def poll(timeout):
-        deadline = time.perf_counter() + timeout
-        while timeout > MAX_TIMEOUT:
-            if recv_pipe.poll(MAX_TIMEOUT):
-                return True
-            timeout = deadline - time.perf_counter()
-        else:
-            return recv_pipe.poll(timeout)
-
     # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
     # between processes. (Trio will take charge via cancellation.)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-
     try:
         if isinstance(init, bytes):  # true except on "fork"
             # Signal successful startup to spawn/forkserver parents.
@@ -56,7 +56,7 @@ def worker_behavior(recv_pipe, send_pipe, idle_timeout, init, retire):
         if isinstance(retire, bytes):  # true except on "fork"
             retire = loads(retire)
         init()
-        while poll(idle_timeout):
+        while safe_poll(recv_pipe, idle_timeout):
             send_pipe.send_bytes(
                 safe_dumps(capture(handle_job, recv_pipe.recv_bytes()))
             )
