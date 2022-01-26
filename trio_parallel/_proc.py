@@ -105,18 +105,14 @@ class SpawnProcWorker(_abc.AbstractWorker):
         self._receive_chan, self._send_chan = asyncify_pipes(
             self._recv_pipe.fileno(), self._send_pipe.fileno()
         )
-        if init is not None:  # true except on "fork"
-            init = dumps(init, protocol=HIGHEST_PROTOCOL)
-        if retire is not None:  # true except on "fork"
-            retire = dumps(retire, protocol=HIGHEST_PROTOCOL)
         self.proc = self.mp_context.Process(
             target=self._work,
             args=(
                 self._child_recv_pipe,
                 self._child_send_pipe,
                 idle_timeout,
-                init,
-                retire,
+                dumps(init, protocol=HIGHEST_PROTOCOL),
+                dumps(retire, protocol=HIGHEST_PROTOCOL),
             ),
             name=f"trio-parallel worker process {next(self._proc_counter)}",
             daemon=True,
@@ -315,18 +311,22 @@ if "fork" in _all_start_methods:  # pragma: no branch
         mp_context = multiprocessing.get_context("fork")
 
         def __init__(self, idle_timeout, init, retire):
+            super().__init__(idle_timeout, None, None)
+            self._idle_timeout = idle_timeout
             self._init = init
             self._retire = retire
-            super().__init__(idle_timeout, None, None)
+            self.proc.run = self._run
 
-        def _work(self, recv_pipe, send_pipe, idle_timeout, init, retire):
+        def _run(self):
             self._send_pipe.close()
             self._recv_pipe.close()
-            init = self._init
-            del self._init
-            retire = self._retire
-            del self._retire
-            super()._work(recv_pipe, send_pipe, idle_timeout, init, retire)
+            super()._work(
+                self._child_recv_pipe,
+                self._child_send_pipe,
+                self._idle_timeout,
+                self._init,
+                self._retire,
+            )
 
         async def start(self):
             import trio
@@ -338,8 +338,11 @@ if "fork" in _all_start_methods:  # pragma: no branch
             # XXX: We must explicitly close these after start to see child closures
             self._child_send_pipe.close()
             self._child_recv_pipe.close()
+            # These are possibly large and deallocation would be desireable
             del self._init
             del self._retire
+            # Breaks a reference cycle
+            del self.proc.run
 
     WORKER_PROC_MAP["fork"] = ForkProcWorker, WorkerProcCache
 
