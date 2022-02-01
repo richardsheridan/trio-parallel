@@ -14,7 +14,7 @@ pep517==0.10.0
     # via build
 pyparsing==2.4.7
     # via packaging
-setuptools-scm[toml]==6.3.2
+setuptools_scm[toml]==6.4.2
     # via -r build.in
 setuptools-scm-git-archive==1.1
     # via -r build.in
