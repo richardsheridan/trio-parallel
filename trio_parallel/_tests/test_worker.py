@@ -43,7 +43,7 @@ async def test_run_sync(worker):
 
 async def test_run_sync_large_job(worker):
     await worker.start()
-    n = 2 ** 20
+    n = 2**20
     x = (await worker.run_sync(bytes, bytearray(n))).unwrap()
     assert len(x) == n
 

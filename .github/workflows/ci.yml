@@ -29,7 +29,7 @@ jobs:
           python -m pip install -r requirements/lint.txt
       - name: Run Black
         id: black
-        run: black --check trio_parallel
+        run: black --check --diff trio_parallel
         continue-on-error: true
       - name: Run flake8
         id: flake8

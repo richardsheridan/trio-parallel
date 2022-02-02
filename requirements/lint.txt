@@ -4,7 +4,7 @@
 #
 #    pip-compile 'requirements\lint.in'
 #
-black==21.11b1
+black==22.1.0
     # via -r lint.in
 click==8.0.3
     # via black
@@ -22,9 +22,5 @@ pycodestyle==2.8.0
     # via flake8
 pyflakes==2.4.0
     # via flake8
-regex==2021.7.6
-    # via black
 tomli==1.2.3
-    # via black
-typing-extensions==3.10.0.2
     # via black
