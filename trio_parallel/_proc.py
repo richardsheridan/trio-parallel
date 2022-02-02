@@ -30,7 +30,6 @@ if sys.platform == "win32":
 
         return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
 
-
 else:
 
     async def wait(fd):

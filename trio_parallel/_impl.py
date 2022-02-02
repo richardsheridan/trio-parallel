@@ -240,7 +240,6 @@ if sys.platform == "win32":
             trio.lowlevel.spawn_system_task(close_at_run_end, ctx)
         return ctx
 
-
 else:
 
     def get_default_context():
