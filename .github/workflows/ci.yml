@@ -250,10 +250,32 @@ jobs:
           path: htmlcov/
           if-no-files-found: error
 
+  All:
+    name: All checks and tests
+    timeout-minutes: 1
+    needs: [ Blacken, Build, Examples, Test, Codecov, Coverage ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: "true"
+        run: "true"
+
+  Merge-Dependabot:
+    needs: All
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: fastify/github-action-merge-dependabot@v3.0.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          merge-method: merge
+
   Publish:
     name: Publish
     if: github.event_name == 'release'
-    needs: [ Blacken, Build, Examples, Test, Codecov, Coverage ]
+    needs: All
     timeout-minutes: 1
     runs-on: ubuntu-latest
     steps:
