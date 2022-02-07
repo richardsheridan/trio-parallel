@@ -261,6 +261,7 @@ jobs:
 
   Merge-Dependabot:
     needs: All
+    if: github.event_name == 'pull_request'
     timeout-minutes: 1
     runs-on: ubuntu-latest
     permissions:
