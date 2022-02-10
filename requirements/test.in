@@ -1,0 +1,5 @@
+-r install.in
+pytest
+pytest-trio
+pytest-cov
+coverage[toml]
