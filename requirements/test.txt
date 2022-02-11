@@ -23,7 +23,7 @@ cffi==1.15.0 ; os_name == "nt" and implementation_name != "pypy"
     #   trio-parallel (setup.cfg)
 colorama==0.4.4
     # via pytest
-coverage[toml]==6.1.1
+coverage[toml]==6.3.1; python_version>="3.7"
     # via
     #   pytest-cov
     #   trio-parallel (setup.cfg)
@@ -44,7 +44,7 @@ py==1.11.0
     # via pytest
 pycparser==2.21
     # via cffi
-pyparsing==2.4.7
+pyparsing==3.0.7
     # via packaging
 pytest==7.0.0
     # via
@@ -59,7 +59,7 @@ sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0
     # via trio
-tomli==1.2.3
+tomli==2.0.1; python_version>="3.7"
     # via
     #   coverage
     #   pytest
