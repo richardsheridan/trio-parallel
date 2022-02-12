@@ -252,12 +252,28 @@ jobs:
 
   All:
     name: All checks and tests
-    timeout-minutes: 1
+    timeout-minutes: 10
     needs: [ Blacken, Build, Examples, Test, Codecov, Coverage ]
     runs-on: ubuntu-latest
     steps:
-      - name: "true"
-        run: "true"
+      - name: Wait for tests to succeed
+        uses: lewagon/wait-on-check-action@v1.1.1
+        with:
+          ref: ${{ github.ref }}
+          check-name: 'docs/readthedocs.org:trio-parallel'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for tests to succeed
+        uses: lewagon/wait-on-check-action@v1.1.1
+        with:
+          ref: ${{ github.ref }}
+          check-name: 'codecov/patch'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Wait for tests to succeed
+        uses: lewagon/wait-on-check-action@v1.1.1
+        with:
+          ref: ${{ github.ref }}
+          check-name: 'codecov/project'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
   Merge-Dependabot:
     needs: All
