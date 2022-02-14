@@ -23,7 +23,7 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-black-${{ hashFiles('**/requirements/lint.txt') }}
-      - name: Install tools
+      - name: Install requirements
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements/lint.txt
@@ -58,10 +58,12 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-build-${{ hashFiles('**/requirements/build.txt') }}
-      - name: Build sdist wheel
+      - name: Install requirements
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements/build.txt
+      - name: Build sdist wheel
+        run: |
           python -m build --no-isolation  # already isolated & build deps pinned
       - name: Set outputs
         id: outputs
@@ -148,11 +150,15 @@ jobs:
         with:
           name: Build
           path: dist
-      - name: Run tests
+      - name: Install requirements
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements/test.txt
+      - name: Install wheel
+        run: |
           python -m pip install ${{ needs.Build.outputs.wheelname }} --no-deps
+      - name: Run tests
+        run: |
           pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
           coverage report
           mv .coverage .coverage.${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}
@@ -196,10 +202,15 @@ jobs:
             ~/.cache/pip
             ~/Library/Caches/pip
           key: ${{ matrix.os }}-pip-${{ matrix.arch }}-${{ matrix.python }}-${{ hashFiles('**/requirements/test.txt') }}
+      - name: Install requirements
+        run: |
+          python -m pip install -U pip
+          python -m pip install -r requirements/test.txt
+      - name: Install editable source
+        run: |
+          python -m pip install -e .[test] --no-deps
       - name: Run tests
         run: |
-          python -m pip install -r requirements/test.txt
-          python -m pip install -e .[test] --no-deps
           python -m pytest --no-cov docs/source
 
   Codecov: # Codecov is naughty and will be forever isolated
@@ -236,7 +247,9 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v2.3.2
       - name: Install coverage
-        run: pip install -r requirements/coverage.txt
+        run: |
+          pip install -U pip
+          pip install -r requirements/coverage.txt
       - name: Run coverage
         run: |
           coverage combine
