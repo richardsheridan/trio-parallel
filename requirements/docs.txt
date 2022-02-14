@@ -23,7 +23,7 @@ cffi==1.15.0 ; os_name == "nt" and implementation_name != "pypy"
     # via
     #   trio
     #   trio-parallel (setup.cfg)
-charset-normalizer==2.0.11
+charset-normalizer==2.0.12
     # via requests
 click==8.0.3
     # via
