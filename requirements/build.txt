@@ -28,7 +28,7 @@ wheel==0.37.1
     # via -r build.in
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==60.9.1
+setuptools==60.9.2
     # via
     #   -r build.in
     #   setuptools-scm
