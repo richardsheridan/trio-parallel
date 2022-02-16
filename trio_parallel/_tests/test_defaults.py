@@ -245,7 +245,7 @@ def test_sequential_runs(shutdown_cache):
 
 async def test_concurrent_runs(shutdown_cache):
     async def worker(i):
-        with trio.fail_after(10):
+        with trio.fail_after(20):
             assert await run_sync(int, i, cancellable=True) == i
             for _ in range(30):
                 assert await run_sync(int, i, cancellable=True) == i
