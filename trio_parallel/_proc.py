@@ -267,10 +267,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
         self._send_pipe.close()
 
     def kill(self):
-        try:
-            self.proc.kill()
-        except AttributeError:
-            self.proc.terminate()
+        self.proc.kill()
 
     async def wait(self):
         if self.proc.exitcode is not None:

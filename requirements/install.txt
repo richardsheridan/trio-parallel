@@ -5,9 +5,7 @@
 #    pip-compile --output-file=requirements/install.txt setup.cfg
 #
 async-generator==1.10
-    # via
-    #   trio
-    #   trio-parallel (setup.cfg)
+    # via trio
 attrs==21.4.0
     # via
     #   outcome
