@@ -1,12 +1,12 @@
 import atexit
 import os
 import sys
+from contextlib import asynccontextmanager
 from enum import Enum
 from itertools import count
 from typing import Type, Callable, Any
 
 import attr
-from async_generator import asynccontextmanager
 
 from ._proc import WORKER_PROC_MAP
 from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor

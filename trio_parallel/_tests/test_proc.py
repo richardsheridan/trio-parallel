@@ -48,7 +48,7 @@ async def test_run_sync_cancel_infinite_loop(worker, manager):
         await trio.to_thread.run_sync(ev.wait, cancellable=True)
         nursery.cancel_scope.cancel()
     with trio.fail_after(1):
-        assert await worker.wait() in (-15, -9, 255)  # 255 for py3.6 forkserver
+        assert await worker.wait() in (-15, -9)
 
 
 async def test_run_sync_raises_on_kill(worker, manager):
@@ -60,7 +60,7 @@ async def test_run_sync_raises_on_kill(worker, manager):
             await trio.to_thread.run_sync(ev.wait, cancellable=True)
             worker.kill()  # also tests multiple calls to worker.kill
     exitcode = await worker.wait()
-    assert exitcode in (-15, -9, 255)  # 255 for py3.6 forkserver
+    assert exitcode in (-15, -9)
     assert exc_info.value.args[-1].exitcode == exitcode
 
 
@@ -99,7 +99,7 @@ async def test_exhaustively_cancel_run_sync(worker, manager):
     with trio.fail_after(1):
         with trio.move_on_after(0):
             await worker.run_sync(_never_halts, ev)
-        assert await worker.wait() in (-15, -9, 255)  # 255 for py3.6 forkserver
+        assert await worker.wait() in (-15, -9)
 
     # cancel at result recv is tested elsewhere
 

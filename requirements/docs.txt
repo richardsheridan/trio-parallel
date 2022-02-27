@@ -7,9 +7,7 @@
 alabaster==0.7.12
     # via sphinx
 async-generator==1.10
-    # via
-    #   trio
-    #   trio-parallel (setup.cfg)
+    # via trio
 attrs==21.4.0
     # via
     #   outcome
