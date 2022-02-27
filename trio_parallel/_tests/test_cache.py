@@ -32,7 +32,7 @@ async def test_prune_cache(cache_and_workertype):
     dead_worker = worker_type(0.3, bool, bool)
     await dead_worker.start()
     assert (await dead_worker.run_sync(_monkeypatch_max_timeout)).unwrap() is True
-    with trio.fail_after(2):
+    with trio.fail_after(4):
         assert await dead_worker.wait() is not None
     live_worker = worker_type(math.inf, bool, bool)
     await live_worker.start()
