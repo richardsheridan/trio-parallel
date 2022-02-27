@@ -1,3 +1,9 @@
+"""Isolated package for trio-parallel's worker behavior
+
+This allows workers to start up without "heavy" dependencies like trio and attrs.
+Users still need to make sure their CPU-bound functions also do not pull in such
+packages, but at least we are doing our part."""
+
 import signal
 from inspect import iscoroutine
 from pickle import HIGHEST_PROTOCOL
