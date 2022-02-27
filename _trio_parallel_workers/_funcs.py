@@ -84,9 +84,9 @@ async def _null_async_fn():  # pragma: no cover, coroutine called but not run
 
 
 def _monkeypatch_max_timeout():
-    from .. import _abc
+    import _trio_parallel_workers
 
-    _abc.MAX_TIMEOUT = 0.1
+    _trio_parallel_workers.MAX_TIMEOUT = 0.1
     return True
 
 

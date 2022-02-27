@@ -6,40 +6,37 @@ from itertools import count
 from pickle import HIGHEST_PROTOCOL
 from typing import Optional, Callable
 
+import trio
+
 try:
     from cloudpickle import dumps, loads
 except ImportError:
     from pickle import dumps, loads
 
-from outcome import Outcome, capture, Error
-
+from outcome import Outcome, Error
 from . import _abc
+import _trio_parallel_workers as tp_workers
 
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
-ACK = b"0x06"
 
 if sys.platform == "win32":
+    from trio.lowlevel import WaitForSingleObject
+    from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
 
     async def wait(obj):
-        from trio.lowlevel import WaitForSingleObject
-
         return await WaitForSingleObject(obj)
 
     def asyncify_pipes(receive_handle, send_handle):
-        from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
-
         return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
 
 else:
+    from trio.lowlevel import wait_readable
+    from ._posix_pipes import FdChannel
 
     async def wait(fd):
-        from trio.lowlevel import wait_readable
-
         return await wait_readable(fd)
 
     def asyncify_pipes(receive_fd, send_fd):
-        from ._posix_pipes import FdChannel
-
         return FdChannel(receive_fd), FdChannel(send_fd)
 
 
@@ -70,8 +67,8 @@ class WorkerProcCache(_abc.WorkerCache):
         deadline = time.perf_counter() + timeout
         for worker in self:
             timeout = deadline - time.perf_counter()
-            while timeout > _abc.MAX_TIMEOUT:
-                worker.proc.join(_abc.MAX_TIMEOUT)
+            while timeout > tp_workers.MAX_TIMEOUT:
+                worker.proc.join(tp_workers.MAX_TIMEOUT)
                 if worker.proc.exitcode is not None:
                     break
                 timeout = deadline - time.perf_counter()
@@ -105,7 +102,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             self._recv_pipe.fileno(), self._send_pipe.fileno()
         )
         self.proc = self.mp_context.Process(
-            target=self._work,
+            target=tp_workers.worker_behavior,
             args=(
                 self._child_recv_pipe,
                 self._child_send_pipe,
@@ -117,91 +114,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             daemon=True,
         )
 
-    @staticmethod
-    def _work(recv_pipe, send_pipe, idle_timeout, init, retire):
-        import inspect
-        import signal
-
-        def handle_job(job):
-            fn, args = loads(job)
-            ret = fn(*args)
-            if inspect.iscoroutine(ret):
-                # Manually close coroutine to avoid RuntimeWarnings
-                ret.close()
-                raise TypeError(
-                    "trio-parallel worker expected a sync function, but {!r} appears "
-                    "to be asynchronous".format(getattr(fn, "__qualname__", fn))
-                )
-
-            return ret
-
-        def safe_dumps(result):
-            try:
-                return dumps(result, protocol=HIGHEST_PROTOCOL)
-            except BaseException as exc:
-                return dumps(Error(exc), protocol=HIGHEST_PROTOCOL)
-
-        def poll(timeout):
-            deadline = time.perf_counter() + timeout
-            while timeout > _abc.MAX_TIMEOUT:
-                if recv_pipe.poll(_abc.MAX_TIMEOUT):
-                    return True
-                timeout = deadline - time.perf_counter()
-            else:
-                return recv_pipe.poll(timeout)
-
-        # Intercept keyboard interrupts to avoid passing KeyboardInterrupt
-        # between processes. (Trio will take charge via cancellation.)
-        signal.signal(signal.SIGINT, signal.SIG_IGN)
-
-        try:
-            if isinstance(init, bytes):  # true except on "fork"
-                # Signal successful startup to spawn/forkserver parents.
-                send_pipe.send_bytes(ACK)
-                init = loads(init)
-            if isinstance(retire, bytes):  # true except on "fork"
-                retire = loads(retire)
-            init()
-            while poll(idle_timeout):
-                send_pipe.send_bytes(
-                    safe_dumps(capture(handle_job, recv_pipe.recv_bytes()))
-                )
-                if retire():
-                    break
-        except (BrokenPipeError, EOFError):
-            # Graceful shutdown: If the main process closes the pipes, we will
-            # observe one of these exceptions and can simply exit quietly.
-            # Closing pipes manually fixed some __del__ flakiness in CI
-            send_pipe.close()
-            recv_pipe.close()
-            return
-        except BaseException:
-            # Ensure BrokenWorkerError raised in the main proc.
-            send_pipe.close()
-            # recv_pipe must remain open and clear until the main proc closes it.
-            try:
-                while True:
-                    recv_pipe.recv_bytes()
-            except EOFError:
-                pass
-            raise
-        else:
-            # Clean idle shutdown or retirement: close recv_pipe first to minimize
-            # subsequent race.
-            recv_pipe.close()
-            # Race condition: it is possible to sneak a write through in the main process
-            # between the while loop predicate and recv_pipe.close(). Naively, this would
-            # make a clean shutdown look like a broken worker. By sending a sentinel
-            # value, we can indicate to a waiting main process that we have hit this
-            # race condition and need a restart. However, the send MUST be non-blocking
-            # to free this process's resources in a timely manner. Therefore, this message
-            # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
-            send_pipe.send_bytes(dumps(None, protocol=HIGHEST_PROTOCOL))
-            send_pipe.close()
-
     async def start(self):
-        import trio
-
         await trio.to_thread.run_sync(self.proc.start)
         # XXX: We must explicitly close these after start to see child closures
         self._child_send_pipe.close()
@@ -221,12 +134,10 @@ class SpawnProcWorker(_abc.AbstractWorker):
                 with trio.CancelScope(shield=True):
                     await self.wait()
                 raise
-            assert code == ACK
+            assert code == tp_workers.ACK
             nursery.cancel_scope.cancel()
 
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
-        import trio
-
         try:
             job = dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
         except BaseException as exc:
@@ -316,7 +227,7 @@ if "fork" in _all_start_methods:  # pragma: no branch
         def _run(self):
             self._send_pipe.close()
             self._recv_pipe.close()
-            super()._work(
+            tp_workers.worker_behavior(
                 self._child_recv_pipe,
                 self._child_send_pipe,
                 self._idle_timeout,
@@ -325,8 +236,6 @@ if "fork" in _all_start_methods:  # pragma: no branch
             )
 
         async def start(self):
-            import trio
-
             await trio.lowlevel.checkpoint_if_cancelled()
             # on fork, doing start() in a thread is racy, and should be
             # fast enough to be considered non-blocking anyway

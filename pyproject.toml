@@ -20,7 +20,7 @@ faulthandler_timeout = 60
 
 [tool.coverage.run]
 branch = true
-source_pkgs = ["trio_parallel"]
+source_pkgs = ["trio_parallel", "_trio_parallel_workers"]
 disable_warnings = ["trace-changed"]  # for test_clean_exit_on_pipe_close
 
 [tool.coverage.report]
@@ -36,3 +36,4 @@ show_contexts = true
 
 [tool.coverage.paths]
 source = ["trio_parallel/", "*/trio_parallel"]
+workers = ["_trio_parallel_workers/", "*/_trio_parallel_workers"]

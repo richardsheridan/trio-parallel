@@ -7,13 +7,14 @@ from itertools import count
 from typing import Type, Callable, Any
 
 import attr
+import trio
 
 from ._proc import WORKER_PROC_MAP
 from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
 
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
-limiter_runvar = None
+limiter_runvar = trio.lowlevel.RunVar("trio_parallel")
 ATEXIT_SHUTDOWN_GRACE_PERIOD = 30.0
 
 
@@ -26,11 +27,6 @@ def current_default_worker_limiter():
     is initialized to the number of CPUs reported by :func:`os.cpu_count`.
 
     """
-    import trio
-
-    global limiter_runvar
-    if limiter_runvar is None:
-        limiter_runvar = trio.lowlevel.RunVar("trio_parallel")
     try:
         return limiter_runvar.get()
     except LookupError:
@@ -69,8 +65,6 @@ class ContextLifetimeManager:
     async def __aenter__(self):
         # only async to save indentation
         if self.closed:
-            import trio
-
             raise trio.ClosedResourceError
         next(self.enter_counter)
 
@@ -78,16 +72,12 @@ class ContextLifetimeManager:
         # only async to save indentation
         next(self.exit_counter)
         if self.task and self.calc_running() == 0:
-            import trio
-
             trio.lowlevel.reschedule(self.task)
 
     async def close_and_wait(self):
         assert not self.closed
         self.closed = True
         if self.calc_running() != 0:
-            import trio
-
             self.task = trio.lowlevel.current_task()
             await trio.lowlevel.wait_task_rescheduled(
                 # never cancelled anyway
@@ -169,8 +159,6 @@ class WorkerContext(metaclass=NoPublicConstructor):
 
         Raises:
             trio.ClosedResourceError: if this method is run on a closed context"""
-        import trio
-
         if limiter is None:
             limiter = current_default_worker_limiter()
 
@@ -196,8 +184,6 @@ class WorkerContext(metaclass=NoPublicConstructor):
                     return result.unwrap()
 
     async def _aclose(self, grace_period=None):
-        import trio
-
         if grace_period is None:
             grace_period = self.grace_period
         with trio.CancelScope(shield=True):
@@ -214,24 +200,16 @@ class WorkerContext(metaclass=NoPublicConstructor):
 
 # intentionally skip open_worker_context
 DEFAULT_CONTEXT = WorkerContext._create()
-DEFAULT_CONTEXT_RUNVAR = None
+DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
 if sys.platform == "win32":
 
     async def close_at_run_end(ctx):
-        import trio
-
         try:
             await trio.sleep_forever()
         finally:
             await ctx._aclose(ATEXIT_SHUTDOWN_GRACE_PERIOD)
 
     def get_default_context():
-        import trio
-
-        global DEFAULT_CONTEXT_RUNVAR
-
-        if DEFAULT_CONTEXT_RUNVAR is None:
-            DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
         try:
             ctx = DEFAULT_CONTEXT_RUNVAR.get()
         except LookupError:

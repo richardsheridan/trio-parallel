@@ -4,7 +4,7 @@ import math
 import pytest
 import trio
 
-from ._funcs import (
+from _trio_parallel_workers._funcs import (
     _init_run_twice,
     _retire_run_twice,
     _bad_retire_fn,
@@ -96,8 +96,6 @@ async def test_delayed_bad_retire_fn(cache_and_workertype, capfd):
 
 
 async def test_loopy_retire_fn(cache_and_workertype, monkeypatch):
-    from .. import _abc
-
     cache, worker_type = cache_and_workertype
     worker = worker_type(math.inf, _init_run_twice, _loopy_retire_fn)
     await worker.start()
@@ -105,7 +103,9 @@ async def test_loopy_retire_fn(cache_and_workertype, monkeypatch):
     await worker.run_sync(bool)
 
     # increase coverage in cache.shutdown
-    monkeypatch.setattr(_abc, "MAX_TIMEOUT", 0.1)
+    import _trio_parallel_workers
+
+    monkeypatch.setattr(_trio_parallel_workers, "MAX_TIMEOUT", 0.1)
     cache.append(worker)
     with pytest.raises(BrokenWorkerError):
         cache.shutdown(0.5)
