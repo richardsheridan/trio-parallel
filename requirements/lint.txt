@@ -5,22 +5,26 @@
 #    pip-compile requirements/lint.in
 #
 black==22.1.0
-    # via -r lint.in
+    # via -r requirements/lint.in
 click==8.0.4
     # via black
+colorama==0.4.4
+    # via click
 flake8==4.0.1
-    # via -r lint.in
+    # via -r requirements/lint.in
 mccabe==0.6.1
     # via flake8
 mypy-extensions==0.4.3
     # via black
 pathspec==0.9.0
     # via black
-platformdirs==2.3.0
+platformdirs==2.5.1
     # via black
 pycodestyle==2.8.0
     # via flake8
 pyflakes==2.4.0
     # via flake8
-tomli==1.2.3
+tomli==2.0.1
+    # via black
+typing-extensions==4.1.1
     # via black
