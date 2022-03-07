@@ -153,6 +153,7 @@ async def test_context_waits(manager):
     async with trio.open_nursery() as nursery:
         async with open_worker_context() as ctx:
             nursery.start_soon(child)
+            nursery.start_soon(child)
             await trio.to_thread.run_sync(start.wait, cancellable=True)
             block.set()
         assert finished

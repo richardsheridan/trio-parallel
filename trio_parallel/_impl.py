@@ -70,8 +70,9 @@ class ContextLifetimeManager:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         # only async to save indentation
         next(self.exit_counter)
-        if self.task and self.calc_running() == 0:
-            trio.lowlevel.reschedule(self.task)
+        if self.task:
+            if self.calc_running() == 0:
+                trio.lowlevel.reschedule(self.task)
 
     async def close_and_wait(self):
         assert not self.task
