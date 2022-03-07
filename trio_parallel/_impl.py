@@ -77,10 +77,11 @@ class ContextLifetimeManager:
         assert not self.task
         self.task = trio.lowlevel.current_task()
         if self.calc_running() != 0:
-            await trio.lowlevel.wait_task_rescheduled(
-                # never cancelled anyway
-                lambda _: trio.lowlevel.Abort.FAILED  # pragma: no cover
-            )
+
+            def abort_func(raise_cancel):  # pragma: no cover
+                return trio.lowlevel.Abort.FAILED  # never cancelled anyway
+
+            await trio.lowlevel.wait_task_rescheduled(abort_func)
 
     def calc_running(self):
         # __reduce__ is the only count API that can extract the internal int value
