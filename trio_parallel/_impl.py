@@ -56,7 +56,6 @@ recommended."""
 
 @attr.s(slots=True, eq=False)
 class ContextLifetimeManager:
-    closed = attr.ib(False)
     task = attr.ib(None)
     # Counters are used for thread safety of the default cache
     enter_counter = attr.ib(factory=lambda: count(1))
@@ -64,7 +63,7 @@ class ContextLifetimeManager:
 
     async def __aenter__(self):
         # only async to save indentation
-        if self.closed:
+        if self.task:
             raise trio.ClosedResourceError
         next(self.enter_counter)
 
@@ -75,15 +74,13 @@ class ContextLifetimeManager:
             trio.lowlevel.reschedule(self.task)
 
     async def close_and_wait(self):
-        assert not self.closed
-        self.closed = True
+        assert not self.task
+        self.task = trio.lowlevel.current_task()
         if self.calc_running() != 0:
-            self.task = trio.lowlevel.current_task()
             await trio.lowlevel.wait_task_rescheduled(
                 # never cancelled anyway
                 lambda _: trio.lowlevel.Abort.FAILED  # pragma: no cover
             )
-            self.task = None
 
     def calc_running(self):
         # __reduce__ is the only count API that can extract the internal int value
