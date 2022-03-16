@@ -102,7 +102,7 @@ towncrier==21.9.0
     # via trio-parallel (setup.cfg)
 trio==0.20.0
     # via trio-parallel (setup.cfg)
-urllib3==1.26.8
+urllib3==1.26.9
     # via requests
 zipp==3.7.0
     # via importlib-metadata
