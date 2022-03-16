@@ -45,7 +45,7 @@ pycparser==2.21
     # via cffi
 pyparsing==3.0.7
     # via packaging
-pytest==7.0.1
+pytest==7.1.0
     # via
     #   pytest-cov
     #   pytest-trio
