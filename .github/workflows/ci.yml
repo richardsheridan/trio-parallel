@@ -19,7 +19,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v3
       - name: Pip cache
-        uses: actions/cache@v2.1.7
+        uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-black-${{ hashFiles('**/requirements/lint.txt') }}
@@ -54,7 +54,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v3
       - name: Pip cache
-        uses: actions/cache@v2.1.7
+        uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-build-${{ hashFiles('**/requirements/build.txt') }}
@@ -128,7 +128,7 @@ jobs:
         run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
         shell: bash
       - name: Pip cache
-        uses: actions/cache@v2.1.7
+        uses: actions/cache@v3
         with:
           path: |
             ~/AppData/Local/pip/Cache
@@ -185,7 +185,7 @@ jobs:
           python-version: '${{ matrix.python }}'
           architecture: '${{ matrix.arch }}'
       - name: Pip cache
-        uses: actions/cache@v2.1.6
+        uses: actions/cache@v3
         with:
           path: |
             ~/AppData/Local/pip/Cache
