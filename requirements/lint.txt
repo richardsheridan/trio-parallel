@@ -6,7 +6,7 @@
 #
 black==22.3.0
     # via -r lint.in
-click==8.0.4
+click==8.1.0
     # via black
 flake8==4.0.1
     # via -r lint.in
