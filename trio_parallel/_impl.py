@@ -204,11 +204,15 @@ DEFAULT_CONTEXT = WorkerContext._create()
 DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
 if sys.platform == "win32":
 
+    # TODO: intelligently test ki protection here such that CI fails if the
+    #  decorators disappear
+
     @trio.lowlevel.enable_ki_protection
     async def close_at_run_end(ctx):
         try:
             await trio.sleep_forever()
         finally:
+            # KeyboardInterrupt here could leak the context
             await ctx._aclose(ATEXIT_SHUTDOWN_GRACE_PERIOD)
 
     @trio.lowlevel.enable_ki_protection
@@ -218,6 +222,7 @@ if sys.platform == "win32":
         except LookupError:
             ctx = WorkerContext._create()
             DEFAULT_CONTEXT_RUNVAR.set(ctx)
+            # KeyboardInterrupt here could leak the context
             trio.lowlevel.spawn_system_task(close_at_run_end, ctx)
         return ctx
 
@@ -247,8 +252,8 @@ def default_context_statistics():
     return get_default_context().statistics()
 
 
-@trio.lowlevel.enable_ki_protection
 @asynccontextmanager
+@trio.lowlevel.enable_ki_protection
 async def open_worker_context(
     idle_timeout=DEFAULT_CONTEXT.idle_timeout,
     init=DEFAULT_CONTEXT.init,

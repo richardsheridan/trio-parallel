@@ -45,6 +45,7 @@ class MockCache(WorkerCache):
     shutdown_count = 0
 
     def prune(self):
+        assert trio.lowlevel.currently_ki_protected()
         self.pruned_count += 1
         while self:
             worker = self.popleft()
@@ -63,6 +64,10 @@ class MockContext(_impl.WorkerContext):
         super().__attrs_post_init__()
         self.__dict__["_worker_class"] = MockWorker
         self.__dict__["_worker_cache"] = MockCache()
+
+    async def _aclose(self, grace_period=None):
+        assert trio.lowlevel.currently_ki_protected()
+        await super()._aclose(grace_period)
 
 
 @pytest.fixture
