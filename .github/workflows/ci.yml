@@ -102,7 +102,7 @@ jobs:
         arch: [ x64, x86 ]
         include:
           - os: ubuntu-latest
-            python: 'pypy-3.8-nightly'
+            python: 'pypy-3.9-nightly'
             arch: x64
             experimental: true
           - os: ubuntu-latest
