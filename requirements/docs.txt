@@ -104,7 +104,7 @@ trio==0.20.0
     # via trio-parallel (setup.cfg)
 urllib3==1.26.9
     # via requests
-zipp==3.7.0
+zipp==3.8.0
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
