@@ -115,6 +115,9 @@ jobs:
           - os: macos-latest
             arch: x86
     steps:
+      - name: Input settings
+        run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
+        shell: bash
       - name: Setup python
         uses: actions/setup-python@v3.1.2
         with:
@@ -122,9 +125,6 @@ jobs:
           cache-dependency-path: requirements/test.txt
           python-version: '${{ matrix.python }}'
           architecture: '${{ matrix.arch }}'
-      - name: Input settings
-        run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
-        shell: bash
       - name: Download build artifact
         uses: actions/download-artifact@v3
         with:
