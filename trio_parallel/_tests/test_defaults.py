@@ -204,7 +204,7 @@ def test_startup_failure_doesnt_hang(pytester):
         check=False,  # we expect a failure
         timeout=20,
     )
-    # assert not result.stderr
+    assert b"An attempt has been made to start a new process" in result.stderr
     assert result.returncode
 
 
