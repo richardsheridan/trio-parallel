@@ -257,3 +257,11 @@ async def test_concurrent_runs(shutdown_cache):
     async with trio.open_nursery() as n:
         for i in range(2):
             n.start_soon(trio.to_thread.run_sync, trio.run, worker, i)
+
+
+def test_nice_names():
+    import trio_parallel
+
+    for objname, obj in trio_parallel.__dict__.items():
+        if not objname.startswith("_"):  # ignore private attributes
+            assert "._" not in obj.__module__
