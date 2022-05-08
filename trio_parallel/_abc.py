@@ -84,7 +84,9 @@ class WorkerCache(Deque[AbstractWorker], ABC):
               shutdown signal within ``grace_period``."""
 
 
-# vendored from trio so it's not Final and we can subclass a test fake
+# Vendored from trio._util in v0.19.0 under identical MIT/Apache2 license.
+# Copyright Contributors to the Trio project.
+# Modified so it's not Final so that we can create a test fake subclass.
 T = TypeVar("T")
 
 
