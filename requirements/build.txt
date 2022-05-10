@@ -5,9 +5,7 @@
 #    pip-compile --allow-unsafe requirements/build.in
 #
 build==0.7.0
-    # via -r requirements/build.in
-colorama==0.4.4
-    # via build
+    # via -r build.in
 packaging==21.3
     # via
     #   build
@@ -17,19 +15,19 @@ pep517==0.12.0
 pyparsing==3.0.7
     # via packaging
 setuptools-scm[toml]==6.4.2
-    # via -r requirements/build.in
+    # via -r build.in
 setuptools-scm-git-archive==1.1
-    # via -r requirements/build.in
+    # via -r build.in
 tomli==2.0.1
     # via
     #   build
     #   pep517
     #   setuptools-scm
 wheel==0.37.1
-    # via -r requirements/build.in
+    # via -r build.in
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==62.1.0
+setuptools==62.2.0
     # via
-    #   -r requirements/build.in
+    #   -r build.in
     #   setuptools-scm
