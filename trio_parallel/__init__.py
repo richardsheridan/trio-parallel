@@ -30,8 +30,8 @@ def fixup_module_metadata(module_name, namespace):
             # Modules, unlike everything else in Python, put fully-qualified
             # names into their __name__ attribute. Trio checks for "." to avoid
             # rewriting these, but we don't have any, so it's always true.
-            hasdot = hasattr(obj, "__name__") and "." not in obj.__name__
-            if hasdot:  # pragma: no branch
+            nodot = hasattr(obj, "__name__") and "." not in obj.__name__
+            if nodot:  # pragma: no branch
                 obj.__name__ = name
                 obj.__qualname__ = qualname
             if isinstance(obj, type):
