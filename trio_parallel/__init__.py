@@ -1,4 +1,4 @@
-"""Top-level package for trio-parallel."""
+"""trio-parallel: CPU parallelism for Trio"""
 
 from ._impl import (
     run_sync,
