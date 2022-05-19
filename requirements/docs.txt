@@ -15,7 +15,7 @@ attrs==21.4.0
     #   trio-parallel (setup.cfg)
 babel==2.10.1
     # via sphinx
-certifi==2022.5.18
+certifi==2022.5.18.1
     # via requests
 cffi==1.15.0 ; os_name == "nt" and implementation_name != "pypy"
     # via
