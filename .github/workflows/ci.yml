@@ -67,7 +67,7 @@ jobs:
           echo "::set-output name=wheelname::$( echo ./dist/*.whl )"
           echo "::set-output name=settings::$( tar cz pyproject.toml requirements/test.txt | base64 -w 0 )"
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3.0.0
+        uses: actions/upload-artifact@v3.1.0
         with:
           name: Build
 #         by default build puts sdist and wheel here
@@ -145,7 +145,7 @@ jobs:
         shell: bash
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v3.0.0
+        uses: actions/upload-artifact@v3.1.0
         with:
           name: Coverage
           path: "*coverage*${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}*"
@@ -234,7 +234,7 @@ jobs:
           coverage report --fail-under=100 --show-missing
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v3.0.0
+        uses: actions/upload-artifact@v3.1.0
         with:
           name: Report
           path: htmlcov/
