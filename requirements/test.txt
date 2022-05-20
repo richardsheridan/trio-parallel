@@ -22,7 +22,7 @@ cffi==1.15.0 ; os_name == "nt" and implementation_name != "pypy"
     #   trio-parallel (setup.cfg)
 colorama==0.4.4
     # via pytest
-coverage[toml]==6.3.1
+coverage[toml]==6.3.3
     # via
     #   pytest-cov
     #   trio-parallel (setup.cfg)
