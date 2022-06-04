@@ -4,7 +4,7 @@
 #
 #    pip-compile requirements/coverage.in
 #
-coverage[toml]==6.4
+coverage[toml]==6.4.1
     # via -r requirements/coverage.in
 tomli==2.0.1
     # via coverage
