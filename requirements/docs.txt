@@ -100,7 +100,7 @@ tomli==2.0.1
     # via towncrier
 towncrier==21.9.0
     # via trio-parallel (setup.cfg)
-trio==0.20.0
+trio==0.21.0
     # via trio-parallel (setup.cfg)
 urllib3==1.26.9
     # via requests
