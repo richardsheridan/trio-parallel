@@ -27,5 +27,5 @@ sniffio==1.2.0
     # via trio
 sortedcontainers==2.4.0
     # via trio
-trio==0.20.0
+trio==0.21.0
     # via trio-parallel (setup.cfg)

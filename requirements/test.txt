@@ -62,7 +62,7 @@ tomli==2.0.1
     # via
     #   coverage
     #   pytest
-trio==0.20.0
+trio==0.21.0
     # via
     #   pytest-trio
     #   trio-parallel (setup.cfg)
