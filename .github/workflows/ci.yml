@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.0.2
       - name: Setup python
-        uses: actions/setup-python@v3.1.2
+        uses: actions/setup-python@v4.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/lint.txt
@@ -50,7 +50,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup python
-        uses: actions/setup-python@v3.1.2
+        uses: actions/setup-python@v4.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/build.txt
@@ -119,7 +119,7 @@ jobs:
         run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
         shell: bash
       - name: Setup python
-        uses: actions/setup-python@v3.1.2
+        uses: actions/setup-python@v4.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/test.txt
@@ -170,7 +170,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.0.2
       - name: Setup python
-        uses: actions/setup-python@v3.1.2
+        uses: actions/setup-python@v4.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/test.txt
@@ -219,7 +219,7 @@ jobs:
         with:
           name: Coverage
       - name: Setup python
-        uses: actions/setup-python@v3.1.2
+        uses: actions/setup-python@v4.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/coverage.txt
