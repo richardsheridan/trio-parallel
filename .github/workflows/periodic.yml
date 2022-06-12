@@ -9,7 +9,7 @@ on:
 
 jobs:
   Test:
-    name: Test ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})
+    name: Test ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.source }})
     timeout-minutes: 10
     runs-on: ${{ matrix.os }}
     strategy:
