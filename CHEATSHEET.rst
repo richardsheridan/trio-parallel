@@ -18,7 +18,7 @@ If you want to use static typing (mypy) in your project
 To run tests
 ------------
 
-* Install requirements: ``pip install -e .[test]``
+* Install test extras: ``pip install -e .[test]``
   (possibly in a virtualenv)
 
 * Actually run the tests: ``pytest --pyargs trio_parallel``
@@ -32,6 +32,16 @@ To run black
 
 * Apply all changes directly to the source tree: ``black setup.py
   trio_parallel``
+
+
+To update pinned requirements
+------------
+
+* Run ``pip install pip-compile-multi`` if necessary.
+
+* Run ``pip-compile-multi --allow-unsafe``.
+
+* Note that manually changing dependencies will fail a CI check.
 
 
 To make a release
