@@ -39,4 +39,6 @@ jobs:
       - name: Run tests
         run: |
           python -m pip install ${{ matrix.source }}[test]
+          mkdir empty
+          cd empty  # Disguise normal pytest config file
           python -m pytest --pyargs trio_parallel
