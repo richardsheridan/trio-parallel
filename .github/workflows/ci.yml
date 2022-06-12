@@ -9,6 +9,25 @@ on:
     types: [ published ]
 
 jobs:
+  Verify:
+    name: 'Verify requirement pinning'
+    timeout-minutes: 2
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.0.2
+      - name: Setup python
+        uses: actions/setup-python@v4.0.0
+        with:
+          python-version: "3.10"
+      - name: Install requirements
+        run: |
+          python -m pip install -U pip
+          # Optimistically assume SHA checks won't change much
+          python -m pip install pip-compile-multi
+      - name: Verify requirements
+        run: pip-compile-multi verify
+
   Blacken:
     name: 'Formatting and linting'
     timeout-minutes: 2
@@ -67,7 +86,13 @@ jobs:
         id: outputs
         run: |
           echo "::set-output name=wheelname::$( echo ./dist/*.whl )"
-          echo "::set-output name=settings::$( tar cz pyproject.toml requirements/test.txt | base64 -w 0 )"
+          echo "::set-output name=settings::$( 
+              tar cz \
+              pyproject.toml \
+              requirements/install.txt \
+              requirements/test.txt \
+              | base64 -w 0
+          )"
       - name: Upload build artifact
         uses: actions/upload-artifact@v3.1.0
         with:
@@ -184,10 +209,30 @@ jobs:
           python -m pip install -r requirements/test.txt
       - name: Install editable source
         run: |
-          python -m pip install -e .[test] --no-deps
+          python -m pip install -e . --no-deps
       - name: Run tests
         run: |
           python -m pytest --no-cov docs/source
+
+  Extras:
+    name: 'Test [test] extra'
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    needs: Build
+    steps:
+      - name: Setup python
+        uses: actions/setup-python@v4.0.0
+        with:
+          python-version: '3.10'
+      - name: Download build artifact
+        uses: actions/download-artifact@v2.1.0
+        with:
+          name: Build
+          path: dist
+      - name: Run tests
+        run: |
+          python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
+          pytest --pyargs trio_parallel
 
   Codecov: # Codecov is naughty and will be forever isolated
     name: Codecov
@@ -246,7 +291,7 @@ jobs:
   All:
     name: All checks and tests
     timeout-minutes: 1
-    needs: [ Blacken, Build, Examples, Test, Codecov, Coverage ]
+    needs: [ Verify, Blacken, Build, Examples, Test, Extras, Codecov, Coverage ]
     runs-on: ubuntu-latest
     steps:
       - name: "true"

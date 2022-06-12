@@ -1,0 +1,5 @@
+-r install.in
+sphinx > 3.5.0
+sphinx_rtd_theme
+sphinxcontrib-trio
+towncrier
