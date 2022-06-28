@@ -5,11 +5,11 @@
 #
 #    pip-compile-multi
 #
-black==22.3.0
+black==22.6.0
     # via -r requirements\lint.in
 click==8.1.3
     # via black
-colorama==0.4.4
+colorama==0.4.5
     # via click
 flake8==4.0.1
     # via -r requirements\lint.in
@@ -26,4 +26,6 @@ pycodestyle==2.8.0
 pyflakes==2.4.0
     # via flake8
 tomli==2.0.1
+    # via black
+typing-extensions==4.2.0
     # via black
