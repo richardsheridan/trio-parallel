@@ -13,4 +13,3 @@ cffi==1.15.1 ; os_name == "nt" and implementation_name != "pypy"
     #   trio
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools

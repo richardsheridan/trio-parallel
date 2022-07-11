@@ -83,4 +83,5 @@ urllib3==1.26.10
     # via requests
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools
+setuptools==63.1.0
+    # via towncrier
