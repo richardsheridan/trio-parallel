@@ -17,7 +17,7 @@ except ImportError:
 from outcome import capture, Error
 
 MAX_TIMEOUT = 24.0 * 60.0 * 60.0
-ACK = b"0x06"
+ACK = b"\x06"
 
 
 def handle_job(job):
