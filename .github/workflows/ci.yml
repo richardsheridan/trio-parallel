@@ -324,6 +324,6 @@ jobs:
           name: Build
           path: dist
       - name: Publish to Pypi
-        uses: pypa/gh-action-pypi-publish@v1.5.0
+        uses: pypa/gh-action-pypi-publish@v1.5.1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
