@@ -33,7 +33,7 @@ jobs:
         if: matrix.source == '-e .'
         uses: actions/checkout@v3.0.2
       - name: Setup python
-        uses: actions/setup-python@v4.0.0
+        uses: actions/setup-python@v4.1.0
         with:
           python-version: ${{ matrix.python }}
       - name: Run tests
