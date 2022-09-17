@@ -4,13 +4,18 @@ import sys
 from contextlib import asynccontextmanager
 from enum import Enum
 from itertools import count
-from typing import Type, Callable, Any
+from typing import Type, Callable, Any, TypeVar
 
 import attr
 import trio
 
 from ._proc import WORKER_PROC_MAP
 from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
+
+# sphinx needs a little help to silence a warning about the origin of T
+# https://github.com/sphinx-doc/sphinx/issues/7722#issuecomment-657231977
+#: T
+T = TypeVar("T")
 
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
@@ -151,7 +156,13 @@ class WorkerContext(metaclass=NoPublicConstructor):
         self.__dict__["_worker_cache"] = cache_class()
 
     @trio.lowlevel.enable_ki_protection
-    async def run_sync(self, sync_fn, *args, cancellable=False, limiter=None):
+    async def run_sync(
+        self,
+        sync_fn: Callable[..., T],
+        *args,
+        cancellable: bool = False,
+        limiter: trio.CapacityLimiter = None,
+    ) -> T:
         """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
 
         Behaves according to the customized attributes of the context. See
@@ -337,8 +348,13 @@ def atexit_shutdown_grace_period(grace_period=-1.0):
     return ATEXIT_SHUTDOWN_GRACE_PERIOD
 
 
-async def run_sync(sync_fn, *args, cancellable=False, limiter=None):
-    """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
+async def run_sync(
+    sync_fn: Callable[..., T],
+    *args,
+    cancellable: bool = False,
+    limiter: trio.CapacityLimiter = None,
+) -> T:
+    """Run ``sync_fn(*args)`` in a separate process and return/raise its outcome.
 
     This function is intended to enable the following:
 
