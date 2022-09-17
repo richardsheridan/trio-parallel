@@ -12,9 +12,6 @@ import trio
 from ._proc import WORKER_PROC_MAP
 from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
 
-# sphinx needs a little help to silence a warning about the origin of T
-# https://github.com/sphinx-doc/sphinx/issues/7722#issuecomment-657231977
-#: T
 T = TypeVar("T")
 
 # Sane default might be to expect cpu-bound work
@@ -163,7 +160,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
         cancellable: bool = False,
         limiter: trio.CapacityLimiter = None,
     ) -> T:
-        """Run ``sync_fn(*args)`` in a separate process and return/raise it's outcome.
+        """Run ``sync_fn(*args)`` in a separate process and return/raise its outcome.
 
         Behaves according to the customized attributes of the context. See
         :func:`trio_parallel.run_sync()` for details.
