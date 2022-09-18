@@ -77,7 +77,7 @@ async def test_tracebacks(worker):
         (await worker.run_sync(_chained_exc)).unwrap()
     except TypeError as e:
         assert str(e) == "test2"
-        text = "".join(traceback.format_exception(e))
+        text = "".join(traceback.format_exception(type(e), e, e.__traceback__))
     else:  # pragma: no cover
         assert False, "an error should be raised"
 
