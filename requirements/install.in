@@ -3,3 +3,4 @@ trio >= 0.18.0
 outcome
 attrs >= 17.3.0
 cffi; os_name == 'nt' and implementation_name != 'pypy'
+tblib

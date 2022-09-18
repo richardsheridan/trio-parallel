@@ -3,11 +3,12 @@
     All workers should pass these tests, regardless of implementation
 """
 import math
+import traceback
 
 import pytest
 import trio
 
-from _trio_parallel_workers._funcs import _null_async_fn
+from _trio_parallel_workers._funcs import _null_async_fn, _chained_exc
 from .._impl import WORKER_MAP
 
 
@@ -68,3 +69,17 @@ async def test_clean_exit_on_shutdown(worker, capfd):
     out, err = capfd.readouterr()
     assert not out
     assert not err
+
+
+async def test_tracebacks(worker):
+    await worker.start()
+    try:
+        (await worker.run_sync(_chained_exc)).unwrap()
+    except TypeError as e:
+        assert str(e) == "test2"
+        text = "".join(traceback.format_exception(e))
+    else:  # pragma: no cover
+        assert False, "an error should be raised"
+
+    assert "raise ValueError(" in text
+    assert "raise TypeError(" in text
