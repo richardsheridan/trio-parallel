@@ -92,3 +92,10 @@ def _monkeypatch_max_timeout():
 
 def _no_trio():
     return "trio" not in sys.modules
+
+
+def _chained_exc():
+    try:
+        raise ValueError('test1')
+    except BaseException as e:
+        raise TypeError('test2') from e

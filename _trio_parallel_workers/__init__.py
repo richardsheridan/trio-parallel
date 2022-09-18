@@ -15,6 +15,9 @@ except ImportError:
     from pickle import dumps, loads
 
 from outcome import capture, Error
+from tblib.pickling_support import install
+
+install()
 
 MAX_TIMEOUT = 24.0 * 60.0 * 60.0
 ACK = b"\x06"

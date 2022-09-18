@@ -6,15 +6,13 @@
 #    pip-compile-multi
 #
 -r install.txt
-atomicwrites==1.4.1
-    # via pytest
 cffi==1.15.1 ; os_name == "nt" and implementation_name != "pypy"
     # via
     #   -r requirements\install.in
     #   trio
 colorama==0.4.5
     # via pytest
-coverage[toml]==6.4.1
+coverage[toml]==6.4.4
     # via
     #   -r requirements\test.in
     #   pytest-cov
@@ -28,7 +26,7 @@ py==1.11.0
     # via pytest
 pyparsing==3.0.9
     # via packaging
-pytest==7.1.2
+pytest==7.1.3
     # via
     #   -r requirements\test.in
     #   pytest-cov
