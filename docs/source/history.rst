@@ -5,6 +5,30 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.1.0 (2022-09-18)
+--------------------------------
+
+Features
+~~~~~~~~
+
+- Add type hints for `run_sync` (`#322 <https://github.com/richardsheridan/trio-parallel/issues/322>`__)
+- Use ``tblib`` to enable pickling of tracebacks between processes. Mainly, this
+  preserves context of exceptions including chained exceptions. (`#323 <https://github.com/richardsheridan/trio-parallel/issues/323>`__)
+
+
+Bugfixes
+~~~~~~~~
+
+- Prevent Ctrl+C from inducing various leaks and inconsistent states. (`#239 <https://github.com/richardsheridan/trio-parallel/issues/239>`__)
+- Cleaned up names/qualnames of objects in the trio_parallel namespace. (`#291 <https://github.com/richardsheridan/trio-parallel/issues/291>`__)
+
+
+Deprecations and Removals
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Removed python 3.6 support (`#236 <https://github.com/richardsheridan/trio-parallel/issues/236>`__)
+
+
 trio-parallel 1.0.0 (2021-12-04)
 --------------------------------
 

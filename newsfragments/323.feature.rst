@@ -1,2 +1,0 @@
-Use ``tblib`` to enable pickling of tracebacks between processes. Mainly, this
-preserves context of exceptions including chained exceptions.
