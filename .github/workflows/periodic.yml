@@ -25,9 +25,6 @@ jobs:
         source:
           - 'trio-parallel'
           - '-e .'
-        exclude:
-          - os: windows-latest
-            python: 'pypy-3.8'
     steps:
       - name: Checkout
         if: matrix.source == '-e .'
