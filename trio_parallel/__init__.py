@@ -6,6 +6,7 @@ from ._impl import (
     WorkerContext,
     WorkerType,
     current_default_worker_limiter,
+    configure_default_context,
     atexit_shutdown_grace_period,
     default_context_statistics,
 )
