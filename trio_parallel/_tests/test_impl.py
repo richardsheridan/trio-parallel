@@ -1,4 +1,5 @@
 """ Tests of public API with mocked-out workers ("collaboration" tests)"""
+import sys
 import warnings
 from typing import Callable, Optional
 
@@ -74,13 +75,16 @@ class MockContext(_impl.WorkerContext):
 async def mock_context(monkeypatch):
     monkeypatch.setattr(_impl, "WorkerContext", MockContext)
     ctx = MockContext._create()
-    monkeypatch.setattr(_impl, "DEFAULT_CONTEXT", ctx)
-    monkeypatch.setattr(
-        _impl, "DEFAULT_CONTEXT_RUNVAR", trio.lowlevel.RunVar("win32_ctx")
-    )
-    token = _impl.DEFAULT_CONTEXT_RUNVAR.set(ctx)
-    yield ctx
-    _impl.DEFAULT_CONTEXT_RUNVAR.reset(token)
+    if sys.platform == "win32":
+        monkeypatch.setattr(
+            _impl, "DEFAULT_CONTEXT_RUNVAR", trio.lowlevel.RunVar("win32_ctx")
+        )
+        token = _impl.DEFAULT_CONTEXT_RUNVAR.set(ctx)
+        yield ctx
+        _impl.DEFAULT_CONTEXT_RUNVAR.reset(token)
+    else:
+        monkeypatch.setattr(_impl, "DEFAULT_CONTEXT", ctx)
+        yield ctx
 
 
 async def test_context_methods(mock_context):

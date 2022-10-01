@@ -2,6 +2,7 @@ import atexit
 import os
 import sys
 import threading
+import warnings
 from contextlib import asynccontextmanager
 from enum import Enum
 from itertools import count
@@ -208,9 +209,8 @@ class WorkerContext(metaclass=NoPublicConstructor):
         )
 
 
+# Exists on all platforms as single source of truth for kwarg defaults
 DEFAULT_CONTEXT = WorkerContext._create()
-DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
-DEFAULT_CONTEXT_PARAMS = {}
 
 
 def configure_default_context(
@@ -220,7 +220,7 @@ def configure_default_context(
     grace_period=DEFAULT_CONTEXT.grace_period,
     worker_type=WorkerType.SPAWN,
 ):
-    """Configure the default worker cache parameters.
+    """Configure the default `WorkerContext` parameters associated with `run_sync`.
 
     Args:
       idle_timeout (float): The time in seconds an idle worker will
@@ -249,30 +249,36 @@ def configure_default_context(
 
     .. warning::
 
-       This function is meant to be used once before any usage of `trio` or
-       ``trio_parallel``. Doing otherwise may result in workers being leaked until
-       the main process ends!
+       This function is meant to be used once before any usage of `run_sync`.
+       Doing otherwise may (on POSIX) result in workers being leaked until
+       the main process ends, or (on Win32) having no effect until the next `trio.run`!
     """
     new_parm_dict = locals().copy()
     if threading.current_thread() is not threading.main_thread():
         raise RuntimeError("Only configure default context from the main thread")
-    try:
-        trio.lowlevel.current_task()
-    except RuntimeError:
-        pass
+    if sys.platform == "win32":
+        try:
+            DEFAULT_CONTEXT_RUNVAR.get()
+        except LookupError:
+            pass
+        else:
+            warnings.warn("Previous default context active until next `trio.run`")
+        DEFAULT_CONTEXT_PARAMS.update(**new_parm_dict)
     else:
-        raise RuntimeError("Only configure default context outside of `trio.run`")
-    global DEFAULT_CONTEXT
-    stats = DEFAULT_CONTEXT.statistics()
-    if stats.idle_workers or stats.running_workers:
-        import warnings
-
-        warnings.warn("Previous default context leaving zombie workers behind")
-    DEFAULT_CONTEXT = WorkerContext._create(**new_parm_dict)
-    DEFAULT_CONTEXT_PARAMS.update(**new_parm_dict)
+        stats = default_context_statistics()
+        if stats.idle_workers or stats.running_workers:
+            warnings.warn("Previous default context leaving zombie workers behind")
+        # assign to a local for KI protection
+        ctx = WorkerContext._create(**new_parm_dict)
+        atexit.register(graceful_default_shutdown, ctx)
+        global DEFAULT_CONTEXT
+        DEFAULT_CONTEXT = ctx
 
 
 if sys.platform == "win32":
+
+    DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
+    DEFAULT_CONTEXT_PARAMS = {}
 
     # TODO: intelligently test ki protection here such that CI fails if the
     #  decorators disappear
@@ -301,11 +307,10 @@ else:
     def get_default_context():
         return DEFAULT_CONTEXT
 
-    @atexit.register
-    def graceful_default_shutdown():
-        # need to late-bind the context attribute lookup so
-        # don't use atexit.register(fn,*args) form
-        DEFAULT_CONTEXT._worker_cache.shutdown(DEFAULT_CONTEXT.grace_period)
+    def graceful_default_shutdown(ctx):
+        ctx._worker_cache.shutdown(ctx.grace_period)
+
+    atexit.register(graceful_default_shutdown, DEFAULT_CONTEXT)
 
 
 def default_context_statistics():
@@ -378,7 +383,9 @@ async def open_worker_context(
         await ctx._aclose()
 
 
-def atexit_shutdown_grace_period(grace_period=DEFAULT_CONTEXT.grace_period):
+def atexit_shutdown_grace_period(
+    grace_period=DEFAULT_CONTEXT.grace_period,
+):  # pragma: no cover, deprecated
     """Set the default worker cache shutdown grace period.
 
     DEPRECATION NOTICE: this function has been superseded by
@@ -395,7 +402,15 @@ def atexit_shutdown_grace_period(grace_period=DEFAULT_CONTEXT.grace_period):
           exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
           Pass `math.inf` to wait forever.
     """
-    configure_default_context(grace_period=grace_period)  # pragma: no cover, deprecated
+    import warnings
+
+    warnings.warn(
+        DeprecationWarning(
+            "Superseded by `configure_default_context` "
+            "and will be removed in a future version"
+        )
+    )
+    configure_default_context(grace_period=grace_period)
 
 
 async def run_sync(
@@ -449,3 +464,7 @@ async def run_sync(
     return await get_default_context().run_sync(
         sync_fn, *args, cancellable=cancellable, limiter=limiter
     )
+
+
+if sys.platform == "win32":
+    del DEFAULT_CONTEXT

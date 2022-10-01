@@ -19,12 +19,19 @@ from .._impl import (
     configure_default_context,
 )
 
+if sys.platform == "win32":
 
-@pytest.fixture
-def shutdown_cache():
-    yield
-    _impl.DEFAULT_CONTEXT._worker_cache.shutdown(50)
-    _impl.DEFAULT_CONTEXT._worker_cache.clear()
+    @pytest.fixture
+    def shutdown_cache():
+        pass
+
+else:
+
+    @pytest.fixture
+    def shutdown_cache():
+        yield
+        _impl.DEFAULT_CONTEXT._worker_cache.shutdown(50)
+        configure_default_context()
 
 
 async def test_run_sync(shutdown_cache):
@@ -208,42 +215,38 @@ def test_startup_failure_doesnt_hang(pytester):
     assert result.returncode
 
 
-def test_configure_default_context(shutdown_cache):
-    async def a():
-        first = await run_sync(os.getpid)
-        second = await run_sync(os.getpid)
-        return first == second
+async def _compare_pids():
+    first = await run_sync(os.getpid)
+    second = await run_sync(os.getpid)
+    return first == second
 
+
+async def test_configure_default_context(shutdown_cache):
+    configure_default_context(retire=object)
+    assert not await _compare_pids()
+
+
+async def test_configure_default_context_warns(shutdown_cache):
     try:
-        configure_default_context(retire=object)
-        assert not trio.run(a)
+        configure_default_context(idle_timeout=float("inf"))
+        assert await _compare_pids()
     finally:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with pytest.warns(UserWarning):
+            warnings.simplefilter("always")
             configure_default_context()
 
-    try:
-        configure_default_context(idle_timeout=10)
-        assert trio.run(a)
-    finally:
-        if sys.platform != "win32":
-            with pytest.warns(UserWarning, match="zombie"):
-                warnings.simplefilter("always")
-                configure_default_context()
-        else:
-            configure_default_context()
 
-    async def b():
-        configure_default_context(idle_timeout="seven")
+async def test_configure_default_context_thread(shutdown_cache):
+    if sys.platform == "win32":
 
-    with pytest.raises(RuntimeError, match="run"):
-        trio.run(b)
+        async def f(x):
+            configure_default_context(x)
 
-    async def c():
-        await trio.to_thread.run_sync(configure_default_context, "eight")
-
+        args = (trio.run, f)
+    else:
+        args = (configure_default_context,)
     with pytest.raises(RuntimeError, match="thread"):
-        trio.run(c)
+        await trio.to_thread.run_sync(*args, "eight")
 
 
 async def test_get_default_context_stats():
