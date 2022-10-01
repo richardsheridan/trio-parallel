@@ -1,6 +1,8 @@
 import atexit
 import os
 import sys
+import threading
+import warnings
 from contextlib import asynccontextmanager
 from enum import Enum
 from itertools import count
@@ -207,13 +209,90 @@ class WorkerContext(metaclass=NoPublicConstructor):
         )
 
 
-# intentionally skip open_worker_context
+# Exists on all platforms as single source of truth for kwarg defaults
 DEFAULT_CONTEXT = WorkerContext._create()
-DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
+
+
+def configure_default_context(
+    idle_timeout=DEFAULT_CONTEXT.idle_timeout,
+    init=DEFAULT_CONTEXT.init,
+    retire=DEFAULT_CONTEXT.retire,
+    grace_period=DEFAULT_CONTEXT.grace_period,
+    worker_type=WorkerType.SPAWN,
+):
+    """Configure the default `WorkerContext` parameters associated with `run_sync`.
+
+    Args:
+      idle_timeout (float): The time in seconds an idle worker will
+          wait for a CPU-bound job before shutting down and releasing its own
+          resources. Pass `math.inf` to wait forever. MUST be non-negative.
+      init (Callable[[], bool]):
+          An object to call within the worker before waiting for jobs.
+          This is suitable for initializing worker state so that such stateful logic
+          does not need to be included in functions passed to
+          :func:`trio_parallel.run_sync`. MUST be callable without arguments.
+      retire (Callable[[], bool]):
+          An object to call within the worker after executing a CPU-bound job.
+          The return value indicates whether worker should be retired (shut down.)
+          By default, workers are never retired.
+          The process-global environment is stable between calls. Among other things,
+          that means that storing state in global variables works.
+          MUST be callable without arguments.
+      grace_period (float): The time in seconds to wait in the atexit handler for
+          workers to exit before issuing SIGKILL/TerminateProcess and raising
+          `BrokenWorkerError`. Pass `math.inf` to wait forever. MUST be non-negative.
+      worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
+
+    Raises:
+      RuntimeError: if this function is called from the main thread or during a
+          :func:`trio.run` call.
+
+    .. warning::
+
+       This function is meant to be used once before any usage of `run_sync`.
+       Doing otherwise may (on POSIX) result in workers being leaked until
+       the main process ends, or (on Win32) having no effect until the next `trio.run`!
+    """
+    new_parm_dict = locals().copy()
+    if threading.current_thread() is not threading.main_thread():
+        raise RuntimeError("Only configure default context from the main thread")
+    if sys.platform == "win32":
+        try:
+            DEFAULT_CONTEXT_RUNVAR.get()
+        except LookupError:
+            pass
+        else:
+            warnings.warn("Previous default context active until next `trio.run`")
+        DEFAULT_CONTEXT_PARAMS.update(**new_parm_dict)
+    else:
+        stats = default_context_statistics()
+        if stats.idle_workers or stats.running_workers:
+            warnings.warn("Previous default context leaving zombie workers behind")
+        # assign to a local for KI protection
+        ctx = WorkerContext._create(**new_parm_dict)
+        atexit.register(graceful_default_shutdown, ctx)
+        global DEFAULT_CONTEXT
+        DEFAULT_CONTEXT = ctx
+
+
 if sys.platform == "win32":
+
+    DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
+    DEFAULT_CONTEXT_PARAMS = {}
 
     # TODO: intelligently test ki protection here such that CI fails if the
     #  decorators disappear
+
+    @trio.lowlevel.enable_ki_protection
+    def get_default_context():
+        try:
+            ctx = DEFAULT_CONTEXT_RUNVAR.get()
+        except LookupError:
+            ctx = WorkerContext._create(**DEFAULT_CONTEXT_PARAMS)
+            DEFAULT_CONTEXT_RUNVAR.set(ctx)
+            # KeyboardInterrupt here could leak the context
+            trio.lowlevel.spawn_system_task(close_at_run_end, ctx)
+        return ctx
 
     @trio.lowlevel.enable_ki_protection
     async def close_at_run_end(ctx):
@@ -221,29 +300,17 @@ if sys.platform == "win32":
             await trio.sleep_forever()
         finally:
             # KeyboardInterrupt here could leak the context
-            await ctx._aclose(ATEXIT_SHUTDOWN_GRACE_PERIOD)
-
-    @trio.lowlevel.enable_ki_protection
-    def get_default_context():
-        try:
-            ctx = DEFAULT_CONTEXT_RUNVAR.get()
-        except LookupError:
-            ctx = WorkerContext._create()
-            DEFAULT_CONTEXT_RUNVAR.set(ctx)
-            # KeyboardInterrupt here could leak the context
-            trio.lowlevel.spawn_system_task(close_at_run_end, ctx)
-        return ctx
+            await ctx._aclose(ctx.grace_period)
 
 else:
 
     def get_default_context():
         return DEFAULT_CONTEXT
 
-    @atexit.register
-    def graceful_default_shutdown():
-        # need to late-bind the context attribute lookup so
-        # don't use atexit.register(fn,*args) form
-        DEFAULT_CONTEXT._worker_cache.shutdown(ATEXIT_SHUTDOWN_GRACE_PERIOD)
+    def graceful_default_shutdown(ctx):
+        ctx._worker_cache.shutdown(ctx.grace_period)
+
+    atexit.register(graceful_default_shutdown, DEFAULT_CONTEXT)
 
 
 def default_context_statistics():
@@ -292,7 +359,7 @@ async def open_worker_context(
           The process-global environment is stable between calls. Among other things,
           that means that storing state in global variables works.
           MUST be callable without arguments.
-      grace_period (float): The time in seconds to wait in when closing for workers to
+      grace_period (float): The time in seconds to wait in ``__aexit__`` for workers to
           exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
           Pass `math.inf` to wait forever. MUST be non-negative.
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
@@ -316,8 +383,13 @@ async def open_worker_context(
         await ctx._aclose()
 
 
-def atexit_shutdown_grace_period(grace_period=-1.0):
-    """Return and optionally set the default worker cache shutdown grace period.
+def atexit_shutdown_grace_period(
+    grace_period=DEFAULT_CONTEXT.grace_period,
+):  # pragma: no cover, deprecated
+    """Set the default worker cache shutdown grace period.
+
+    DEPRECATION NOTICE: this function has been superseded by
+    `configure_default_context` and will be removed in a future version
 
     You might need this if you have a long-running `atexit` function, such as those
     installed by ``coverage.py`` or ``viztracer``.
@@ -328,21 +400,17 @@ def atexit_shutdown_grace_period(grace_period=-1.0):
     Args:
       grace_period (float): The time in seconds to wait for workers to
           exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
-          Pass `math.inf` to wait forever. Pass a negative value or no argument
-          to return the current value without modifying it.
+          Pass `math.inf` to wait forever.
+    """
+    import warnings
 
-    Returns:
-      float: The current grace period in seconds.
-
-    .. note::
-
-       This function is subject to threading race conditions."""
-
-    global ATEXIT_SHUTDOWN_GRACE_PERIOD
-
-    if grace_period >= 0.0:
-        ATEXIT_SHUTDOWN_GRACE_PERIOD = grace_period
-    return ATEXIT_SHUTDOWN_GRACE_PERIOD
+    warnings.warn(
+        DeprecationWarning(
+            "Superseded by `configure_default_context` "
+            "and will be removed in a future version"
+        )
+    )
+    configure_default_context(grace_period=grace_period)
 
 
 async def run_sync(
@@ -396,3 +464,7 @@ async def run_sync(
     return await get_default_context().run_sync(
         sync_fn, *args, cancellable=cancellable, limiter=limiter
     )
+
+
+if sys.platform == "win32":
+    del DEFAULT_CONTEXT

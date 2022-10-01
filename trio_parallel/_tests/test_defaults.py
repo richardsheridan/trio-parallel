@@ -1,30 +1,37 @@
 """End-to-end integrated tests of default cache"""
 
 import inspect
-import math
 import os
 import subprocess
 import sys
+import warnings
 
 import pytest
 import trio
 
+from .. import _impl
 from _trio_parallel_workers._funcs import _block_worker, _raise_pid
 from .._impl import (
-    DEFAULT_CONTEXT,
     get_default_context,
     run_sync,
-    atexit_shutdown_grace_period,
     open_worker_context,
     default_context_statistics,
+    configure_default_context,
 )
 
+if sys.platform == "win32":
 
-@pytest.fixture
-def shutdown_cache():
-    yield
-    DEFAULT_CONTEXT._worker_cache.shutdown(50)
-    DEFAULT_CONTEXT._worker_cache.clear()
+    @pytest.fixture
+    def shutdown_cache():
+        pass
+
+else:
+
+    @pytest.fixture
+    def shutdown_cache():
+        yield
+        _impl.DEFAULT_CONTEXT._worker_cache.shutdown(50)
+        configure_default_context()
 
 
 async def test_run_sync(shutdown_cache):
@@ -208,19 +215,38 @@ def test_startup_failure_doesnt_hang(pytester):
     assert result.returncode
 
 
-def test_change_default_grace_period():
-    orig = atexit_shutdown_grace_period()
-    assert orig == atexit_shutdown_grace_period()
-    for x in (0, math.inf, orig):
-        assert x == atexit_shutdown_grace_period(x)
-        assert x == atexit_shutdown_grace_period()
-        assert x == atexit_shutdown_grace_period(-3)
+async def _compare_pids():
+    first = await run_sync(os.getpid)
+    second = await run_sync(os.getpid)
+    return first == second
 
-    with pytest.raises(TypeError):
-        atexit_shutdown_grace_period("forever")
-    with pytest.raises(TypeError):
-        atexit_shutdown_grace_period(None)
-    assert x == atexit_shutdown_grace_period()
+
+async def test_configure_default_context(shutdown_cache):
+    configure_default_context(retire=object)
+    assert not await _compare_pids()
+
+
+async def test_configure_default_context_warns(shutdown_cache):
+    try:
+        configure_default_context(idle_timeout=float("inf"))
+        assert await _compare_pids()
+    finally:
+        with pytest.warns(UserWarning):
+            warnings.simplefilter("always")
+            configure_default_context()
+
+
+async def test_configure_default_context_thread(shutdown_cache):
+    if sys.platform == "win32":
+
+        async def f(x):
+            configure_default_context(x)
+
+        args = (trio.run, f)
+    else:
+        args = (configure_default_context,)
+    with pytest.raises(RuntimeError, match="thread"):
+        await trio.to_thread.run_sync(*args, "eight")
 
 
 async def test_get_default_context_stats():
