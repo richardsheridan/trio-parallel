@@ -76,9 +76,6 @@ async def mock_context(monkeypatch):
     monkeypatch.setattr(_impl, "WorkerContext", MockContext)
     ctx = MockContext._create()
     if sys.platform == "win32":
-        monkeypatch.setattr(
-            _impl, "DEFAULT_CONTEXT_RUNVAR", trio.lowlevel.RunVar("win32_ctx")
-        )
         token = _impl.DEFAULT_CONTEXT_RUNVAR.set(ctx)
         yield ctx
         _impl.DEFAULT_CONTEXT_RUNVAR.reset(token)

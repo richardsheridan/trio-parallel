@@ -239,7 +239,7 @@ async def test_configure_default_context_warns(shutdown_cache):
 async def test_configure_default_context_thread(shutdown_cache):
     if sys.platform == "win32":
 
-        async def f(x):
+        async def f(x):  # noqa: TRIO107
             configure_default_context(x)
 
         args = (trio.run, f)
@@ -249,7 +249,7 @@ async def test_configure_default_context_thread(shutdown_cache):
         await trio.to_thread.run_sync(*args, "eight")
 
 
-async def test_get_default_context_stats():
+async def test_get_default_context_stats():  # noqa: TRIO107
     s = default_context_statistics()
     assert hasattr(s, "idle_workers")
     assert hasattr(s, "running_workers")

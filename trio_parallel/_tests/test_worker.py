@@ -19,6 +19,7 @@ async def worker(request):
         yield worker
     finally:
         with trio.move_on_after(5) as cs:
+            cs.shield = True
             worker.shutdown()
             await worker.wait()
         if cs.cancelled_caught:  # pragma: no cover, leads to failure case

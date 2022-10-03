@@ -97,5 +97,5 @@ def _no_trio():
 def _chained_exc():
     try:
         raise ValueError('test1')
-    except BaseException as e:
+    except ValueError as e:
         raise TypeError('test2') from e

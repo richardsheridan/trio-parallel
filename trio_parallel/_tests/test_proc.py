@@ -28,10 +28,12 @@ async def worker(request):
         yield worker
     finally:
         with trio.move_on_after(10) as cs:
+            cs.shield = True
             worker.shutdown()
             await worker.wait()
         if cs.cancelled_caught:
-            with trio.fail_after(1):  # pragma: no cover, leads to failure case
+            with trio.fail_after(1) as cs:  # pragma: no cover, leads to failure case
+                cs.shield = True
                 worker.kill()
                 await worker.wait()
                 pytest.fail(
@@ -64,7 +66,7 @@ async def test_run_sync_raises_on_kill(worker, manager):
     assert exc_info.value.args[-1].exitcode == exitcode
 
 
-async def test_run_sync_raises_on_segfault(worker, capfd):
+async def test_run_sync_raises_on_segfault(worker, capfd):  # noqa: TRIO107
     # This test was flaky on CI across several platforms and implementations.
     # I can reproduce it locally if there is some other process using the rest
     # of the CPU (F@H in this case) although I cannot explain why running this
