@@ -48,13 +48,11 @@ async def test_retire(cache_and_workertype):
     cache, worker_type = cache_and_workertype
     worker = worker_type(math.inf, _init_run_twice, _retire_run_twice)
     await worker.start()
-    try:
+    with trio.fail_after(2):
         assert await worker.run_sync(bool) is not None
         assert await worker.run_sync(bool) is not None
         assert await worker.run_sync(bool) is None
-    finally:
-        with trio.fail_after(1):
-            assert await worker.wait() == 0  # noqa: TRIO102
+        assert await worker.wait() == 0
 
 
 async def test_bad_retire_fn(cache_and_workertype, capfd):
