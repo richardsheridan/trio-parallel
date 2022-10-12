@@ -3,7 +3,6 @@
     All workers should pass these tests, regardless of implementation
 """
 import math
-import traceback
 
 import pytest
 import trio
@@ -15,17 +14,15 @@ from .._impl import WORKER_MAP
 @pytest.fixture(params=list(WORKER_MAP.values()), ids=list(WORKER_MAP.keys()))
 async def worker(request):
     worker = request.param[0](math.inf, bool, bool)
-    try:
-        yield worker
-    finally:
-        with trio.move_on_after(5) as cs:
-            worker.shutdown()
-            await worker.wait()
-        if cs.cancelled_caught:  # pragma: no cover, leads to failure case
-            pytest.fail(
-                "tests should be responsible for killing and waiting if they do not "
-                "lead to a graceful shutdown state"
-            )
+    yield worker
+    with trio.move_on_after(5) as cs:
+        worker.shutdown()
+        await worker.wait()
+    if cs.cancelled_caught:  # pragma: no cover, leads to failure case
+        pytest.fail(
+            "tests should be responsible for killing and waiting if they do not "
+            "lead to a graceful shutdown state"
+        )
 
 
 async def test_cancel_start(worker):
@@ -73,13 +70,8 @@ async def test_clean_exit_on_shutdown(worker, capfd):
 
 async def test_tracebacks(worker):
     await worker.start()
-    try:
+    with pytest.raises(TypeError, match="test2") as excinfo:
         (await worker.run_sync(_chained_exc)).unwrap()
-    except TypeError as e:
-        assert str(e) == "test2"
-        text = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-    else:  # pragma: no cover
-        assert False, "an error should be raised"
-
-    assert "raise ValueError(" in text
-    assert "raise TypeError(" in text
+    c = excinfo.getrepr().chain
+    assert c
+    assert "test1" in str(c)

@@ -65,20 +65,20 @@ class ContextLifetimeManager:
     enter_counter = attr.ib(factory=lambda: count(1))
     exit_counter = attr.ib(factory=lambda: count(1))
 
-    async def __aenter__(self):
+    async def __aenter__(self):  # noqa: TRIO107
         # only async to save indentation
         if self.task:
             raise trio.ClosedResourceError
         next(self.enter_counter)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):  # noqa: TRIO107
         # only async to save indentation
         next(self.exit_counter)
         if self.task:
             if self.calc_running() == 0:
                 trio.lowlevel.reschedule(self.task)
 
-    async def close_and_wait(self):
+    async def close_and_wait(self):  # noqa: TRIO107
         assert not self.task
         self.task = trio.lowlevel.current_task()
         if self.calc_running() != 0:
@@ -300,7 +300,7 @@ if sys.platform == "win32":
             await trio.sleep_forever()
         finally:
             # KeyboardInterrupt here could leak the context
-            await ctx._aclose(ctx.grace_period)
+            await ctx._aclose(ctx.grace_period)  # noqa: TRIO102
 
 else:
 

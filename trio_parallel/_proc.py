@@ -132,7 +132,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             except BaseException:
                 self.kill()
                 with trio.CancelScope(shield=True):
-                    await self.wait()
+                    await self.wait()  # noqa: TRIO102
                 raise
             assert code == tp_workers.ACK
             nursery.cancel_scope.cancel()
@@ -140,8 +140,8 @@ class SpawnProcWorker(_abc.AbstractWorker):
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         try:
             job = dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
-        except BaseException as exc:
-            return Error(exc)
+        except BaseException as exc:  # noqa: TRIO103
+            return Error(exc)  # noqa: TRIO104, TRIO107
 
         try:
             try:
@@ -166,7 +166,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             # unrecoverable state requiring kill as well
             self.kill()
             with trio.CancelScope(shield=True):
-                await self.wait()
+                await self.wait()  # noqa: TRIO102
             raise
 
     def is_alive(self):
@@ -182,8 +182,10 @@ class SpawnProcWorker(_abc.AbstractWorker):
 
     async def wait(self):
         if self.proc.exitcode is not None:
+            await trio.lowlevel.cancel_shielded_checkpoint()
             return self.proc.exitcode
         if self.proc.pid is None:
+            await trio.lowlevel.cancel_shielded_checkpoint()
             return None  # waiting before started
         await wait(self.proc.sentinel)
         # fix a macos race: Trio GH#1296

@@ -50,8 +50,8 @@ def handle_job(job):
 def safe_dumps(result):
     try:
         return dumps(result, protocol=HIGHEST_PROTOCOL)
-    except BaseException as exc:
-        return dumps(Error(exc), protocol=HIGHEST_PROTOCOL)
+    except BaseException as exc:  # noqa: TRIO103
+        return dumps(Error(exc), protocol=HIGHEST_PROTOCOL)  # noqa: TRIO104
 
 
 def safe_poll(recv_pipe, timeout):

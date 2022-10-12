@@ -47,11 +47,11 @@ jobs:
           python -m pip install -r requirements/lint.txt
       - name: Run Black
         id: black
-        run: black --check --diff trio_parallel
+        run: black --check --diff trio_parallel _trio_parallel_workers
         continue-on-error: true
       - name: Run flake8
         id: flake8
-        run: flake8 trio_parallel/ --ignore=D,E,W,F401,F403,F405,F821,F822
+        run: flake8 --ignore=D,E,W,F401,F403,F405,F821,F822
         continue-on-error: true
       - name: Fail on error
         if: steps.black.outcome != 'success' || steps.flake8.outcome != 'success'

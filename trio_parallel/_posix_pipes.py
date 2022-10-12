@@ -49,6 +49,7 @@ class FdChannel(Channel[bytes]):
         return await self._recv_exactly(size)
 
     async def _recv_exactly(self, size):
+        await trio.lowlevel.checkpoint_if_cancelled()
         result_bytes = bytearray()
         while size:
             partial_result = await self._stream.receive_some(size)
@@ -63,6 +64,7 @@ class FdChannel(Channel[bytes]):
                 raise RuntimeError("Oversized response")
             else:
                 size -= num_recvd
+        await trio.lowlevel.cancel_shielded_checkpoint()
         return result_bytes
 
     def detach(self):
