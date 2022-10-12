@@ -24,22 +24,18 @@ from .._abc import BrokenWorkerError
 async def worker(request):
     worker = request.param[0](math.inf, bool, bool)
     await worker.start()
-    try:
-        yield worker
-    finally:
-        with trio.move_on_after(10) as cs:
-            cs.shield = True
-            worker.shutdown()
+    yield worker
+    with trio.move_on_after(10) as cs:
+        worker.shutdown()
+        await worker.wait()
+    if cs.cancelled_caught:
+        with trio.fail_after(1) as cs:  # pragma: no cover, leads to failure case
+            worker.kill()
             await worker.wait()
-        if cs.cancelled_caught:
-            with trio.fail_after(1) as cs:  # pragma: no cover, leads to failure case
-                cs.shield = True
-                worker.kill()
-                await worker.wait()
-                pytest.fail(
-                    "tests should be responsible for killing and waiting if "
-                    "they do not lead to a graceful shutdown state"
-                )
+            pytest.fail(
+                "tests should be responsible for killing and waiting if "
+                "they do not lead to a graceful shutdown state"
+            )
 
 
 async def test_run_sync_cancel_infinite_loop(worker, manager):

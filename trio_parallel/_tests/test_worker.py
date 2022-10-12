@@ -14,18 +14,15 @@ from .._impl import WORKER_MAP
 @pytest.fixture(params=list(WORKER_MAP.values()), ids=list(WORKER_MAP.keys()))
 async def worker(request):
     worker = request.param[0](math.inf, bool, bool)
-    try:
-        yield worker
-    finally:
-        with trio.move_on_after(5) as cs:
-            cs.shield = True
-            worker.shutdown()
-            await worker.wait()
-        if cs.cancelled_caught:  # pragma: no cover, leads to failure case
-            pytest.fail(
-                "tests should be responsible for killing and waiting if they do not "
-                "lead to a graceful shutdown state"
-            )
+    yield worker
+    with trio.move_on_after(5) as cs:
+        worker.shutdown()
+        await worker.wait()
+    if cs.cancelled_caught:  # pragma: no cover, leads to failure case
+        pytest.fail(
+            "tests should be responsible for killing and waiting if they do not "
+            "lead to a graceful shutdown state"
+        )
 
 
 async def test_cancel_start(worker):
