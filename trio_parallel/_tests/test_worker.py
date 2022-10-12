@@ -3,7 +3,6 @@
     All workers should pass these tests, regardless of implementation
 """
 import math
-import traceback
 
 import pytest
 import trio
@@ -74,13 +73,8 @@ async def test_clean_exit_on_shutdown(worker, capfd):
 
 async def test_tracebacks(worker):
     await worker.start()
-    try:
+    with pytest.raises(TypeError, match="test2") as excinfo:
         (await worker.run_sync(_chained_exc)).unwrap()
-    except TypeError as e:
-        assert str(e) == "test2"
-        text = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-    else:  # pragma: no cover
-        assert False, "an error should be raised"
-
-    assert "raise ValueError(" in text
-    assert "raise TypeError(" in text
+    c = excinfo.getrepr().chain
+    assert c
+    assert "test1" in str(c)
