@@ -60,10 +60,10 @@ def _segfault_out_of_bounds_pointer():  # pragma: no cover, worker will be kille
 
     i = ctypes.c_char(b"a")
     j = ctypes.pointer(i)
-    c = 0
+    c = 1
     while True:
         j[c] = i
-        c += 1
+        c *= 2  # grow fast to crash sooner
 
 
 def _raise_ki():

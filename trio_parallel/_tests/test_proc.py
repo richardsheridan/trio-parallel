@@ -62,28 +62,13 @@ async def test_run_sync_raises_on_kill(worker, manager):
     assert exc_info.value.args[-1].exitcode == exitcode
 
 
-async def test_run_sync_raises_on_segfault(worker, capfd):  # noqa: TRIO107
-    # This test was flaky on CI across several platforms and implementations.
-    # I can reproduce it locally if there is some other process using the rest
-    # of the CPU (F@H in this case) although I cannot explain why running this
-    # on a busy machine would change the number of iterations (40-50k) needed
-    # for the OS to notice there is something funny going on with memory access.
-    # The usual symptom was for the segfault to occur, but the process
-    # to fail to raise the error for more than one minute, which would
-    # stall the test runner for 10 minutes.
-    # Here we raise our own failure error before the test runner timeout (55s)
-    # but xfail if we actually have to timeout.
-    try:
-        with trio.fail_after(55):
-            await worker.run_sync(_segfault_out_of_bounds_pointer)
-    except BrokenWorkerError as e:
-        exitcode = await worker.wait()
-        assert exitcode  # not sure if we expect a universal value, but not 0 or None
-        assert e.args[-1].exitcode == exitcode
-    except trio.TooSlowError:  # pragma: no cover, only hit rarely in CI
-        pytest.xfail("Unable to cause segfault after 55 seconds.")
-    else:  # pragma: no cover, leads to failure case
-        pytest.fail("No error was raised on segfault.")
+async def test_run_sync_raises_on_segfault(worker, capfd):
+    with pytest.raises(BrokenWorkerError) as excinfo:
+        with trio.fail_after(10):
+            assert (await worker.run_sync(_segfault_out_of_bounds_pointer)).unwrap()
+    exitcode = await worker.wait()
+    assert exitcode  # not sure if we expect a universal value, but not 0 or None
+    assert excinfo.value.args[-1].exitcode == exitcode
 
 
 # to test that cancellation does not ever leave a living process behind
