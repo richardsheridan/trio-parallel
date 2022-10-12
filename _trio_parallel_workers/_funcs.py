@@ -96,6 +96,6 @@ def _no_trio():
 
 def _chained_exc():
     try:
-        raise ValueError('test1')
+        raise ValueError("test1")
     except ValueError as e:
-        raise TypeError('test2') from e
+        raise TypeError("test2") from e
