@@ -94,8 +94,12 @@ def _no_trio():
     return "trio" not in sys.modules
 
 
+class SpecialError(Exception):
+    pass
+
+
 def _chained_exc():
     try:
         raise ValueError("test1")
     except ValueError as e:
-        raise TypeError("test2") from e
+        raise SpecialError("test2") from e

@@ -26,25 +26,27 @@ except ImportError:
     from pickle import dumps, loads
 
 from outcome import capture, Error
-from tblib.pickling_support import install
-
-install()
+from tblib.pickling_support import install as install_pickling_support
 
 MAX_TIMEOUT = 24.0 * 60.0 * 60.0
 ACK = b"\x06"
 
 
 def handle_job(job):
-    fn, args = loads(job)
-    ret = fn(*args)
-    if iscoroutine(ret):
-        # Manually close coroutine to avoid RuntimeWarnings
-        ret.close()
-        raise TypeError(
-            "trio-parallel worker expected a sync function, but {!r} appears "
-            "to be asynchronous".format(getattr(fn, "__qualname__", fn))
-        )
-    return ret
+    try:
+        fn, args = loads(job)
+        ret = fn(*args)
+        if iscoroutine(ret):
+            # Manually close coroutine to avoid RuntimeWarnings
+            ret.close()
+            raise TypeError(
+                "trio-parallel worker expected a sync function, but {!r} appears "
+                "to be asynchronous".format(getattr(fn, "__qualname__", fn))
+            )
+        return ret
+    except BaseException as e:
+        install_pickling_support(e)
+        raise e
 
 
 def safe_dumps(result):
