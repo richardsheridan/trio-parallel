@@ -7,7 +7,7 @@ import math
 import pytest
 import trio
 
-from _trio_parallel_workers._funcs import _null_async_fn, _chained_exc
+from _trio_parallel_workers._funcs import _null_async_fn, _chained_exc, SpecialError
 from .._impl import WORKER_MAP
 
 
@@ -70,7 +70,7 @@ async def test_clean_exit_on_shutdown(worker, capfd):
 
 async def test_tracebacks(worker):
     await worker.start()
-    with pytest.raises(TypeError, match="test2") as excinfo:
+    with pytest.raises(SpecialError, match="test2") as excinfo:
         (await worker.run_sync(_chained_exc)).unwrap()
     c = excinfo.getrepr().chain
     assert c
