@@ -6,10 +6,6 @@
 #    pip-compile-multi
 #
 -r install.txt
-cffi==1.15.1 ; os_name == "nt" and implementation_name != "pypy"
-    # via
-    #   -r requirements\install.in
-    #   trio
 colorama==0.4.5
     # via pytest
 coverage[toml]==6.4.4

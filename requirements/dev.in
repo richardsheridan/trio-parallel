@@ -1,2 +1,3 @@
 -r test.in
 -r docs.in
+-r lint.in

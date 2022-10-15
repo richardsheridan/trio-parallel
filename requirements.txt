@@ -1,2 +1,0 @@
-# Dummy requirements until things like libraries.io and github can understand PEP517/518
--r requirements/install.txt
