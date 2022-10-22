@@ -85,14 +85,14 @@ jobs:
       - name: Set outputs
         id: outputs
         run: |
-          echo "::set-output name=wheelname::$( echo ./dist/*.whl )"
-          echo "::set-output name=settings::$( 
+          echo "wheelname=$( echo ./dist/*.whl )" >> $GITHUB_OUTPUT
+          echo "settings=$( 
               tar cz \
               pyproject.toml \
               requirements/install.txt \
               requirements/test.txt \
               | base64 -w 0
-          )"
+          )" >> $GITHUB_OUTPUT
       - name: Upload build artifact
         uses: actions/upload-artifact@v3.1.0
         with:
