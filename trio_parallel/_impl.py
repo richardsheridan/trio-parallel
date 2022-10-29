@@ -60,33 +60,23 @@ recommended."""
 
 @attr.s(slots=True, eq=False)
 class ContextLifetimeManager:
-    task = attr.ib(None)
+    waiting_task = attr.ib(None)
     # Counters are used for thread safety of the default cache
     enter_counter = attr.ib(factory=lambda: count(1))
     exit_counter = attr.ib(factory=lambda: count(1))
 
     async def __aenter__(self):  # noqa: TRIO107
         # only async to save indentation
-        if self.task:
+        if self.waiting_task:
             raise trio.ClosedResourceError
         next(self.enter_counter)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):  # noqa: TRIO107
         # only async to save indentation
         next(self.exit_counter)
-        if self.task:
+        if self.waiting_task:
             if self.calc_running() == 0:
-                trio.lowlevel.reschedule(self.task)
-
-    async def close_and_wait(self):  # noqa: TRIO107
-        assert not self.task
-        self.task = trio.lowlevel.current_task()
-        if self.calc_running() != 0:
-
-            def abort_func(raise_cancel):  # pragma: no cover
-                return trio.lowlevel.Abort.FAILED  # never cancelled anyway
-
-            await trio.lowlevel.wait_task_rescheduled(abort_func)
+                trio.lowlevel.reschedule(self.waiting_task)
 
     def calc_running(self):
         # __reduce__ is the only count API that can extract the internal int value
@@ -196,8 +186,11 @@ class WorkerContext(metaclass=NoPublicConstructor):
     async def _aclose(self, grace_period=None):
         if grace_period is None:
             grace_period = self.grace_period
+        assert not self._lifetime.waiting_task
+        self._lifetime.waiting_task = trio.lowlevel.current_task()
         with trio.CancelScope(shield=True):
-            await self._lifetime.close_and_wait()
+            if self._lifetime.calc_running() != 0:
+                await trio.sleep_forever()  # woken by self._lifetime.__aexit__
             await trio.to_thread.run_sync(self._worker_cache.shutdown, grace_period)
 
     @trio.lowlevel.enable_ki_protection
