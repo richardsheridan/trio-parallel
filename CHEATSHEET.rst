@@ -27,11 +27,9 @@ To run tests
 To run black
 ------------
 
-* Show what changes black wants to make: ``black --diff setup.py
-  trio_parallel``
+* Show what changes black wants to make: ``black --diff trio_parallel``
 
-* Apply all changes directly to the source tree: ``black setup.py
-  trio_parallel``
+* Apply all changes directly to the source tree: ``black trio_parallel``
 
 
 To update pinned requirements
@@ -58,11 +56,6 @@ To make a release
 * Make a release PR on GitHub. Checks must pass.
 
 * Use GitHub release mechanism to tag the release PR merge commit:
-  ``hub release create {version}``
+  ``gh release create {version}``
 
-  * This triggers an action to release on Pypi as well.
-
-* Download the canonical wheel from Pypi:
-  ``pip download --no-deps -d dist trio-parallel=={version}``
-
-* Upload to GitHub: ``hub release edit -a dist/*.whl {version}``
+  * This triggers an action to release on PyPI and GitHub as well.
