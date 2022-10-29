@@ -19,7 +19,6 @@ T = TypeVar("T")
 # Sane default might be to expect cpu-bound work
 DEFAULT_LIMIT = os.cpu_count() or 1
 limiter_runvar = trio.lowlevel.RunVar("trio_parallel")
-ATEXIT_SHUTDOWN_GRACE_PERIOD = 30.0
 
 
 def current_default_worker_limiter():
@@ -46,8 +45,8 @@ WorkerType = Enum(
 )
 WorkerType.__doc__ = """An Enum of available kinds of workers.
 
-Instances of this Enum can be passed to :func:`open_worker_context` to customize
-worker startup behavior.
+Instances of this Enum can be passed to :func:`open_worker_context` or
+:func:`configure_default_context` to customize worker startup behavior.
 
 Currently, these correspond to the values of
 :func:`multiprocessing.get_all_start_methods`, which vary by platform.
@@ -237,8 +236,7 @@ def configure_default_context(
       worker_type (WorkerType): The kind of worker to create, see :class:`WorkerType`.
 
     Raises:
-      RuntimeError: if this function is called from the main thread or during a
-          :func:`trio.run` call.
+      RuntimeError: if this function is called outside the main thread.
 
     .. warning::
 
@@ -252,7 +250,7 @@ def configure_default_context(
     if sys.platform == "win32":
         try:
             DEFAULT_CONTEXT_RUNVAR.get()
-        except LookupError:
+        except (LookupError, RuntimeError):
             pass
         else:
             warnings.warn("Previous default context active until next `trio.run`")

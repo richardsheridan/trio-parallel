@@ -109,11 +109,15 @@ Configuring workers
 By default, :func:`trio_parallel.run_sync` draws workers from a global cache
 that is shared across sequential and between concurrent :func:`trio.run()`
 calls, with workers' lifetimes limited to the life of the main process. This
-covers most use cases, but for the many edge cases, `open_worker_context()`
+can be configured with `configure_default_context()`:
+
+.. autofunction:: configure_default_context
+
+This covers most use cases, but for the many edge cases, `open_worker_context()`
 yields a `WorkerContext` object on which `WorkerContext.run_sync()` pulls workers
 from an isolated cache with behavior specified by the class arguments. It is only
 advised to use this if specific control over worker type, state, or
-lifetime is required.
+lifetime is required in a subset of your application.
 
 .. autofunction:: open_worker_context
    :async-with: ctx
@@ -142,8 +146,6 @@ Internal Esoterica
 You probably won't use these... but create an issue if you do and need help!
 
 .. autofunction:: atexit_shutdown_grace_period
-
-.. autofunction:: configure_default_context
 
 .. autofunction:: default_context_statistics
 
