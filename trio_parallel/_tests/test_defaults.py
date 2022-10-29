@@ -23,7 +23,7 @@ if sys.platform == "win32":
 
     @pytest.fixture
     def shutdown_cache():
-        pass
+        configure_default_context()
 
 else:
 
@@ -237,16 +237,8 @@ async def test_configure_default_context_warns(shutdown_cache):
 
 
 async def test_configure_default_context_thread(shutdown_cache):
-    if sys.platform == "win32":
-
-        async def f(x):  # noqa: TRIO107
-            configure_default_context(x)
-
-        args = (trio.run, f)
-    else:
-        args = (configure_default_context,)
     with pytest.raises(RuntimeError, match="thread"):
-        await trio.to_thread.run_sync(*args, "eight")
+        await trio.to_thread.run_sync(configure_default_context, "eight")
 
 
 async def test_get_default_context_stats():  # noqa: TRIO107
