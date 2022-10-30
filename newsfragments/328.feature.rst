@@ -1,1 +1,0 @@
-The behavior of the default context is now fully configurable, superceding `atexit_shutdown_grace_period`

@@ -5,6 +5,21 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.2.0 (2022-10-29)
+--------------------------------
+
+Features
+~~~~~~~~
+
+- The behavior of the default context is now fully configurable, superseding `atexit_shutdown_grace_period` (`#328 <https://github.com/richardsheridan/trio-parallel/issues/328>`__)
+
+
+Bugfixes
+~~~~~~~~
+
+- Use tblib lazily to pass tracebacks on user exceptions. Previously, tracebacks would only be passed on the built-in python exceptions. (`#332 <https://github.com/richardsheridan/trio-parallel/issues/332>`__)
+
+
 trio-parallel 1.1.0 (2022-09-18)
 --------------------------------
 
