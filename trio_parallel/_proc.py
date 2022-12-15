@@ -20,24 +20,18 @@ import _trio_parallel_workers as tp_workers
 multiprocessing.get_logger()  # to register multiprocessing atexit handler
 
 if sys.platform == "win32":
-    from trio.lowlevel import WaitForSingleObject
-    from ._windows_pipes import PipeReceiveChannel, PipeSendChannel
+    from trio.lowlevel import WaitForSingleObject as lowlevel_wait
+    from ._windows_pipes import (
+        PipeReceiveChannel as RecvChan,
+        PipeSendChannel as SendChan,
+    )
 
-    async def wait(obj):
-        return await WaitForSingleObject(obj)
-
-    def asyncify_pipes(receive_handle, send_handle):
-        return PipeReceiveChannel(receive_handle), PipeSendChannel(send_handle)
 
 else:
-    from trio.lowlevel import wait_readable
-    from ._posix_pipes import FdChannel
+    from trio.lowlevel import wait_readable as lowlevel_wait
+    from ._posix_pipes import FdChannel as RecvChan
 
-    async def wait(fd):
-        return await wait_readable(fd)
-
-    def asyncify_pipes(receive_fd, send_fd):
-        return FdChannel(receive_fd), FdChannel(send_fd)
+    SendChan = RecvChan
 
 
 class BrokenWorkerProcessError(_abc.BrokenWorkerError):
@@ -98,9 +92,8 @@ class SpawnProcWorker(_abc.AbstractWorker):
     def __init__(self, idle_timeout, init, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
-        self._receive_chan, self._send_chan = asyncify_pipes(
-            self._recv_pipe.fileno(), self._send_pipe.fileno()
-        )
+        self._receive_chan = RecvChan(self._recv_pipe.fileno())
+        self._send_chan = SendChan(self._send_pipe.fileno())
         self.proc = self.mp_context.Process(
             target=tp_workers.worker_behavior,
             args=(
@@ -187,7 +180,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
         if self.proc.pid is None:
             await trio.lowlevel.cancel_shielded_checkpoint()
             return None  # waiting before started
-        await wait(self.proc.sentinel)
+        await lowlevel_wait(self.proc.sentinel)
         # fix a macos race: Trio GH#1296
         self.proc.join()
         # unfortunately join does not return exitcode

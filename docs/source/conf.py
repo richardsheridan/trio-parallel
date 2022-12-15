@@ -140,8 +140,8 @@ todo_include_todos = False
 napoleon_use_rtype = False
 
 # This avoids a warning by the epub builder that it can't figure out
-# the MIME type for our favicon.
-# suppress_warnings = ["epub.unknown_project_files"]
+# the MIME type for the CI badge.
+suppress_warnings = ["epub.unknown_project_files"]
 
 
 # -- Options for HTML output ----------------------------------------------
