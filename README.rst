@@ -203,7 +203,7 @@ and pull requests are very welcome! Please read the `code of conduct`_.
    :alt: Repository
 
 .. _tests: https://github.com/richardsheridan/trio-parallel/actions?query=branch%3Amain
-.. |tests badge| image:: https://img.shields.io/github/workflow/status/richardsheridan/trio-parallel/CI/main?logo=GitHub-Actions&logoColor=whitesmoke
+.. |tests badge| image:: https://img.shields.io/github/actions/workflow/status/richardsheridan/trio-parallel/ci.yml?branch=main&logo=Github-Actions&logoColor=whitesmoke
    :target: `tests`_
    :alt: Tests
 
