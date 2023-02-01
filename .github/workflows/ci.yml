@@ -160,7 +160,7 @@ jobs:
           python-version: '${{ matrix.python }}'
           architecture: '${{ matrix.arch }}'
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.1
+        uses: actions/download-artifact@v3.0.2
         with:
           name: Build
           path: dist
@@ -232,7 +232,7 @@ jobs:
         with:
           python-version: '3.10'
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.1
+        uses: actions/download-artifact@v3.0.2
         with:
           name: Build
           path: dist
@@ -251,7 +251,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.2.0
       - name: Download coverage artifact
-        uses: actions/download-artifact@v3.0.1
+        uses: actions/download-artifact@v3.0.2
         with:
           name: Coverage
       - name: Upload to Codecov
@@ -269,7 +269,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.2.0
       - name: Download coverage artifact
-        uses: actions/download-artifact@v3.0.1
+        uses: actions/download-artifact@v3.0.2
         with:
           name: Coverage
       - name: Setup python
@@ -325,7 +325,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.1
+        uses: actions/download-artifact@v3.0.2
         with:
           name: Build
           path: dist
