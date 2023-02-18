@@ -267,7 +267,6 @@ def configure_default_context(
 
 
 if sys.platform == "win32":
-
     DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
     DEFAULT_CONTEXT_PARAMS = {}
 

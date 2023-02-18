@@ -53,6 +53,7 @@ class ErrorCodes(enum.IntEnum):
 # Generic helpers
 ################################################################
 
+
 # vendored from trio, so no coverage
 def _handle(obj):  # pragma: no cover
     # For now, represent handles as either cffi HANDLEs or as ints.  If you
