@@ -134,7 +134,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
         try:
             job = dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
         except BaseException as exc:  # noqa: TRIO103
-            return Error(exc)  # noqa: TRIO104, TRIO107
+            return Error(exc)  # noqa: TRIO104, TRIO910
 
         try:
             try:
