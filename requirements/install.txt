@@ -7,7 +7,7 @@
 #
 async-generator==1.10
     # via trio
-attrs==22.1.0
+attrs==22.2.0
     # via
     #   -r requirements\install.in
     #   outcome
@@ -30,5 +30,5 @@ sortedcontainers==2.4.0
     # via trio
 tblib==1.7.0
     # via -r requirements\install.in
-trio==0.21.0
+trio==0.22.0
     # via -r requirements\install.in
