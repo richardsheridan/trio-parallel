@@ -152,8 +152,11 @@ jobs:
           uv pip install --system `echo ./dist/*.whl` --no-deps
       - name: Run tests
         timeout-minutes: ${{ matrix.test-timeout }}
+        run: coverage run -m pytest trio_parallel
+      - name: Organize coverage
         run: |
-          pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.python }}.xml
+          coverage combine
+          coverage xml -o coverage-${{ matrix.os }}-${{ matrix.python }}.xml
           coverage report
           mv .coverage .coverage.${{ matrix.os }}-${{ matrix.python }}
         shell: bash
@@ -197,7 +200,7 @@ jobs:
           python -m pip install -e . --no-deps
       - name: Run tests
         run: |
-          python -m pytest --no-cov docs/source
+          python -m pytest docs/source
 
   Extras:
     name: 'Test [test] extra'
