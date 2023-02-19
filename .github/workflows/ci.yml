@@ -19,7 +19,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4.5.0
         with:
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -40,7 +40,7 @@ jobs:
         with:
           cache: pip
           cache-dependency-path: requirements/lint.txt
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -51,7 +51,9 @@ jobs:
         continue-on-error: true
       - name: Run flake8
         id: flake8
-        run: flake8 --ignore=D,E,W,F401,F403,F405,F821,F822
+        run: |
+          flake8 --extend-ignore=D,E,W,F401,F403,F405,F821,F822,TRIO114 \
+          --extend-select=TRIO900,TRIO910,TRIO911
         continue-on-error: true
       - name: Fail on error
         if: steps.black.outcome != 'success' || steps.flake8.outcome != 'success'
@@ -74,7 +76,7 @@ jobs:
         with:
           cache: pip
           cache-dependency-path: requirements/build.txt
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -117,6 +119,7 @@ jobs:
       fail-fast: false
       matrix:
         experimental: [ false ]
+        test-timeout: [ 10 ]
         os:
           - windows-latest
           - ubuntu-latest
@@ -126,6 +129,7 @@ jobs:
           - '3.8'
           - '3.9'
           - '3.10'
+          - '3.11'
           - 'pypy-3.7'
           - 'pypy-3.8'
           - 'pypy-3.9'
@@ -135,14 +139,17 @@ jobs:
             python: 'pypy-3.9-nightly'
             arch: x64
             experimental: true
+            test-timeout: 10
           - os: ubuntu-latest
-            python: '3.11-dev'
+            python: '3.12-dev'
             arch: x64
             experimental: true
+            test-timeout: 3
           - os: windows-latest
             python: '3.7'
             arch: x86
             experimental: false
+            test-timeout: 10
         exclude:
           - os: macos-latest
             python: 'pypy-3.7'
@@ -172,6 +179,7 @@ jobs:
         run: |
           python -m pip install ${{ needs.Build.outputs.wheelname }} --no-deps
       - name: Run tests
+        timeout-minutes: ${{ matrix.test-timeout }}
         run: |
           pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
           coverage report
@@ -197,7 +205,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         python:
-          - '3.10'
+          - '3.11'
         arch:
           - x64
     steps:
@@ -230,7 +238,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4.5.0
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       - name: Download build artifact
         uses: actions/download-artifact@v3.0.2
         with:
@@ -277,7 +285,7 @@ jobs:
         with:
           cache: pip
           cache-dependency-path: requirements/coverage.txt
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Install coverage
         run: |
           pip install -U pip
@@ -332,7 +340,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4.5.0
         with:
-          python-version: "3.10"
+          python-version: "3.11"
       - name: Install requirements
         run: |
           python -m pip install -U pip

@@ -64,13 +64,13 @@ class ContextLifetimeManager:
     enter_counter = attr.ib(factory=lambda: count(1))
     exit_counter = attr.ib(factory=lambda: count(1))
 
-    async def __aenter__(self):  # noqa: TRIO107
+    async def __aenter__(self):  # noqa: TRIO910
         # only async to save indentation
         if self.waiting_task:
             raise trio.ClosedResourceError
         next(self.enter_counter)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):  # noqa: TRIO107
+    async def __aexit__(self, exc_type, exc_val, exc_tb):  # noqa: TRIO910
         # only async to save indentation
         next(self.exit_counter)
         if self.waiting_task:
@@ -267,7 +267,6 @@ def configure_default_context(
 
 
 if sys.platform == "win32":
-
     DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
     DEFAULT_CONTEXT_PARAMS = {}
 
@@ -371,7 +370,7 @@ async def open_worker_context(
     try:
         yield ctx
     finally:
-        await ctx._aclose()
+        await ctx._aclose()  # noqa: TRIO102
 
 
 def atexit_shutdown_grace_period(

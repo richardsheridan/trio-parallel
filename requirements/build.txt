@@ -5,27 +5,25 @@
 #
 #    pip-compile-multi
 #
-build==0.8.0
-    # via -r build.in
-packaging==21.3
+build==0.10.0
+    # via -r requirements\build.in
+colorama==0.4.6
+    # via build
+packaging==23.0
     # via
     #   build
     #   setuptools-scm
-pep517==0.13.0
+pyproject-hooks==1.0.0
     # via build
-pyparsing==3.0.9
-    # via packaging
-setuptools-scm==7.0.5
-    # via -r build.in
-tomli==2.0.1
+setuptools-scm==7.1.0
+    # via -r requirements\build.in
+typing-extensions==4.5.0
     # via setuptools-scm
-typing-extensions==4.3.0
-    # via setuptools-scm
-wheel==0.38.1
-    # via -r build.in
+wheel==0.38.4
+    # via -r requirements\build.in
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==65.5.1
+setuptools==67.3.2
     # via
-    #   -r build.in
+    #   -r requirements\build.in
     #   setuptools-scm
