@@ -119,6 +119,7 @@ jobs:
       fail-fast: false
       matrix:
         experimental: [ false ]
+        test-timeout: [ 10 ]
         os:
           - windows-latest
           - ubuntu-latest
@@ -138,14 +139,17 @@ jobs:
             python: 'pypy-3.9-nightly'
             arch: x64
             experimental: true
+            test-timeout: 10
           - os: ubuntu-latest
             python: '3.12-dev'
             arch: x64
             experimental: true
+            test-timeout: 3
           - os: windows-latest
             python: '3.7'
             arch: x86
             experimental: false
+            test-timeout: 10
         exclude:
           - os: macos-latest
             python: 'pypy-3.7'
@@ -175,6 +179,7 @@ jobs:
         run: |
           python -m pip install ${{ needs.Build.outputs.wheelname }} --no-deps
       - name: Run tests
+        timeout-minutes: ${{ matrix.test-timeout }}
         run: |
           pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
           coverage report
