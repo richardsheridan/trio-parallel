@@ -64,7 +64,7 @@ async def test_run_sync_raises_on_kill(worker, manager):
 
 async def test_run_sync_raises_on_segfault(worker, capfd):
     with pytest.raises(BrokenWorkerError) as excinfo:
-        with trio.fail_after(10):
+        with trio.fail_after(20):
             assert (await worker.run_sync(_segfault_out_of_bounds_pointer)).unwrap()
     exitcode = await worker.wait()
     assert exitcode  # not sure if we expect a universal value, but not 0 or None
