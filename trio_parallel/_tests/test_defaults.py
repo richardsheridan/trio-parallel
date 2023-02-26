@@ -197,24 +197,20 @@ def test_we_control_atexit_shutdowns():
     assert b"calling join() for" not in result.stderr
 
 
-def test_startup_failure_doesnt_hang(tmp_path):
+def test_startup_failure_doesnt_hang(pytester):
     # Failing to guard startup against worker spawn recursion is the only failure
     # case of startup that I have run into.
-    script_path = tmp_path / "script.py"
-    with script_path.open("w") as f:
-        f.write(
-            "import trio,trio_parallel; trio.run(trio_parallel.run_sync, int)\n",
-        )
+    test_file = pytester.makepyfile(
+        "import trio,trio_parallel; trio.run(trio_parallel.run_sync, int)"
+    )
     result = subprocess.run(
         # note str used because cpython subprocess added the feature
         # to understand path-like objects in version 3.8
-        [sys.executable, str(script_path)],
-        stdout=subprocess.PIPE,
+        [sys.executable, str(test_file)],
         stderr=subprocess.PIPE,
         check=False,  # we expect a failure
         timeout=20,
     )
-    assert not result.stdout
     assert b"An attempt has been made to start a new process" in result.stderr
     assert result.returncode
 
@@ -242,7 +238,7 @@ async def test_configure_default_context_warns(shutdown_cache):
 
 async def test_configure_default_context_thread(shutdown_cache):
     with pytest.raises(RuntimeError, match="thread"):
-        await trio.to_thread.run_sync(configure_default_context)
+        await trio.to_thread.run_sync(configure_default_context, "eight")
 
 
 async def test_get_default_context_stats():  # noqa: TRIO910

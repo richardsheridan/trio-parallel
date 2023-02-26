@@ -1,5 +1,5 @@
 # keep me in sync with setup.cfg!
-trio >= 0.18.0
+trio >= 0.18.0, < 0.22.0
 outcome
 attrs >= 17.3.0
 cffi; os_name == 'nt' and implementation_name != 'pypy'
