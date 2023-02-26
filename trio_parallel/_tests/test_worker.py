@@ -68,15 +68,7 @@ async def test_clean_exit_on_shutdown(worker, capfd):
     out, err = capfd.readouterr()
     assert not err
     assert exitcode == 0
-    if (
-        sys.version_info < (3, 10)
-        and worker.mp_context._name == "spawn"
-        and "COVERAGE_RUN" in os.environ
-    ):
-        assert out  # TODO: why is there stuff here
-        pytest.xfail("coverage printing into stdout")
-    else:
-        assert not out
+    assert not out
 
 
 async def test_tracebacks(worker):
