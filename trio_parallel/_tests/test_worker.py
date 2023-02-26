@@ -3,8 +3,6 @@
     All workers should pass these tests, regardless of implementation
 """
 import math
-import os
-import sys
 
 import pytest
 import trio
@@ -64,19 +62,10 @@ async def test_clean_exit_on_shutdown(worker, capfd):
     assert (await worker.run_sync(bool)).unwrap() is False
     worker.shutdown()
     with trio.fail_after(1):
-        exitcode = await worker.wait()
+        assert await worker.wait() == 0
     out, err = capfd.readouterr()
+    assert not out
     assert not err
-    assert exitcode == 0
-    if (
-        sys.version_info < (3, 10)
-        and worker.mp_context._name == "spawn"
-        and "COVERAGE_RUN" in os.environ
-    ):
-        assert out  # TODO: why is there stuff here
-        pytest.xfail("coverage printing into stdout")
-    else:
-        assert not out
 
 
 async def test_tracebacks(worker):

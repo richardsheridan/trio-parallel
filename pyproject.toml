@@ -21,14 +21,8 @@ faulthandler_timeout = 60
 
 [tool.coverage.run]
 branch = true
-concurrency = ["multiprocessing", "thread"]
-parallel = true
 source_pkgs = ["trio_parallel", "_trio_parallel_workers"]
-disable_warnings = [
-  "module-not-imported",  # for test_clean_exit_on_shutdown
-  "module-not-measured", # for fork shutdown tests
-  "no-data-collected", # for fork shutdown tests
-  ]
+disable_warnings = ["trace-changed"]  # for test_clean_exit_on_pipe_close
 
 [tool.coverage.report]
 precision = 1

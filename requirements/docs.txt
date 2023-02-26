@@ -77,7 +77,7 @@ urllib3==1.26.14
     # via requests
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==67.4.0
+setuptools==67.3.2
     # via
     #   sphinxcontrib-jquery
     #   towncrier

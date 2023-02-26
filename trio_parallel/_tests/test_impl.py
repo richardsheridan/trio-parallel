@@ -136,7 +136,7 @@ async def test_cache_scope_args(mock_context):
         assert worker.idle_timeout == 33
 
 
-async def test_erroneous_scope_inputs():  # pragma: no cover, ugly branching
+async def test_erroneous_scope_inputs():
     with pytest.raises(TypeError):
         async with _impl.open_worker_context(idle_timeout=[-1]):
             pytest.fail("should be unreachable")
