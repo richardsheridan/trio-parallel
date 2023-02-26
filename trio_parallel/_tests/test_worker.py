@@ -3,6 +3,8 @@
     All workers should pass these tests, regardless of implementation
 """
 import math
+import os
+import sys
 
 import pytest
 import trio
@@ -62,10 +64,11 @@ async def test_clean_exit_on_shutdown(worker, capfd):
     assert (await worker.run_sync(bool)).unwrap() is False
     worker.shutdown()
     with trio.fail_after(1):
-        assert await worker.wait() == 0
+        exitcode = await worker.wait()
     out, err = capfd.readouterr()
-    assert not out
     assert not err
+    assert exitcode == 0
+    assert not out
 
 
 async def test_tracebacks(worker):

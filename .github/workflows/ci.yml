@@ -305,12 +305,15 @@ jobs:
 
   All:
     name: All checks and tests
+    if: always()
     timeout-minutes: 1
     needs: [ Verify, Blacken, Build, Examples, Test, Extras, Codecov, Coverage ]
     runs-on: ubuntu-latest
     steps:
-      - name: "true"
-        run: "true"
+      - name: Check all needs have passed
+        uses: re-actors/alls-green@v1.2.2
+        with:
+          jobs: ${{ toJSON(needs) }}
 
   Merge-Dependabot:
     needs: All
