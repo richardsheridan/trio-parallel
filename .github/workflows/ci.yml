@@ -294,7 +294,8 @@ jobs:
         run: |
           coverage combine
           coverage html
-          coverage report --fail-under=100 --show-missing
+          coverage report --fail-under=100 --show-missing --format markdown \
+          >> $GITHUB_STEP_SUMMARY
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v3.1.2
