@@ -106,7 +106,7 @@ Exceptions
 Signal Handling
 ~~~~~~~~~~~~~~~
 
-This library configures worker processes ignore ``SIGINT`` to have correct semantics
+This library configures worker processes to ignore ``SIGINT`` to have correct semantics
 when you hit ``CTRL+C``, but all other signal handlers are left in python's default
 state. This can have surprising consequences if you handle signals in the main
 process, as the workers are in the same process group but do not share the same
