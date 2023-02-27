@@ -103,6 +103,19 @@ Exceptions
 
 .. autoexception:: BrokenWorkerError
 
+Signal Handling
+~~~~~~~~~~~~~~~
+
+This library configures worker processes to ignore ``SIGINT`` to have correct semantics
+when you hit ``CTRL+C``, but all other signal handlers are left in python's default
+state. This can have surprising consequences if you handle signals in the main
+process, as the workers are in the same process group but do not share the same
+signal handlers. For example, if you handle ``SIGTERM`` in the main process to
+achieve a graceful shutdown of a service_, a spurious :class:`BrokenWorkerError` will
+raise at any running calls to :func:`run_sync`. You will either
+need to handle the exeptions, change the method you use to send signals, or configure
+the workers to handle signals at initialization using the tools in the next section.
+
 Configuring workers
 -------------------
 
@@ -150,3 +163,4 @@ You probably won't use these... but create an issue if you do and need help!
 .. autofunction:: default_context_statistics
 
 .. _cloudpickle: https://github.com/cloudpipe/cloudpickle
+.. _service: https://github.com/richardsheridan/trio-parallel/issues/348
