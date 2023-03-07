@@ -9,6 +9,19 @@ on:
     types: [ published ]
 
 jobs:
+  Merge-Dependabot:
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+      - uses: fastify/github-action-merge-dependabot@v3.6.1
+        with:
+          merge-method: merge
+          use-github-auto-merge: true
+
   Verify:
     name: 'Verify requirement pinning'
     timeout-minutes: 2
@@ -315,19 +328,6 @@ jobs:
         uses: re-actors/alls-green@v1.2.2
         with:
           jobs: ${{ toJSON(needs) }}
-
-  Merge-Dependabot:
-    needs: All
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 1
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: write
-    steps:
-      - uses: fastify/github-action-merge-dependabot@v3.6.1
-        with:
-          merge-method: merge
 
   Publish:
     name: Publish
