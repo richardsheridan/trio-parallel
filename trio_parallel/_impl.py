@@ -11,7 +11,7 @@ from typing import Type, Callable, Any, TypeVar
 import attr
 import trio
 
-from ._proc import WORKER_PROC_MAP
+from ._proc import WORKER_PROC_MAP, BaseProcWorker
 from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
 
 T = TypeVar("T")
@@ -201,8 +201,10 @@ class WorkerContext(metaclass=NoPublicConstructor):
         )
 
 
-# Exists on all platforms as single source of truth for kwarg defaults
 DEFAULT_CONTEXT = WorkerContext._create()
+
+if sys.platform == "win32":
+    DEFAULT_CONTEXT.__dict__["_worker_class"] = BaseProcWorker
 
 
 def configure_default_context(
@@ -210,7 +212,7 @@ def configure_default_context(
     init=DEFAULT_CONTEXT.init,
     retire=DEFAULT_CONTEXT.retire,
     grace_period=DEFAULT_CONTEXT.grace_period,
-    worker_type=WorkerType.SPAWN,
+    worker_type=DEFAULT_CONTEXT.worker_type,
 ):
     """Configure the default `WorkerContext` parameters associated with `run_sync`.
 
@@ -242,65 +244,28 @@ def configure_default_context(
 
        This function is meant to be used once before any usage of `run_sync`.
        Doing otherwise may (on POSIX) result in workers being leaked until
-       the main process ends, or (on Win32) having no effect until the next `trio.run`!
+       the main process ends!
     """
     new_parm_dict = locals().copy()
     if threading.current_thread() is not threading.main_thread():
         raise RuntimeError("Only configure default context from the main thread")
-    if sys.platform == "win32":
-        try:
-            DEFAULT_CONTEXT_RUNVAR.get()
-        except (LookupError, RuntimeError):
-            pass
-        else:
-            warnings.warn("Previous default context active until next `trio.run`")
-        DEFAULT_CONTEXT_PARAMS.update(**new_parm_dict)
-    else:
-        stats = default_context_statistics()
-        if stats.idle_workers or stats.running_workers:
-            warnings.warn("Previous default context leaving zombie workers behind")
-        # assign to a local for KI protection
-        ctx = WorkerContext._create(**new_parm_dict)
-        atexit.register(graceful_default_shutdown, ctx)
-        global DEFAULT_CONTEXT
-        DEFAULT_CONTEXT = ctx
+    stats = default_context_statistics()
+    if stats.idle_workers or stats.running_workers:
+        warnings.warn("Previous default context leaving zombie workers behind")
+    # assign to a local for KI protection
+    ctx = WorkerContext._create(**new_parm_dict)
+    if sys.platform == "win32" and ctx.worker_type == WorkerType.SPAWN:
+        ctx.__dict__["_worker_class"] = BaseProcWorker
+    atexit.register(graceful_default_shutdown, ctx)
+    global DEFAULT_CONTEXT
+    DEFAULT_CONTEXT = ctx
 
 
-if sys.platform == "win32":
-    DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
-    DEFAULT_CONTEXT_PARAMS = {}
+def graceful_default_shutdown(ctx):
+    ctx._worker_cache.shutdown(ctx.grace_period)
 
-    # TODO: intelligently test ki protection here such that CI fails if the
-    #  decorators disappear
 
-    @trio.lowlevel.enable_ki_protection
-    def get_default_context():
-        try:
-            ctx = DEFAULT_CONTEXT_RUNVAR.get()
-        except LookupError:
-            ctx = WorkerContext._create(**DEFAULT_CONTEXT_PARAMS)
-            DEFAULT_CONTEXT_RUNVAR.set(ctx)
-            # KeyboardInterrupt here could leak the context
-            trio.lowlevel.spawn_system_task(close_at_run_end, ctx)
-        return ctx
-
-    @trio.lowlevel.enable_ki_protection
-    async def close_at_run_end(ctx):
-        try:
-            await trio.sleep_forever()
-        finally:
-            # KeyboardInterrupt here could leak the context
-            await ctx._aclose()  # noqa: TRIO102
-
-else:
-
-    def get_default_context():
-        return DEFAULT_CONTEXT
-
-    def graceful_default_shutdown(ctx):
-        ctx._worker_cache.shutdown(ctx.grace_period)
-
-    atexit.register(graceful_default_shutdown, DEFAULT_CONTEXT)
+atexit.register(graceful_default_shutdown, DEFAULT_CONTEXT)
 
 
 def default_context_statistics():
@@ -314,7 +279,7 @@ def default_context_statistics():
 
        The statistics are only eventually consistent in the case of multiple trio
        threads concurrently using `trio_parallel.run_sync`."""
-    return get_default_context().statistics()
+    return DEFAULT_CONTEXT.statistics()
 
 
 @asynccontextmanager
@@ -324,7 +289,7 @@ async def open_worker_context(
     init=DEFAULT_CONTEXT.init,
     retire=DEFAULT_CONTEXT.retire,
     grace_period=DEFAULT_CONTEXT.grace_period,
-    worker_type=WorkerType.SPAWN,
+    worker_type=DEFAULT_CONTEXT.worker_type,
 ):
     """Create a new, customized worker context with isolated workers.
 
@@ -451,10 +416,6 @@ async def run_sync(
         in normal use.
 
     """
-    return await get_default_context().run_sync(
+    return await DEFAULT_CONTEXT.run_sync(
         sync_fn, *args, cancellable=cancellable, limiter=limiter
     )
-
-
-if sys.platform == "win32":
-    del DEFAULT_CONTEXT

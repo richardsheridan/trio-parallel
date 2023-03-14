@@ -12,26 +12,19 @@ import trio
 from .. import _impl
 from _trio_parallel_workers._funcs import _block_worker, _raise_pid
 from .._impl import (
-    get_default_context,
+    DEFAULT_CONTEXT,
     run_sync,
     open_worker_context,
     default_context_statistics,
     configure_default_context,
 )
 
-if sys.platform == "win32":
 
-    @pytest.fixture
-    def shutdown_cache():
-        configure_default_context()
-
-else:
-
-    @pytest.fixture
-    def shutdown_cache():
-        yield
-        _impl.DEFAULT_CONTEXT._worker_cache.shutdown(50)
-        configure_default_context()
+@pytest.fixture
+def shutdown_cache():
+    yield
+    _impl.DEFAULT_CONTEXT._worker_cache.shutdown(50)
+    configure_default_context()
 
 
 async def test_run_sync(shutdown_cache):
@@ -249,14 +242,9 @@ async def test_get_default_context_stats():  # noqa: TRIO910
     s = default_context_statistics()
     assert hasattr(s, "idle_workers")
     assert hasattr(s, "running_workers")
-    assert s == get_default_context().statistics()
+    assert s == DEFAULT_CONTEXT.statistics()
 
 
-@pytest.mark.xfail(
-    sys.platform == "win32",
-    reason="Default cache is not global on Windows",
-    raises=AssertionError,
-)
 def test_sequential_runs(shutdown_cache):
     async def run_with_timeout():
         with trio.fail_after(20):

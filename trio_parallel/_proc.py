@@ -34,6 +34,9 @@ else:
     SendChan = RecvChan
 
 
+_proc_counter = count()
+
+
 class BrokenWorkerProcessError(_abc.BrokenWorkerError):
     __doc__ = f"""{_abc.BrokenWorkerError.__doc__}
     The last argument of the exception is the underlying
@@ -85,15 +88,14 @@ class WorkerProcCache(_abc.WorkerCache):
             )
 
 
-class SpawnProcWorker(_abc.AbstractWorker):
-    _proc_counter = count()
+class BaseProcWorker(_abc.AbstractWorker):
+    _broken_exc = BrokenPipeError
+    _eof_exc = EOFError
     mp_context = multiprocessing.get_context("spawn")
 
     def __init__(self, idle_timeout, init, retire):
         self._child_recv_pipe, self._send_pipe = self.mp_context.Pipe(duplex=False)
         self._recv_pipe, self._child_send_pipe = self.mp_context.Pipe(duplex=False)
-        self._receive_chan = RecvChan(self._recv_pipe.fileno())
-        self._send_chan = SendChan(self._send_pipe.fileno())
         self.proc = self.mp_context.Process(
             target=tp_workers.worker_behavior,
             args=(
@@ -103,8 +105,23 @@ class SpawnProcWorker(_abc.AbstractWorker):
                 dumps(init, protocol=HIGHEST_PROTOCOL),
                 dumps(retire, protocol=HIGHEST_PROTOCOL),
             ),
-            name=f"trio-parallel worker process {next(self._proc_counter)}",
+            name=f"trio-parallel worker process {next(_proc_counter)}",
             daemon=True,
+        )
+
+    async def _receive(self):
+        return await trio.to_thread.run_sync(
+            self._recv_pipe.recv_bytes,
+            cancellable=True,
+            limiter=trio.CapacityLimiter(1),
+        )
+
+    async def _send(self, value):
+        await trio.to_thread.run_sync(
+            self._send_pipe.send_bytes,
+            value,
+            cancellable=True,
+            limiter=trio.CapacityLimiter(1),
         )
 
     async def start(self):
@@ -121,7 +138,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(wait_then_fail)
             try:
-                code = await self._receive_chan.receive()
+                code = await self._receive()
             except BaseException:
                 self.kill()
                 with trio.CancelScope(shield=True):
@@ -138,15 +155,15 @@ class SpawnProcWorker(_abc.AbstractWorker):
 
         try:
             try:
-                await self._send_chan.send(job)
-            except trio.BrokenResourceError:
+                await self._send(job)
+            except self._broken_exc:
                 with trio.CancelScope(shield=True):
                     await self.wait()
                 return None
 
             try:
-                return loads(await self._receive_chan.receive())
-            except trio.EndOfChannel:
+                return loads(await self._receive())
+            except self._eof_exc:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 with trio.CancelScope(shield=True):
                     await self.wait()
@@ -185,6 +202,18 @@ class SpawnProcWorker(_abc.AbstractWorker):
         self.proc.join()
         # unfortunately join does not return exitcode
         return self.proc.exitcode
+
+
+class SpawnProcWorker(BaseProcWorker):
+    _broken_exc = trio.BrokenResourceError
+    _eof_exc = trio.EndOfChannel
+
+    def __init__(self, idle_timeout, init, retire):
+        super().__init__(idle_timeout, init, retire)
+        self._receive_chan = RecvChan(self._recv_pipe.fileno())
+        self._send_chan = SendChan(self._send_pipe.fileno())
+        self._receive = self._receive_chan.receive
+        self._send = self._send_chan.send
 
     def __del__(self):
         # Avoid __del__ errors on cleanup: Trio GH#174, GH#1767
