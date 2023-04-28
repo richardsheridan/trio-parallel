@@ -66,9 +66,9 @@ class MockContext(_impl.WorkerContext):
         self.__dict__["_worker_class"] = MockWorker
         self.__dict__["_worker_cache"] = MockCache()
 
-    async def _aclose(self, grace_period=None):
+    async def _aclose(self):
         assert trio.lowlevel.currently_ki_protected()
-        await super()._aclose(grace_period)
+        await super()._aclose()
 
 
 @pytest.fixture

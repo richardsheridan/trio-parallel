@@ -182,15 +182,15 @@ class WorkerContext(metaclass=NoPublicConstructor):
                     self._worker_cache.append(worker)
                     return result.unwrap()
 
-    async def _aclose(self, grace_period=None):
-        if grace_period is None:
-            grace_period = self.grace_period
+    async def _aclose(self):
         assert not self._lifetime.waiting_task
         self._lifetime.waiting_task = trio.lowlevel.current_task()
         with trio.CancelScope(shield=True):
             if self._lifetime.calc_running() != 0:
                 await trio.sleep_forever()  # woken by self._lifetime.__aexit__
-            await trio.to_thread.run_sync(self._worker_cache.shutdown, grace_period)
+            await trio.to_thread.run_sync(
+                self._worker_cache.shutdown, self.grace_period
+            )
 
     @trio.lowlevel.enable_ki_protection
     def statistics(self):
@@ -290,7 +290,7 @@ if sys.platform == "win32":
             await trio.sleep_forever()
         finally:
             # KeyboardInterrupt here could leak the context
-            await ctx._aclose(ctx.grace_period)  # noqa: TRIO102
+            await ctx._aclose()  # noqa: TRIO102
 
 else:
 
