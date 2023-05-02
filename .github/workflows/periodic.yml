@@ -28,7 +28,7 @@ jobs:
     steps:
       - name: Checkout
         if: matrix.source == '-e .'
-        uses: actions/checkout@v3.5.0
+        uses: actions/checkout@v3.5.2
       - name: Setup python
         uses: actions/setup-python@v4.5.0
         with:
