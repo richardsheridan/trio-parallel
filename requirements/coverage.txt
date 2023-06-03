@@ -5,5 +5,5 @@
 #
 #    pip-compile-multi
 #
-coverage[toml]==7.2.0
+coverage[toml]==7.2.7
     # via -r requirements\coverage.in
