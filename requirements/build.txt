@@ -9,7 +9,7 @@ build==0.10.0
     # via -r requirements\build.in
 colorama==0.4.6
     # via build
-packaging==23.0
+packaging==23.1
     # via
     #   build
     #   setuptools-scm
@@ -17,13 +17,13 @@ pyproject-hooks==1.0.0
     # via build
 setuptools-scm==7.1.0
     # via -r requirements\build.in
-typing-extensions==4.5.0
+typing-extensions==4.6.3
     # via setuptools-scm
-wheel==0.38.4
+wheel==0.40.0
     # via -r requirements\build.in
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==67.4.0
+setuptools==67.8.0
     # via
     #   -r requirements\build.in
     #   setuptools-scm

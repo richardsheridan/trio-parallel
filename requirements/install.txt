@@ -7,7 +7,7 @@
 #
 async-generator==1.10
     # via trio
-attrs==22.2.0
+attrs==23.1.0
     # via
     #   -r requirements\install.in
     #   outcome
