@@ -62,6 +62,7 @@ extensions = [
     'sphinx.ext.coverage',
     'sphinx.ext.napoleon',
     'sphinxcontrib_trio',
+    'sphinxcontrib.jquery',
 ]
 
 intersphinx_mapping = {
