@@ -60,6 +60,8 @@ recommended."""
 @attr.s(slots=True, eq=False)
 class ContextLifetimeManager:
     waiting_task = attr.ib(None)
+    entrances = attr.ib(0)
+    exits = attr.ib(0)
     # Counters are used for thread safety of the default cache
     enter_counter = attr.ib(factory=lambda: count(1))
     exit_counter = attr.ib(factory=lambda: count(1))
@@ -68,21 +70,17 @@ class ContextLifetimeManager:
         # only async to save indentation
         if self.waiting_task:
             raise trio.ClosedResourceError
-        next(self.enter_counter)
+        self.entrances = next(self.enter_counter)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):  # noqa: TRIO910
         # only async to save indentation
-        next(self.exit_counter)
+        self.exits = next(self.exit_counter)
         if self.waiting_task:
             if self.calc_running() == 0:
                 trio.lowlevel.reschedule(self.waiting_task)
 
     def calc_running(self):
-        # __reduce__ is the only count API that can extract the internal int value
-        # without incrementing it. Let's hope it's stable!!
-        return (
-            self.enter_counter.__reduce__()[1][0] - self.exit_counter.__reduce__()[1][0]
-        )
+        return self.entrances - self.exits
 
 
 @attr.s(auto_attribs=True, slots=True, frozen=True)
