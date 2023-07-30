@@ -185,6 +185,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
         self._lifetime.waiting_task = trio.lowlevel.current_task()
         with trio.CancelScope(shield=True):
             if self._lifetime.calc_running() != 0:
+                assert self is not get_default_context()
                 await trio.sleep_forever()  # woken by self._lifetime.__aexit__
             await trio.to_thread.run_sync(
                 self._worker_cache.shutdown, self.grace_period
