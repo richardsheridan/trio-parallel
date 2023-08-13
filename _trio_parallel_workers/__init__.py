@@ -140,8 +140,14 @@ def sint_worker_behavior(idle_timeout, recv_cid, send_cid):
             if retire():
                 break
     except channels.ChannelClosedError:
-        channels.close(recv_cid, recv=True)
-        channels.close(send_cid, send=True)
+        try:
+            channels.close(recv_cid, recv=True)
+        except channels.ChannelClosedError:
+            pass
+        try:
+            channels.close(send_cid, send=True)
+        except channels.ChannelClosedError:
+            pass
         return
     except BaseException:
         channels.close(send_cid, send=True)
