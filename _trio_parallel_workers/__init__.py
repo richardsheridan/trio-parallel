@@ -114,3 +114,39 @@ def worker_behavior(recv_pipe, send_pipe, idle_timeout, init, retire):
         # can be any size on Windows but must be less than 512 bytes by POSIX.1-2001.
         send_pipe.send_bytes(dumps(None, protocol=HIGHEST_PROTOCOL))
         send_pipe.close()
+
+
+def sint_worker_behavior(idle_timeout, recv_cid, send_cid):
+    import _xxinterpchannels as channels
+    import time
+
+    def safe_recv():
+        deadline = perf_counter() + idle_timeout
+        while deadline > perf_counter():
+            if x := channels.recv(recv_cid, None):
+                return x
+            time.sleep(0.10)
+
+    try:
+        channels.send(send_cid, ACK)
+        init = loads(channels.recv(recv_cid))
+        retire = loads(channels.recv(recv_cid))
+        # TODO: why is release() not sufficient for all usages of close() below?
+        # channels.release(recv_cid, send=True)
+        # channels.release(send_cid, recv=True)
+        init()
+        while job_bytes := safe_recv():
+            channels.send(send_cid, safe_dumps(capture(handle_job, job_bytes)))
+            if retire():
+                break
+    except channels.ChannelClosedError:
+        channels.close(recv_cid, recv=True)
+        channels.close(send_cid, send=True)
+        return
+    except BaseException:
+        channels.close(send_cid, send=True)
+        raise
+    else:
+        channels.close(recv_cid, recv=True)
+        channels.send(send_cid, None)
+        channels.close(send_cid, send=True)
