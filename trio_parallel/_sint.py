@@ -177,7 +177,6 @@ class SintWorker(_abc.AbstractWorker):
         if not hasattr(self, "interp"):
             return None
         while self.is_alive():
-            print("waiting")
             await trio.sleep(0.1)
         return -15 if self._killed else 0
 
