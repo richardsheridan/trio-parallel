@@ -112,3 +112,19 @@ async def test_no_trio_in_subproc(worker):
     if worker.mp_context._name == "fork":
         pytest.skip("Doesn't matter on ForkProcWorker")
     assert (await worker.run_sync(_no_trio)).unwrap()
+
+
+async def test_clean_exit_on_shutdown(worker, capfd):
+    if worker.mp_context._name == "forkserver":
+        pytest.skip("capfd doesn't work on ForkserverProcWorker")
+    # This could happen on weird __del__/weakref/atexit situations.
+    # It was not visible on normal, clean exits because multiprocessing
+    # would call terminate before pipes were GC'd.
+    assert (await worker.run_sync(bool)).unwrap() is False
+    worker.shutdown()
+    with trio.fail_after(1):
+        exitcode = await worker.wait()
+    out, err = capfd.readouterr()
+    assert not err
+    assert exitcode == 0
+    assert not out

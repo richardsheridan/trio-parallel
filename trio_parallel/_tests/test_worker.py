@@ -53,23 +53,6 @@ async def test_run_sync_coroutine_error(worker):
         (await worker.run_sync(_null_async_fn)).unwrap()
 
 
-async def test_clean_exit_on_shutdown(worker, capfd):
-    if worker.mp_context._name == "forkserver":
-        pytest.skip("capfd doesn't work on ForkserverProcWorker")
-    await worker.start()
-    # This could happen on weird __del__/weakref/atexit situations.
-    # It was not visible on normal, clean exits because multiprocessing
-    # would call terminate before pipes were GC'd.
-    assert (await worker.run_sync(bool)).unwrap() is False
-    worker.shutdown()
-    with trio.fail_after(2):
-        exitcode = await worker.wait()
-    out, err = capfd.readouterr()
-    assert not err
-    assert exitcode == 0
-    assert not out
-
-
 async def test_tracebacks(worker):
     await worker.start()
     with pytest.raises(SpecialError, match="test2") as excinfo:

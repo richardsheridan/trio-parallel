@@ -11,6 +11,7 @@ from typing import Type, Callable, Any, TypeVar
 import attr
 import trio
 
+from ._sint import WORKER_SINT_MAP
 from ._proc import WORKER_PROC_MAP
 from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
 
@@ -38,7 +39,7 @@ def current_default_worker_limiter():
         return limiter
 
 
-WORKER_MAP = {**WORKER_PROC_MAP}
+WORKER_MAP = {**WORKER_PROC_MAP, **WORKER_SINT_MAP}
 
 WorkerType = Enum(
     "WorkerType", ((x.upper(), x) for x in WORKER_MAP), type=str, module=__name__
