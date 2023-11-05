@@ -5,9 +5,11 @@ trio-parallel API minimal, we can put in new workers and options without needing
 frontend rewrites."""
 
 from abc import ABC, abstractmethod, ABCMeta
-from typing import Optional, Callable, TypeVar, Type, Any, Deque
+from typing import Optional, Callable, TypeVar, Type, Any, Deque, Generic
 
 from outcome import Outcome
+
+T = TypeVar("T")
 
 
 class BrokenWorkerError(RuntimeError):
@@ -65,7 +67,7 @@ class AbstractWorker(ABC):
         """Wait for the worker to terminate."""
 
 
-class WorkerCache(Deque[AbstractWorker], ABC):
+class WorkerCache(Deque[T], ABC, Generic[T]):
     @abstractmethod
     def prune(self):
         """Clean up any resources associated with workers that have timed out
@@ -87,7 +89,6 @@ class WorkerCache(Deque[AbstractWorker], ABC):
 # Vendored from trio._util in v0.19.0 under identical MIT/Apache2 license.
 # Copyright Contributors to the Trio project.
 # Modified so it's not Final so that we can create a test fake subclass.
-T = TypeVar("T")
 
 
 class NoPublicConstructor(ABCMeta):
