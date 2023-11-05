@@ -41,50 +41,6 @@ class BrokenWorkerProcessError(_abc.BrokenWorkerError):
     """
 
 
-class WorkerProcCache(_abc.WorkerCache):
-    def prune(self):
-        # remove procs that have died from the idle timeout
-        while True:
-            try:
-                worker = self.popleft()
-            except IndexError:
-                return
-            if worker.is_alive():
-                self.appendleft(worker)
-                return
-
-    def shutdown(self, timeout):
-        unclean = []
-        killed = []
-        for worker in self:
-            worker.shutdown()
-        deadline = time.perf_counter() + timeout
-        for worker in self:
-            timeout = deadline - time.perf_counter()
-            while timeout > tp_workers.MAX_TIMEOUT:
-                worker.proc.join(tp_workers.MAX_TIMEOUT)
-                if worker.proc.exitcode is not None:
-                    break
-                timeout = deadline - time.perf_counter()
-            else:
-                # guard rare race on macos if exactly == 0.0
-                worker.proc.join(timeout or -0.1)
-            if worker.proc.exitcode is None:
-                worker.kill()
-                killed.append(worker.proc)
-            elif worker.proc.exitcode:
-                unclean.append(worker.proc)
-        if unclean or killed:
-            for proc in killed:
-                proc.join()
-            raise BrokenWorkerProcessError(
-                f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
-                f"and {len(killed)} forceful terminations.",
-                *unclean,
-                *killed,
-            )
-
-
 class SpawnProcWorker(_abc.AbstractWorker):
     _proc_counter = count()
     mp_context = multiprocessing.get_context("spawn")
@@ -194,6 +150,50 @@ class SpawnProcWorker(_abc.AbstractWorker):
             self._send_chan.detach()
         if hasattr(self, "_receive_chan"):  # pragma: no branch
             self._receive_chan.detach()
+
+
+class WorkerProcCache(_abc.WorkerCache[SpawnProcWorker]):
+    def prune(self):
+        # remove procs that have died from the idle timeout
+        while True:
+            try:
+                worker = self.popleft()
+            except IndexError:
+                return
+            if worker.is_alive():
+                self.appendleft(worker)
+                return
+
+    def shutdown(self, timeout):
+        unclean = []
+        killed = []
+        for worker in self:
+            worker.shutdown()
+        deadline = time.perf_counter() + timeout
+        for worker in self:
+            timeout = deadline - time.perf_counter()
+            while timeout > tp_workers.MAX_TIMEOUT:
+                worker.proc.join(tp_workers.MAX_TIMEOUT)
+                if worker.proc.exitcode is not None:
+                    break
+                timeout = deadline - time.perf_counter()
+            else:
+                # guard rare race on macos if exactly == 0.0
+                worker.proc.join(timeout or -0.1)
+            if worker.proc.exitcode is None:
+                worker.kill()
+                killed.append(worker.proc)
+            elif worker.proc.exitcode:
+                unclean.append(worker.proc)
+        if unclean or killed:
+            for proc in killed:
+                proc.join()
+            raise BrokenWorkerProcessError(
+                f"Graceful shutdown failed: {len(unclean)} nonzero exit codes "
+                f"and {len(killed)} forceful terminations.",
+                *unclean,
+                *killed,
+            )
 
 
 WORKER_PROC_MAP = {"spawn": (SpawnProcWorker, WorkerProcCache)}

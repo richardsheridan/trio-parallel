@@ -99,7 +99,7 @@ async def test_kill_cancellation(manager, shutdown_cache):
         await trio.testing.wait_all_tasks_blocked(0.01)
         assert child_start
         with trio.fail_after(1):
-            await trio.to_thread.run_sync(worker_start.wait, cancellable=True)
+            await trio.to_thread.run_sync(worker_start.wait, abandon_on_cancel=True)
         # Then cancel it.
         nursery.cancel_scope.cancel()
     # The task exited, but the worker died
@@ -123,7 +123,7 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
     # This one can't be cancelled
     async with trio.open_nursery() as nursery:
         nursery.start_soon(child, False)
-        await trio.to_thread.run_sync(worker_start.wait, cancellable=True)
+        await trio.to_thread.run_sync(worker_start.wait, abandon_on_cancel=True)
         assert child_start
         nursery.cancel_scope.cancel()
         with trio.CancelScope(shield=True):
@@ -161,7 +161,7 @@ async def test_context_waits(manager):
         async with open_worker_context() as ctx:
             nursery.start_soon(child)
             nursery.start_soon(child)
-            await trio.to_thread.run_sync(start.wait, cancellable=True)
+            await trio.to_thread.run_sync(start.wait, abandon_on_cancel=True)
             block.set()
         assert finished
 

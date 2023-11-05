@@ -8,17 +8,13 @@
 -r install.txt
 alabaster==0.7.13
     # via sphinx
-babel==2.12.1
+babel==2.13.1
     # via sphinx
 certifi==2023.7.22
     # via requests
-charset-normalizer==3.2.0
+charset-normalizer==3.3.2
     # via requests
-click==8.1.6
-    # via
-    #   click-default-group
-    #   towncrier
-click-default-group==1.2.2
+click==8.1.7
     # via towncrier
 colorama==0.4.6
     # via
@@ -38,39 +34,44 @@ jinja2==3.1.2
     #   towncrier
 markupsafe==2.1.3
     # via jinja2
-packaging==23.1
+packaging==23.2
     # via sphinx
-pygments==2.15.1
+pygments==2.16.1
     # via sphinx
 requests==2.31.0
     # via sphinx
 snowballstemmer==2.2.0
     # via sphinx
-sphinx==6.2.1
+sphinx==7.2.6
     # via
     #   -r requirements\docs.in
     #   sphinx-rtd-theme
+    #   sphinxcontrib-applehelp
+    #   sphinxcontrib-devhelp
+    #   sphinxcontrib-htmlhelp
     #   sphinxcontrib-jquery
+    #   sphinxcontrib-qthelp
+    #   sphinxcontrib-serializinghtml
     #   sphinxcontrib-trio
-sphinx-rtd-theme==1.2.2
+sphinx-rtd-theme==1.3.0
     # via -r requirements\docs.in
-sphinxcontrib-applehelp==1.0.4
+sphinxcontrib-applehelp==1.0.7
     # via sphinx
-sphinxcontrib-devhelp==1.0.2
+sphinxcontrib-devhelp==1.0.5
     # via sphinx
-sphinxcontrib-htmlhelp==2.0.1
+sphinxcontrib-htmlhelp==2.0.4
     # via sphinx
 sphinxcontrib-jquery==4.1
     # via sphinx-rtd-theme
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-qthelp==1.0.3
+sphinxcontrib-qthelp==1.0.6
     # via sphinx
-sphinxcontrib-serializinghtml==1.1.5
+sphinxcontrib-serializinghtml==1.1.9
     # via sphinx
 sphinxcontrib-trio==1.1.2
     # via -r requirements\docs.in
-towncrier==23.6.0
+towncrier==23.10.0
     # via -r requirements\docs.in
-urllib3==2.0.4
+urllib3==2.0.7
     # via requests

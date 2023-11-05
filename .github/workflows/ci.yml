@@ -32,7 +32,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4.7.1
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -53,7 +53,7 @@ jobs:
         with:
           cache: pip
           cache-dependency-path: requirements/lint.txt
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -89,7 +89,7 @@ jobs:
         with:
           cache: pip
           cache-dependency-path: requirements/build.txt
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -138,34 +138,36 @@ jobs:
           - ubuntu-latest
           - macos-latest
         python:
-          - '3.7'
           - '3.8'
           - '3.9'
           - '3.10'
           - '3.11'
-          - 'pypy-3.7'
+          - '3.12'
           - 'pypy-3.8'
           - 'pypy-3.9'
+          - 'pypy-3.10'
         arch: [ x64 ]
         include:
           - os: ubuntu-latest
-            python: 'pypy-3.9-nightly'
+            python: 'pypy-3.10-nightly'
             arch: x64
             experimental: true
             test-timeout: 10
-          - os: ubuntu-latest
-            python: '3.12-dev'
-            arch: x64
-            experimental: true
-            test-timeout: 3
+#          - os: ubuntu-latest
+#            python: '3.13-dev'
+#            arch: x64
+#            experimental: true
+#            test-timeout: 3
           - os: windows-latest
-            python: '3.7'
+            python: '3.8'
             arch: x86
             experimental: false
             test-timeout: 10
         exclude:
           - os: macos-latest
-            python: 'pypy-3.7'
+            python: '3.8'
+          - os: macos-latest
+            python: 'pypy-3.8'
           - os: macos-latest
             python: 'pypy-3.9'
     steps:
@@ -218,7 +220,7 @@ jobs:
           - ubuntu-latest
           - macos-latest
         python:
-          - '3.11'
+          - '3.12'
         arch:
           - x64
     steps:
@@ -251,7 +253,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v4.7.1
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Download build artifact
         uses: actions/download-artifact@v3.0.2
         with:
@@ -298,7 +300,7 @@ jobs:
         with:
           cache: pip
           cache-dependency-path: requirements/coverage.txt
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Install coverage
         run: |
           pip install -U pip
@@ -329,31 +331,25 @@ jobs:
         with:
           jobs: ${{ toJSON(needs) }}
 
-  Publish:
-    name: Publish
+  Release:
+    name: Release on PyPI
     if: github.event_name == 'release'
     needs: All
     timeout-minutes: 1
     runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/p/trio-parallel
+    permissions:
+      id-token: write
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v3.0.2
         with:
           name: Build
           path: dist
-      - name: Setup python
-        uses: actions/setup-python@v4.7.1
-        with:
-          python-version: "3.11"
-      - name: Install requirements
-        run: |
-          python -m pip install -U pip
-          python -m pip install twine
-      - name: Publish to Pypi
-        run: twine upload dist/*
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
       - name: Upload to GitHub
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

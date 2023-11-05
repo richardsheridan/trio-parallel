@@ -43,7 +43,7 @@ async def test_run_sync_cancel_infinite_loop(worker, manager):
 
     async with trio.open_nursery() as nursery:
         nursery.start_soon(worker.run_sync, _never_halts, ev)
-        await trio.to_thread.run_sync(ev.wait, cancellable=True)
+        await trio.to_thread.run_sync(ev.wait, abandon_on_cancel=True)
         nursery.cancel_scope.cancel()
     with trio.fail_after(1):
         assert await worker.wait() in (-15, -9)
@@ -55,7 +55,7 @@ async def test_run_sync_raises_on_kill(worker, manager):
     with pytest.raises(BrokenWorkerError) as exc_info, trio.fail_after(5):
         async with trio.open_nursery() as nursery:
             nursery.start_soon(worker.run_sync, _never_halts, ev)
-            await trio.to_thread.run_sync(ev.wait, cancellable=True)
+            await trio.to_thread.run_sync(ev.wait, abandon_on_cancel=True)
             worker.kill()  # also tests multiple calls to worker.kill
     exitcode = await worker.wait()
     assert exitcode in (-15, -9)
