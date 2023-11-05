@@ -10,16 +10,6 @@ from inspect import iscoroutine
 from pickle import HIGHEST_PROTOCOL
 from time import perf_counter
 
-
-if getattr(sys, "pypy_version_info", (8,)) < (7, 3, 10):
-    # mute rogue pypy debug print statement
-    try:
-        import _winapi
-    except ImportError:
-        pass
-    else:
-        _winapi.print = lambda *args, **kwargs: None
-
 try:
     from cloudpickle import dumps, loads
 except ImportError:
