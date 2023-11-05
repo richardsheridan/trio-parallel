@@ -329,31 +329,25 @@ jobs:
         with:
           jobs: ${{ toJSON(needs) }}
 
-  Publish:
-    name: Publish
+  Release:
+    name: Release on PyPI
     if: github.event_name == 'release'
     needs: All
     timeout-minutes: 1
     runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://pypi.org/p/trio-parallel
+    permissions:
+      id-token: write
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v3.0.2
         with:
           name: Build
           path: dist
-      - name: Setup python
-        uses: actions/setup-python@v4.7.1
-        with:
-          python-version: "3.11"
-      - name: Install requirements
-        run: |
-          python -m pip install -U pip
-          python -m pip install twine
-      - name: Publish to Pypi
-        run: twine upload dist/*
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
       - name: Upload to GitHub
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
