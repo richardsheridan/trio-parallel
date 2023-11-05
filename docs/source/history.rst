@@ -5,6 +5,21 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.2.1 (2023-11-04)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Resolved a deprecation warning on python 3.12. (`#380 <https://github.com/richardsheridan/trio-parallel/issues/380>`__)
+
+
+Deprecations and Removals
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Although python 3.7 has not been specifically broken, it is no longer tested in CI. (`#389 <https://github.com/richardsheridan/trio-parallel/issues/389>`__)
+
+
 trio-parallel 1.2.0 (2022-10-29)
 --------------------------------
 
