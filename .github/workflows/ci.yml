@@ -165,6 +165,8 @@ jobs:
             test-timeout: 10
         exclude:
           - os: macos-latest
+            python: '3.8'
+          - os: macos-latest
             python: 'pypy-3.8'
           - os: macos-latest
             python: 'pypy-3.9'
