@@ -153,11 +153,11 @@ jobs:
             arch: x64
             experimental: true
             test-timeout: 10
-          - os: ubuntu-latest
-            python: '3.13-dev'
-            arch: x64
-            experimental: true
-            test-timeout: 3
+#          - os: ubuntu-latest
+#            python: '3.13-dev'
+#            arch: x64
+#            experimental: true
+#            test-timeout: 3
           - os: windows-latest
             python: '3.8'
             arch: x86
