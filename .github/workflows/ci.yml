@@ -149,7 +149,7 @@ jobs:
         arch: [ x64 ]
         include:
           - os: ubuntu-latest
-            python: 'pypy-3.9-nightly'
+            python: 'pypy-3.10-nightly'
             arch: x64
             experimental: true
             test-timeout: 10
