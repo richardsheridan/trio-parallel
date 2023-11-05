@@ -24,7 +24,7 @@ jobs:
           - 'pypy-3.10'
         source:
           - 'trio-parallel'
-          - 'trio-parallel git+https://github.com/python-trio/trio.git'
+          - 'git+https://github.com/python-trio/trio.git trio-parallel'
           - '-e .'
     steps:
       - name: Checkout
