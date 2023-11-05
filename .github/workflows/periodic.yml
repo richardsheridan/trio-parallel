@@ -20,10 +20,11 @@ jobs:
           - ubuntu-latest
           - macos-latest
         python:
-          - '3.10'
-          - 'pypy-3.8'
+          - '3.12'
+          - 'pypy-3.10'
         source:
           - 'trio-parallel'
+          - 'trio-parallel git+https://github.com/python-trio/trio.git'
           - '-e .'
     steps:
       - name: Checkout
