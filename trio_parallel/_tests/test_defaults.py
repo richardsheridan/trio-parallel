@@ -206,9 +206,7 @@ def test_startup_failure_doesnt_hang(tmp_path):
             "import trio,trio_parallel; trio.run(trio_parallel.run_sync, int)\n",
         )
     result = subprocess.run(
-        # note str used because cpython subprocess added the feature
-        # to understand path-like objects in version 3.8
-        [sys.executable, str(script_path)],
+        [sys.executable, script_path],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,  # we expect a failure

@@ -95,7 +95,7 @@ async def test_ki_does_not_propagate(worker):
 async def test_unpickleable(job, worker):
     from pickle import PicklingError
 
-    with pytest.raises((PicklingError, AttributeError)):
+    with pytest.raises(PicklingError):
         (await worker.run_sync(job)).unwrap()
 
 
