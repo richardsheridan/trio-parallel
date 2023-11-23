@@ -128,7 +128,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
     )
     worker_type: WorkerType = attr.ib(
         default=WorkerType.SPAWN,
-        validator=attr.validators.in_(WorkerType),
+        validator=attr.validators.in_(set(WorkerType)),
     )
     _worker_class: Type[AbstractWorker] = attr.ib(repr=False, init=False)
     _worker_cache: WorkerCache = attr.ib(repr=False, init=False)
