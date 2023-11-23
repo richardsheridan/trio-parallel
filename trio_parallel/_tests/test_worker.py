@@ -3,8 +3,6 @@
     All workers should pass these tests, regardless of implementation
 """
 import math
-import os
-import sys
 
 import pytest
 import trio

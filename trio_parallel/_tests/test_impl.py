@@ -1,6 +1,5 @@
 """ Tests of public API with mocked-out workers ("collaboration" tests)"""
 import sys
-import warnings
 from typing import Callable, Optional
 
 import pytest
@@ -136,29 +135,40 @@ async def test_cache_scope_args(mock_context):
         assert worker.idle_timeout == 33
 
 
-async def test_erroneous_scope_inputs():  # pragma: no cover, ugly branching
+def _idfn(val):
+    k = next(iter(val))
+    v = val[k]
+    return f"{k}-{v}"
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(idle_timeout=[-1]),
+        dict(init=0),
+        dict(retire=None),
+        dict(grace_period=None),
+    ],
+    ids=_idfn,
+)
+async def test_erroneous_scope_types(kwargs):
     with pytest.raises(TypeError):
-        async with _impl.open_worker_context(idle_timeout=[-1]):
+        async with _impl.open_worker_context(**kwargs):
             pytest.fail("should be unreachable")
-    with pytest.raises(TypeError):
-        async with _impl.open_worker_context(init=0):
-            pytest.fail("should be unreachable")
-    with pytest.raises(TypeError):
-        async with _impl.open_worker_context(retire=None):
-            pytest.fail("should be unreachable")
-    with pytest.raises(TypeError):
-        async with _impl.open_worker_context(grace_period=object()):
-            pytest.fail("should be unreachable")
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(worker_type="wrong"),
+        dict(grace_period=-1),
+        dict(idle_timeout=-1),
+    ],
+    ids=_idfn,
+)
+async def test_erroneous_scope_values(kwargs):
     with pytest.raises(ValueError):
-        with warnings.catch_warnings():  # spurious DeprecationWarning on 3.7
-            warnings.simplefilter("ignore")
-            async with _impl.open_worker_context(worker_type="wrong"):
-                pytest.fail("should be unreachable")
-    with pytest.raises(ValueError):
-        async with _impl.open_worker_context(grace_period=-1):
-            pytest.fail("should be unreachable")
-    with pytest.raises(ValueError):
-        async with _impl.open_worker_context(idle_timeout=-1):
+        async with _impl.open_worker_context(**kwargs):
             pytest.fail("should be unreachable")
 
 
