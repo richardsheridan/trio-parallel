@@ -136,8 +136,9 @@ async def test_cache_scope_args(mock_context):
 
 
 def _idfn(val):
-    for k, v in val.items():
-        return f"{k}-{v}"
+    k = next(iter(val))
+    v = val[k]
+    return f"{k}-{v}"
 
 
 @pytest.mark.parametrize(
