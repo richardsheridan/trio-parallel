@@ -342,7 +342,6 @@ jobs:
       url: https://pypi.org/p/trio-parallel
     permissions:
       id-token: write
-#      contents: write  # TODO: Is this the right permission to fix gh release upload?
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v3.0.2
@@ -351,9 +350,23 @@ jobs:
           path: dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-#      TODO: what permission do I need to get this to work?
-#      - name: Upload to GitHub
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        run: |
-#          gh release upload ${{ github.ref_name }} dist/* --repo ${{ github.repository }}
+
+  Update:
+    name: Update GitHub Release
+    if: github.event_name == 'release'
+    needs: All
+    timeout-minutes: 1
+    runs-on: ubuntu-latest
+#    permissions:
+#      contents: write  #TODO this should be default but maybe must be set
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v3.0.2
+        with:
+          name: Build
+          path: dist
+      - name: Upload to GitHub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} dist/* --repo ${{ github.repository }}
