@@ -182,7 +182,7 @@ jobs:
           python-version: '${{ matrix.python }}'
           architecture: '${{ matrix.arch }}'
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.0
         with:
           name: Build
           path: dist
@@ -255,7 +255,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.0
         with:
           name: Build
           path: dist
@@ -274,7 +274,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.1
       - name: Download coverage artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.0
         with:
           name: Coverage
       - name: Upload to Codecov
@@ -292,7 +292,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.1
       - name: Download coverage artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.0
         with:
           name: Coverage
       - name: Setup python
@@ -344,7 +344,7 @@ jobs:
       id-token: write
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.0
         with:
           name: Build
           path: dist
@@ -361,7 +361,7 @@ jobs:
 #      contents: write  #TODO this should be default but maybe must be set
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.0
         with:
           name: Build
           path: dist
