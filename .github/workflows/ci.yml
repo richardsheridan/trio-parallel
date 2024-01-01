@@ -30,7 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.1
       - name: Setup python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: "3.12"
       - name: Install requirements
@@ -49,7 +49,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.1
       - name: Setup python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/lint.txt
@@ -85,7 +85,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/build.txt
@@ -175,7 +175,7 @@ jobs:
         run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
         shell: bash
       - name: Setup python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/test.txt
@@ -227,7 +227,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.1
       - name: Setup python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/test.txt
@@ -251,7 +251,7 @@ jobs:
     needs: Build
     steps:
       - name: Setup python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: '3.12'
       - name: Download build artifact
@@ -296,7 +296,7 @@ jobs:
         with:
           name: Coverage
       - name: Setup python
-        uses: actions/setup-python@v4.7.1
+        uses: actions/setup-python@v5.0.0
         with:
           cache: pip
           cache-dependency-path: requirements/coverage.txt
