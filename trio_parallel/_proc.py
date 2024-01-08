@@ -70,21 +70,24 @@ class SpawnProcWorker(_abc.AbstractWorker):
         self._child_recv_pipe.close()
 
         # The following is mainly needed in the case of accidental recursive spawn
-        async def wait_then_fail():
-            await self.wait()
-            raise BrokenWorkerProcessError("Worker failed to start", self.proc)
-
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(wait_then_fail)
+        async def wait_for_ack():
             try:
                 code = await self._receive_chan.receive()
+                assert code == tp_workers.ACK
             except BaseException:
                 self.kill()
                 with trio.CancelScope(shield=True):
                     await self.wait()  # noqa: TRIO102
                 raise
-            assert code == tp_workers.ACK
             nursery.cancel_scope.cancel()
+
+        exitcode = None
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(wait_for_ack)
+            exitcode = await self.wait()
+            nursery.cancel_scope.cancel()
+        if exitcode is not None:
+            raise BrokenWorkerProcessError("Worker failed to start", self.proc)
 
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         try:
