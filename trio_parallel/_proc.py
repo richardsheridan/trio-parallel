@@ -69,7 +69,10 @@ class SpawnProcWorker(_abc.AbstractWorker):
         self._child_send_pipe.close()
         self._child_recv_pipe.close()
 
-        # The following is mainly needed in the case of accidental recursive spawn
+        if sys.platform != "win32":
+            return
+
+        # Give a nice error on accidental recursive spawn instead of hanging
         async def wait_for_ack():
             try:
                 code = await self._receive_chan.receive()

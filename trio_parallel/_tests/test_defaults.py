@@ -214,6 +214,8 @@ def test_startup_failure_doesnt_hang(tmp_path):
     )
     assert not result.stdout
     assert b"An attempt has been made to start a new process" in result.stderr
+    assert b"ExceptionGroup" not in result.stderr
+    assert b"MultiError" not in result.stderr
     assert result.returncode
 
 
