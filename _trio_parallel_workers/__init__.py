@@ -61,11 +61,11 @@ def worker_behavior(recv_pipe, send_pipe, idle_timeout, init, retire):
     # between processes. (Trio will take charge via cancellation.)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
-        if isinstance(init, bytes):  # true except on "fork"
-            # Signal successful startup to spawn/forkserver parents.
+        if sys.platform == "win32":
+            # Signal successful startup.
             send_pipe.send_bytes(ACK)
+        if isinstance(init, bytes):  # true except on "fork"
             init = loads(init)
-        if isinstance(retire, bytes):  # true except on "fork"
             retire = loads(retire)
         init()
         while safe_poll(recv_pipe, idle_timeout):
