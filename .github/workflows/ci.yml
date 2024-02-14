@@ -115,7 +115,7 @@ jobs:
           )" >> $GITHUB_OUTPUT
           cd dist && sha256sum * >> $GITHUB_STEP_SUMMARY
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3.1.3
+        uses: actions/upload-artifact@v4.3.1
         with:
           name: Build
 #         by default build puts sdist and wheel here
@@ -182,7 +182,7 @@ jobs:
           python-version: '${{ matrix.python }}'
           architecture: '${{ matrix.arch }}'
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.2
         with:
           name: Build
           path: dist
@@ -202,9 +202,9 @@ jobs:
         shell: bash
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v3.1.3
+        uses: actions/upload-artifact@v4.3.1
         with:
-          name: Coverage
+          name: Coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}
           path: "*coverage*${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}*"
           if-no-files-found: error
 
@@ -255,7 +255,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.2
         with:
           name: Build
           path: dist
@@ -274,9 +274,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.1
       - name: Download coverage artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.2
         with:
-          name: Coverage
+          pattern: Coverage-*
+          merge-multiple: true
       - name: Upload to Codecov
         uses: codecov/codecov-action@v3.1.4
         with:
@@ -292,9 +293,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.1
       - name: Download coverage artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.2
         with:
-          name: Coverage
+          pattern: Coverage-*
+          merge-multiple: true
       - name: Setup python
         uses: actions/setup-python@v5.0.0
         with:
@@ -313,7 +315,7 @@ jobs:
           >> $GITHUB_STEP_SUMMARY
       - name: Upload report
         if: always()
-        uses: actions/upload-artifact@v3.1.3
+        uses: actions/upload-artifact@v4.3.1
         with:
           name: Report
           path: htmlcov/
@@ -344,7 +346,7 @@ jobs:
       id-token: write
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.2
         with:
           name: Build
           path: dist
@@ -361,7 +363,7 @@ jobs:
 #      contents: write  #TODO this should be default but maybe must be set
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v3.0.2
+        uses: actions/download-artifact@v4.1.2
         with:
           name: Build
           path: dist
