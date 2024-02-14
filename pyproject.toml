@@ -14,13 +14,14 @@ underlines = ["-", "~", "^"]
 issue_format = "`#{issue} <https://github.com/richardsheridan/trio-parallel/issues/{issue}>`__"
 
 [tool.pytest.ini_options]
-addopts = "--pyargs -r a --verbose --cov --cov-config=pyproject.toml --cov-context=test"
+addopts = "--pyargs -r a --verbose --cov --cov-config=pyproject.toml"
 filterwarnings = ["error"]
 xfail_strict = true
 faulthandler_timeout = 60
 
 [tool.coverage.run]
 branch = true
+dynamic_context = "test_function"
 concurrency = ["multiprocessing", "thread"]
 parallel = true
 source_pkgs = ["trio_parallel", "_trio_parallel_workers"]
