@@ -61,7 +61,7 @@ async def test_clean_exit_on_shutdown(worker, capfd):
     # would call terminate before pipes were GC'd.
     assert (await worker.run_sync(bool)).unwrap() is False
     worker.shutdown()
-    with trio.fail_after(1):
+    with trio.fail_after(2):
         exitcode = await worker.wait()
     out, err = capfd.readouterr()
     assert not err

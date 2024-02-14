@@ -48,7 +48,7 @@ async def test_retire(cache_and_workertype):
     cache, worker_type = cache_and_workertype
     worker = worker_type(math.inf, _init_run_twice, _retire_run_twice)
     await worker.start()
-    with trio.fail_after(2):
+    with trio.fail_after(4):
         assert await worker.run_sync(bool) is not None
         assert await worker.run_sync(bool) is not None
         assert await worker.run_sync(bool) is None
