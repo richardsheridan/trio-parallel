@@ -3,6 +3,7 @@
     These are specific to subprocesses and you wouldn't expect these to pass
     with thread or subinterpreter workers.
 """
+
 import math
 
 import trio
@@ -51,12 +52,19 @@ async def test_run_sync_cancel_infinite_loop(worker, manager):
 
 async def test_run_sync_raises_on_kill(worker, manager):
     ev = manager.Event()
-    await worker.run_sync(int)  # running start so actual test is less racy
-    with pytest.raises(BrokenWorkerError) as exc_info, trio.fail_after(5):
-        async with trio.open_nursery() as nursery:
-            nursery.start_soon(worker.run_sync, _never_halts, ev)
+
+    async def killer():
+        try:
             await trio.to_thread.run_sync(ev.wait, abandon_on_cancel=True)
+        finally:
             worker.kill()  # also tests multiple calls to worker.kill
+
+    await worker.run_sync(int)  # running start so actual test is less racy
+    with trio.fail_after(5):
+        async with trio.open_nursery() as nursery:
+            nursery.start_soon(killer)
+            with pytest.raises(BrokenWorkerError) as exc_info:
+                await worker.run_sync(_never_halts, ev)
     exitcode = await worker.wait()
     assert exitcode in (-15, -9)
     assert exc_info.value.args[-1].exitcode == exitcode
