@@ -28,7 +28,7 @@ jobs:
     runs-on: 'ubuntu-latest'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.2
       - name: Setup python
         uses: actions/setup-python@v5.0.0
         with:
@@ -47,7 +47,7 @@ jobs:
     runs-on: 'ubuntu-latest'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.2
       - name: Setup python
         uses: actions/setup-python@v5.0.0
         with:
@@ -81,7 +81,7 @@ jobs:
       settings: ${{ steps.outputs.outputs.settings }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.2
         with:
           fetch-depth: 0
       - name: Setup python
@@ -225,7 +225,7 @@ jobs:
           - x64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.2
       - name: Setup python
         uses: actions/setup-python@v5.0.0
         with:
@@ -272,7 +272,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.2
       - name: Download coverage artifact
         uses: actions/download-artifact@v4.1.2
         with:
@@ -291,7 +291,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@v4.1.2
       - name: Download coverage artifact
         uses: actions/download-artifact@v4.1.2
         with:
