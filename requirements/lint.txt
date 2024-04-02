@@ -5,39 +5,41 @@
 #
 #    pip-compile-multi
 #
-black==23.10.1
+black==24.3.0
     # via -r requirements\lint.in
 click==8.1.7
     # via black
 colorama==0.4.6
     # via click
-flake8==6.1.0
+flake8==7.0.0
     # via
     #   -r requirements\lint.in
-    #   flake8-trio
-flake8-trio==23.5.1
-    # via -r requirements\lint.in
-libcst==1.1.0
+    #   flake8-async
+flake8-async==24.3.5
     # via flake8-trio
+flake8-trio==24.3.9
+    # via -r requirements\lint.in
+libcst==1.2.0
+    # via flake8-async
 mccabe==0.7.0
     # via flake8
 mypy-extensions==1.0.0
     # via
     #   black
     #   typing-inspect
-packaging==23.2
+packaging==24.0
     # via black
-pathspec==0.11.2
+pathspec==0.12.1
     # via black
-platformdirs==3.11.0
+platformdirs==4.2.0
     # via black
 pycodestyle==2.11.1
     # via flake8
-pyflakes==3.1.0
+pyflakes==3.2.0
     # via flake8
 pyyaml==6.0.1
     # via libcst
-typing-extensions==4.8.0
+typing-extensions==4.10.0
     # via
     #   libcst
     #   typing-inspect
