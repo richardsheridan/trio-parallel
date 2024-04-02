@@ -143,15 +143,13 @@ jobs:
           - '3.10'
           - '3.11'
           - '3.12'
-          - 'pypy-3.8'
-          - 'pypy-3.9'
-          - 'pypy-3.10'
         arch: [ x64 ]
         include:
+          # pypy/linux is comparable to cpy/win
           - os: ubuntu-latest
-            python: 'pypy-3.10-nightly'
+            python: 'pypy-3.10'
             arch: x64
-            experimental: true
+            experimental: false
             test-timeout: 10
 #          - os: ubuntu-latest
 #            python: '3.13-dev'
@@ -166,10 +164,6 @@ jobs:
         exclude:
           - os: macos-latest
             python: '3.8'
-          - os: macos-latest
-            python: 'pypy-3.8'
-          - os: macos-latest
-            python: 'pypy-3.9'
     steps:
       - name: Input settings
         run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
@@ -221,6 +215,7 @@ jobs:
           - macos-latest
         python:
           - '3.12'
+          - 'pypy-3.10'
         arch:
           - x64
     steps:
