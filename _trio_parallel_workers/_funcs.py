@@ -54,18 +54,6 @@ def _never_halts(ev):  # pragma: no cover, worker will be killed
         pass
 
 
-def _segfault_out_of_bounds_pointer():  # pragma: no cover, worker will be killed
-    # https://wiki.python.org/moin/CrashingPython
-    import ctypes
-
-    i = ctypes.c_char(b"a")
-    j = ctypes.pointer(i)
-    c = 1
-    while True:
-        j[c] = i
-        c *= 2  # grow fast to crash sooner
-
-
 def _raise_ki():
     import signal, trio
 
