@@ -80,7 +80,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             except BaseException:
                 self.kill()
                 with trio.CancelScope(shield=True):
-                    await self.wait()  # noqa: TRIO102
+                    await self.wait()  # noqa: ASYNC102
                 raise
             nursery.cancel_scope.cancel()
 
@@ -95,8 +95,8 @@ class SpawnProcWorker(_abc.AbstractWorker):
     async def run_sync(self, sync_fn: Callable, *args) -> Optional[Outcome]:
         try:
             job = dumps((sync_fn, args), protocol=HIGHEST_PROTOCOL)
-        except BaseException as exc:  # noqa: TRIO103
-            return Error(exc)  # noqa: TRIO104, TRIO910
+        except BaseException as exc:  # noqa: ASYNC103
+            return Error(exc)  # noqa: ASYNC104, ASYNC910
 
         try:
             try:
@@ -121,7 +121,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             # unrecoverable state requiring kill as well
             self.kill()
             with trio.CancelScope(shield=True):
-                await self.wait()  # noqa: TRIO102
+                await self.wait()  # noqa: ASYNC102
             raise
 
     def is_alive(self):

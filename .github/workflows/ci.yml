@@ -65,8 +65,8 @@ jobs:
       - name: Run flake8
         id: flake8
         run: |
-          flake8 --extend-ignore=D,E,W,F401,F403,F405,F821,F822,TRIO114 \
-          --extend-select=TRIO900,TRIO910,TRIO911
+          flake8 --extend-ignore=D,E,W,F401,F403,F405,F821,F822,ASYNC114 \
+          --extend-select=ASYNC900,ASYNC910,ASYNC911
         continue-on-error: true
       - name: Fail on error
         if: steps.black.outcome != 'success' || steps.flake8.outcome != 'success'
