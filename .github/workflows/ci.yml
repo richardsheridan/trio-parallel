@@ -77,35 +77,19 @@ jobs:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
-      wheelname: ${{ steps.outputs.outputs.wheelname }}
+      python-versions: ${{ steps.baipp.outputs.supported_python_classifiers_json_array }}
       settings: ${{ steps.outputs.outputs.settings }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4.1.2
         with:
           fetch-depth: 0
-      - name: Setup python
-        uses: actions/setup-python@v5.1.0
-        with:
-          cache: pip
-          cache-dependency-path: requirements/build.txt
-          python-version: "3.12"
-      - name: Install requirements
-        run: |
-          python -m pip install -U pip
-          python -m pip install -r requirements/build.txt
-      - name: Build sdist wheel
-        run: |
-          SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct) \
-          python -m build --no-isolation  # already isolated & build deps pinned
-      - name: Check distribution
-        run: |
-          python -m pip install twine
-          twine check --strict dist/*
+      - name: Build inspect and upload
+        id: baipp
+        uses: hynek/build-and-inspect-python-package@v2.2.1
       - name: Set outputs
         id: outputs
         run: |
-          echo "wheelname=$( echo ./dist/*.whl )" >> $GITHUB_OUTPUT
           echo "settings=$( 
               tar cz \
               pyproject.toml \
@@ -113,14 +97,7 @@ jobs:
               requirements/test.txt \
               | base64 -w 0
           )" >> $GITHUB_OUTPUT
-          cd dist && sha256sum * >> $GITHUB_STEP_SUMMARY
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4.3.1
-        with:
-          name: Build
-#         by default build puts sdist and wheel here
-          path: dist/
-          if-no-files-found: error
+          cd ${{ steps.baipp.outputs.dist }} && sha256sum *.* >> $GITHUB_STEP_SUMMARY
 
   Test:
     name: 'Test ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})'
@@ -137,12 +114,7 @@ jobs:
           - windows-latest
           - ubuntu-latest
           - macos-latest
-        python:
-          - '3.8'
-          - '3.9'
-          - '3.10'
-          - '3.11'
-          - '3.12'
+        python: ${{ fromJson(needs.Build.outputs.python-versions) }}
         arch: [ x64 ]
         include:
           # pypy/linux is comparable to cpy/win
@@ -178,15 +150,16 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Install requirements
         run: |
           python -m pip install -U pip
           python -m pip install -r requirements/test.txt
       - name: Install wheel
+        shell: bash
         run: |
-          python -m pip install ${{ needs.Build.outputs.wheelname }} --no-deps
+          python -m pip install `echo ./dist/*.whl` --no-deps
       - name: Run tests
         timeout-minutes: ${{ matrix.test-timeout }}
         run: |
@@ -252,11 +225,13 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Run tests
+        shell: bash
         run: |
-          python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
+          wheel=`echo ./dist/*.whl`
+          python -m pip install $wheel[test]
           pytest --pyargs trio_parallel
 
   Codecov: # Codecov is naughty and will be forever isolated
@@ -343,7 +318,7 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -360,7 +335,7 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Upload to GitHub
         env:
