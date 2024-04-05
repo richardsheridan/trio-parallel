@@ -65,8 +65,8 @@ jobs:
       - name: Run flake8
         id: flake8
         run: |
-          flake8 --extend-ignore=D,E,W,F401,F403,F405,F821,F822,TRIO114 \
-          --extend-select=TRIO900,TRIO910,TRIO911
+          flake8 --extend-ignore=D,E,W,F401,F403,F405,F821,F822,ASYNC114 \
+          --extend-select=ASYNC900,ASYNC910,ASYNC911
         continue-on-error: true
       - name: Fail on error
         if: steps.black.outcome != 'success' || steps.flake8.outcome != 'success'
@@ -77,35 +77,19 @@ jobs:
     timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
-      wheelname: ${{ steps.outputs.outputs.wheelname }}
+      python-versions: ${{ steps.baipp.outputs.supported_python_classifiers_json_array }}
       settings: ${{ steps.outputs.outputs.settings }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4.1.2
         with:
           fetch-depth: 0
-      - name: Setup python
-        uses: actions/setup-python@v5.1.0
-        with:
-          cache: pip
-          cache-dependency-path: requirements/build.txt
-          python-version: "3.12"
-      - name: Install requirements
-        run: |
-          python -m pip install -U pip
-          python -m pip install -r requirements/build.txt
-      - name: Build sdist wheel
-        run: |
-          SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct) \
-          python -m build --no-isolation  # already isolated & build deps pinned
-      - name: Check distribution
-        run: |
-          python -m pip install twine
-          twine check --strict dist/*
+      - name: Build inspect and upload
+        id: baipp
+        uses: hynek/build-and-inspect-python-package@v2.2.1
       - name: Set outputs
         id: outputs
         run: |
-          echo "wheelname=$( echo ./dist/*.whl )" >> $GITHUB_OUTPUT
           echo "settings=$( 
               tar cz \
               pyproject.toml \
@@ -113,17 +97,10 @@ jobs:
               requirements/test.txt \
               | base64 -w 0
           )" >> $GITHUB_OUTPUT
-          cd dist && sha256sum * >> $GITHUB_STEP_SUMMARY
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4.3.1
-        with:
-          name: Build
-#         by default build puts sdist and wheel here
-          path: dist/
-          if-no-files-found: error
+          cd ${{ steps.baipp.outputs.dist }} && sha256sum *.* >> $GITHUB_STEP_SUMMARY
 
   Test:
-    name: 'Test ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})'
+    name: 'Test ${{ matrix.os }} (${{ matrix.python }})'
     needs: Build
     timeout-minutes: 10
     runs-on: ${{ matrix.os }}
@@ -137,39 +114,20 @@ jobs:
           - windows-latest
           - ubuntu-latest
           - macos-latest
-        python:
-          - '3.8'
-          - '3.9'
-          - '3.10'
-          - '3.11'
-          - '3.12'
-          - 'pypy-3.8'
-          - 'pypy-3.9'
-          - 'pypy-3.10'
-        arch: [ x64 ]
+        python: ${{ fromJson(needs.Build.outputs.python-versions) }}
         include:
+          # pypy/linux is comparable to cpy/win
           - os: ubuntu-latest
-            python: 'pypy-3.10-nightly'
-            arch: x64
-            experimental: true
+            python: 'pypy-3.10'
+            experimental: false
             test-timeout: 10
 #          - os: ubuntu-latest
 #            python: '3.13-dev'
-#            arch: x64
 #            experimental: true
 #            test-timeout: 3
-          - os: windows-latest
-            python: '3.8'
-            arch: x86
-            experimental: false
-            test-timeout: 10
         exclude:
           - os: macos-latest
             python: '3.8'
-          - os: macos-latest
-            python: 'pypy-3.8'
-          - os: macos-latest
-            python: 'pypy-3.9'
     steps:
       - name: Input settings
         run: echo "${{ needs.Build.outputs.settings }}" | base64 -d | tar xz
@@ -177,39 +135,52 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v5.1.0
         with:
-          cache: pip
-          cache-dependency-path: requirements/test.txt
           python-version: '${{ matrix.python }}'
-          architecture: '${{ matrix.arch }}'
+      - name: Install uv
+        if: matrix.os != 'windows-latest'
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        shell: bash
+      - name: Install uv
+        if: matrix.os == 'windows-latest'
+        run: irm https://astral.sh/uv/install.ps1 | iex
+        shell: pwsh
+      - name: Locate uv
+        run: echo "UV_CACHE=$(uv cache dir)" >> $GITHUB_ENV
+        shell: bash
+      - name: Cache uv
+        uses: actions/cache@v4.0.2
+        with:
+          path: ${{ env.UV_CACHE }}
+          key: ${{ runner.os }}-uv
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Install requirements
         run: |
-          python -m pip install -U pip
-          python -m pip install -r requirements/test.txt
+          uv pip install --system -r requirements/test.txt
       - name: Install wheel
+        shell: bash
         run: |
-          python -m pip install ${{ needs.Build.outputs.wheelname }} --no-deps
+          uv pip install --system `echo ./dist/*.whl` --no-deps
       - name: Run tests
         timeout-minutes: ${{ matrix.test-timeout }}
         run: |
-          pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
+          pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.python }}.xml
           coverage report
-          mv .coverage .coverage.${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}
+          mv .coverage .coverage.${{ matrix.os }}-${{ matrix.python }}
         shell: bash
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4.3.1
         with:
-          name: Coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}
-          path: "*coverage*${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}*"
+          name: Coverage-${{ matrix.os }}-${{ matrix.python }}
+          path: "*coverage*${{ matrix.os }}-${{ matrix.python }}*"
           if-no-files-found: error
 
   Examples:
-    name: 'Test examples ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})'
+    name: 'Test examples ${{ matrix.os }} (${{ matrix.python }})'
     timeout-minutes: 10
     runs-on: ${{ matrix.os }}
     strategy:
@@ -221,8 +192,7 @@ jobs:
           - macos-latest
         python:
           - '3.12'
-        arch:
-          - x64
+          - 'pypy-3.10'
     steps:
       - name: Checkout
         uses: actions/checkout@v4.1.2
@@ -232,7 +202,6 @@ jobs:
           cache: pip
           cache-dependency-path: requirements/test.txt
           python-version: '${{ matrix.python }}'
-          architecture: '${{ matrix.arch }}'
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -257,11 +226,13 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Run tests
+        shell: bash
         run: |
-          python -m pip install ${{ needs.Build.outputs.wheelname }}[test]
+          wheel=`echo ./dist/*.whl`
+          python -m pip install $wheel[test]
           pytest --pyargs trio_parallel
 
   Codecov: # Codecov is naughty and will be forever isolated
@@ -348,7 +319,7 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -365,7 +336,7 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
-          name: Build
+          name: Packages
           path: dist
       - name: Upload to GitHub
         env:

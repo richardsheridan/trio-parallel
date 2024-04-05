@@ -2,6 +2,7 @@
 
     All workers should pass these tests, regardless of implementation
 """
+
 import math
 
 import pytest

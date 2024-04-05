@@ -5,6 +5,7 @@
 """
 
 import math
+import os
 
 import trio
 import pytest
@@ -14,7 +15,6 @@ from _trio_parallel_workers._funcs import (
     _return_lambda,
     _raise_ki,
     _never_halts,
-    _segfault_out_of_bounds_pointer,
     _no_trio,
 )
 from .._proc import WORKER_PROC_MAP
@@ -70,13 +70,14 @@ async def test_run_sync_raises_on_kill(worker, manager):
     assert exc_info.value.args[-1].exitcode == exitcode
 
 
-async def test_run_sync_raises_on_segfault(worker, capfd):
+async def test_run_sync_raises_on_sudden_death(worker, capfd):
+    expected_code = 42
     with pytest.raises(BrokenWorkerError) as excinfo:
         with trio.fail_after(20):
-            assert (await worker.run_sync(_segfault_out_of_bounds_pointer)).unwrap()
+            assert (await worker.run_sync(os._exit, expected_code)).unwrap()
     exitcode = await worker.wait()
-    assert exitcode  # not sure if we expect a universal value, but not 0 or None
-    assert excinfo.value.args[-1].exitcode == exitcode
+    assert exitcode == expected_code
+    assert excinfo.value.args[-1].exitcode == expected_code
 
 
 # to test that cancellation does not ever leave a living process behind

@@ -1,4 +1,5 @@
 """ Tests of internal cache API ("contract" tests)"""
+
 import math
 
 import pytest

@@ -1,4 +1,5 @@
 """ Tests of public API with mocked-out workers ("collaboration" tests)"""
+
 import sys
 from typing import Callable, Optional
 
