@@ -51,8 +51,8 @@ class FdStream:
                 data = os.read(self._fd, max_bytes)
             except BlockingIOError:
                 await trio.lowlevel.wait_readable(self._fd)
-            except OSError as e:
-                if e.errno == errno.EBADF:  # pragma: no cover, never closed
+            except OSError as e:  # pragma: no cover, never closed, impossible error
+                if e.errno == errno.EBADF:
                     raise trio.ClosedResourceError("file was already closed") from None
                 else:
                     raise trio.BrokenResourceError from e
