@@ -100,7 +100,7 @@ jobs:
           cd ${{ steps.baipp.outputs.dist }} && sha256sum *.* >> $GITHUB_STEP_SUMMARY
 
   Test:
-    name: 'Test ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})'
+    name: 'Test ${{ matrix.os }} (${{ matrix.python }})'
     needs: Build
     timeout-minutes: 10
     runs-on: ${{ matrix.os }}
@@ -115,24 +115,16 @@ jobs:
           - ubuntu-latest
           - macos-latest
         python: ${{ fromJson(needs.Build.outputs.python-versions) }}
-        arch: [ x64 ]
         include:
           # pypy/linux is comparable to cpy/win
           - os: ubuntu-latest
             python: 'pypy-3.10'
-            arch: x64
             experimental: false
             test-timeout: 10
 #          - os: ubuntu-latest
 #            python: '3.13-dev'
-#            arch: x64
 #            experimental: true
 #            test-timeout: 3
-          - os: windows-latest
-            python: '3.8'
-            arch: x86
-            experimental: false
-            test-timeout: 10
         exclude:
           - os: macos-latest
             python: '3.8'
@@ -144,7 +136,6 @@ jobs:
         uses: actions/setup-python@v5.1.0
         with:
           python-version: '${{ matrix.python }}'
-          architecture: '${{ matrix.arch }}'
       - name: Install uv
         if: matrix.os != 'windows-latest'
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -176,20 +167,20 @@ jobs:
       - name: Run tests
         timeout-minutes: ${{ matrix.test-timeout }}
         run: |
-          pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}.xml
+          pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.python }}.xml
           coverage report
-          mv .coverage .coverage.${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}
+          mv .coverage .coverage.${{ matrix.os }}-${{ matrix.python }}
         shell: bash
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4.3.1
         with:
-          name: Coverage-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}
-          path: "*coverage*${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.python }}*"
+          name: Coverage-${{ matrix.os }}-${{ matrix.python }}
+          path: "*coverage*${{ matrix.os }}-${{ matrix.python }}*"
           if-no-files-found: error
 
   Examples:
-    name: 'Test examples ${{ matrix.os }} (${{ matrix.python }} ${{ matrix.arch }})'
+    name: 'Test examples ${{ matrix.os }} (${{ matrix.python }})'
     timeout-minutes: 10
     runs-on: ${{ matrix.os }}
     strategy:
@@ -202,8 +193,6 @@ jobs:
         python:
           - '3.12'
           - 'pypy-3.10'
-        arch:
-          - x64
     steps:
       - name: Checkout
         uses: actions/checkout@v4.1.2
@@ -213,7 +202,6 @@ jobs:
           cache: pip
           cache-dependency-path: requirements/test.txt
           python-version: '${{ matrix.python }}'
-          architecture: '${{ matrix.arch }}'
       - name: Install requirements
         run: |
           python -m pip install -U pip
