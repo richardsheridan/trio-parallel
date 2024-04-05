@@ -55,20 +55,6 @@ class ErrorCodes(enum.IntEnum):
 
 
 # vendored from trio, so no coverage
-def _handle(obj):  # pragma: no cover
-    # For now, represent handles as either cffi HANDLEs or as ints.  If you
-    # try to pass in a file descriptor instead, it's not going to work
-    # out. (For that msvcrt.get_osfhandle does the trick, but I don't know if
-    # we'll actually need that for anything...) For sockets this doesn't
-    # matter, Python never allocates an fd. So let's wait until we actually
-    # encounter the problem before worrying about it.
-    if type(obj) is int:
-        return ffi.cast("HANDLE", obj)
-    else:
-        return obj
-
-
-# vendored from trio, so no coverage
 def raise_winerror(winerror=None, *, filename=None, filename2=None):  # pragma: no cover
     if winerror is None:
         winerror, msg = ffi.getwinerror()
@@ -78,10 +64,11 @@ def raise_winerror(winerror=None, *, filename=None, filename2=None):  # pragma: 
     raise OSError(0, msg, filename, winerror, filename2)
 
 
-def peek_pipe_message_left(handle):
+def peek_pipe_message_left(handle: int):
+    # If you try to pass in a file descriptor instead, it's not going to work out.
+    assert type(handle) is int
+    handle = ffi.cast("HANDLE", handle)
     left = ffi.new("LPDWORD")
-    if not kernel32.PeekNamedPipe(
-        _handle(handle), ffi.NULL, 0, ffi.NULL, ffi.NULL, left
-    ):
+    if not kernel32.PeekNamedPipe(handle, ffi.NULL, 0, ffi.NULL, ffi.NULL, left):
         raise_winerror()  # pragma: no cover
     return left[0]

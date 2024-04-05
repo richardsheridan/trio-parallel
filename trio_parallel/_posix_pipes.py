@@ -1,21 +1,75 @@
+import errno
+import os
 import sys
 import struct
 from typing import TYPE_CHECKING
 
 import trio
-from trio.abc import Channel
 
 assert not sys.platform == "win32" or not TYPE_CHECKING
+
+DEFAULT_RECEIVE_SIZE = 65536
+
+# Vendored from trio in v0.25.0 under identical MIT/Apache2 license.
+# Copyright Contributors to the Trio project.
+# It's modified so it doesn't need internals or abcs with methods we don't use.
+
+
+class FdStream:
+    """
+    Represents a stream given the file descriptor to a pipe, TTY, etc.
+    """
+
+    def __init__(self, fd: int) -> None:
+        self._fd = fd
+        os.set_blocking(fd, False)
+
+    async def send_all(self, data: bytes) -> None:
+        await trio.lowlevel.checkpoint()
+        length = len(data)
+        # adapted from the SocketStream code
+        with memoryview(data) as view:
+            sent = 0
+            while sent < length:
+                with view[sent:] as remaining:
+                    try:
+                        sent += os.write(self._fd, remaining)
+                    except BlockingIOError:
+                        await trio.lowlevel.wait_writable(self._fd)
+                    except OSError as e:
+                        if e.errno == errno.EBADF:  # pragma: no cover, never closed
+                            raise trio.ClosedResourceError(
+                                "file was already closed"
+                            ) from None
+                        else:
+                            raise trio.BrokenResourceError from e
+
+    async def receive_some(self, max_bytes: int) -> bytes:
+        await trio.lowlevel.checkpoint()
+        while True:
+            try:
+                data = os.read(self._fd, max_bytes)
+            except BlockingIOError:
+                await trio.lowlevel.wait_readable(self._fd)
+            except OSError as e:
+                if e.errno == errno.EBADF:  # pragma: no cover, never closed
+                    raise trio.ClosedResourceError("file was already closed") from None
+                else:
+                    raise trio.BrokenResourceError from e
+            else:
+                break
+
+        return data
 
 
 # We copy the wire protocol code from multiprocessing.connection.Connection
 # but asyncifiy it with FdStream so as a derivative work this notice is required:
 # Copyright © Python Software Foundation; All Rights Reserved
-class FdChannel(Channel[bytes]):
+class FdChannel:
     """Represents a message stream over a pipe object."""
 
     def __init__(self, send_fd):
-        self._stream = trio.lowlevel.FdStream(send_fd)
+        self._stream = FdStream(send_fd)
 
     async def send(self, buf: bytes) -> None:
         n = len(buf)
@@ -66,9 +120,3 @@ class FdChannel(Channel[bytes]):
                 size -= num_recvd
         await trio.lowlevel.cancel_shielded_checkpoint()
         return result_bytes
-
-    def detach(self):
-        self._stream._fd_holder.fd = -1
-
-    async def aclose(self):  # pragma: no cover, not used in this lib
-        return await self._stream.aclose()
