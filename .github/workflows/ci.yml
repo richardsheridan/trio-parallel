@@ -139,8 +139,8 @@ jobs:
       - name: Setup and Cache UV
         uses: hynek/setup-cached-uv@747c045009c1fc51b8d77af224dffc47acaf5993
         with:
-          cache-suffix: -'${{ matrix.python }}'-
-          cache-dependency-path: "**/requirements/test.txt"
+          cache-suffix: '-${{ matrix.python }}'
+          cache-dependency-path: '**/requirements/test.txt'
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
         with:
