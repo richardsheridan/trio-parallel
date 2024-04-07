@@ -224,25 +224,6 @@ jobs:
           python -m pip install $wheel[test]
           pytest --pyargs trio_parallel
 
-  Codecov: # Codecov is naughty and will be forever isolated
-    name: Codecov
-    if: always()
-    needs: Test
-    timeout-minutes: 1
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4.1.2
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v4.1.2
-        with:
-          pattern: Coverage-*
-          merge-multiple: true
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v3.1.6
-        with:
-          fail_ci_if_error: true
-
   Coverage:
     name: Coverage
     if: always()
@@ -285,7 +266,7 @@ jobs:
     name: All checks and tests
     if: always()
     timeout-minutes: 1
-    needs: [ Verify, Blacken, Build, Examples, Test, Extras, Codecov, Coverage ]
+    needs: [ Verify, Blacken, Build, Examples, Test, Extras, Coverage ]
     runs-on: ubuntu-latest
     steps:
       - name: Check all needs have passed
