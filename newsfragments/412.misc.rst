@@ -1,0 +1,1 @@
+Made several internal changes that may make compatibility with future trio versions more stable
