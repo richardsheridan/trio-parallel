@@ -13,6 +13,10 @@ name = "trio-parallel"
 underlines = ["-", "~", "^"]
 issue_format = "`#{issue} <https://github.com/richardsheridan/trio-parallel/issues/{issue}>`__"
 
+[tool.towncrier.fragment.misc]
+name = "Misc"
+showcontent = true
+
 [tool.pytest.ini_options]
 addopts = "--pyargs -r a -n auto --verbose --cov --cov-config=pyproject.toml --cov-context=test"
 filterwarnings = ["error"]
