@@ -5,6 +5,16 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.2.2 (2024-04-24)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Fixed a rare race condition during cleanup that could trigger unraisable error tracebacks. (`#398 <https://github.com/richardsheridan/trio-parallel/issues/398>`__)
+- Made several internal changes that may make compatibility with future Trio versions more stable (`#412 <https://github.com/richardsheridan/trio-parallel/issues/412>`__)
+
+
 trio-parallel 1.2.1 (2023-11-04)
 --------------------------------
 
