@@ -1,0 +1,2 @@
+[flake8]
+no-checkpoint-warning-decorators = pytest.fixture, asynccontextmanager
