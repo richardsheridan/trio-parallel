@@ -3,6 +3,60 @@
 requires = ["setuptools >= 45", "wheel", "setuptools_scm[toml] >= 7.0.5"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "trio-parallel"
+description = "CPU parallelism for Trio"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+authors = [{ name = "Richard Sheridan", email = "richard.sheridan@gmail.com" }]
+license = { text = "MIT OR Apache-2.0" }
+keywords = ["parallel", "trio", "async", "dispatch", "multiprocessing"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
+    "Framework :: Trio",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "trio >= 0.18.0",
+    "outcome",
+    "attrs >= 17.3.0",
+    "cffi; os_name == 'nt' and implementation_name != 'pypy'",
+    "tblib",
+]
+requires-python = ">=3.7"
+dynamic = ["version"]
+
+[project.urls]
+Homepage = "https://github.com/richardsheridan/trio-parallel"
+Documentation = "https://trio-parallel.readthedocs.io/"
+Changelog = "https://trio-parallel.readthedocs.io/en/latest/history.html"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-trio",
+    "trio >= 0.23.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+packages = ["trio_parallel", "_trio_parallel_workers"]
+
 [tool.setuptools_scm]
 
 [tool.towncrier]
@@ -25,18 +79,18 @@ concurrency = ["multiprocessing", "thread"]
 parallel = true
 source_pkgs = ["trio_parallel", "_trio_parallel_workers"]
 disable_warnings = [
-  "module-not-imported",  # for test_clean_exit_on_shutdown
-  "module-not-measured", # for fork shutdown tests
-  "no-data-collected", # for fork shutdown tests
-  ]
+    "module-not-imported", # for test_clean_exit_on_shutdown
+    "module-not-measured", # for fork shutdown tests
+    "no-data-collected", # for fork shutdown tests
+]
 
 [tool.coverage.report]
 precision = 1
 exclude_lines = [
-  "pragma: no cover",
-  "abc.abstractmethod",
-  "abstractmethod",
-  ]
+    "pragma: no cover",
+    "abc.abstractmethod",
+    "abstractmethod",
+]
 
 [tool.coverage.html]
 show_contexts = true
