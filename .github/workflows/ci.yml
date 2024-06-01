@@ -86,7 +86,7 @@ jobs:
           fetch-depth: 0
       - name: Build inspect and upload
         id: baipp
-        uses: hynek/build-and-inspect-python-package@v2.4.0
+        uses: hynek/build-and-inspect-python-package@v2.6.0
       - name: Set outputs
         id: outputs
         run: |
