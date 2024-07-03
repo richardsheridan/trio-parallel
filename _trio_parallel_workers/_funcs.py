@@ -15,6 +15,10 @@ _NUM_RUNS_LEFT = 0
 def _init_run_twice():
     global _NUM_RUNS_LEFT
     _NUM_RUNS_LEFT = 2
+    # increase coverage in worker_behavior cleanup and SpawnProcWorker.run_sync
+    import _trio_parallel_workers
+
+    _trio_parallel_workers.EAGER_CLEANUP = False
 
 
 def _retire_run_twice():
