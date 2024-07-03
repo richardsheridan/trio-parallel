@@ -33,7 +33,7 @@ To run black
 
 
 To update pinned requirements
-------------
+-----------------------------
 
 * Run ``pip install pip-compile-multi`` if necessary.
 

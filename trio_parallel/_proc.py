@@ -107,7 +107,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
                 return None
 
             try:
-                return loads(await self._receive_chan.receive())
+                result = loads(await self._receive_chan.receive())
             except trio.EndOfChannel:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 with trio.CancelScope(shield=True):
@@ -123,6 +123,13 @@ class SpawnProcWorker(_abc.AbstractWorker):
             with trio.CancelScope(shield=True):
                 await self.wait()  # noqa: ASYNC102
             raise
+
+        if result is None:
+            # race in worker_behavior cleanup was triggered
+            with trio.CancelScope(shield=True):
+                await self.wait()  # noqa: ASYNC102
+
+        return result
 
     def is_alive(self):
         # if the proc is alive, there is a race condition where it could be
