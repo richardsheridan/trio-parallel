@@ -8,19 +8,19 @@
 -r install.txt
 colorama==0.4.6
     # via pytest
-coverage[toml]==7.4.4
+coverage[toml]==7.5.4
     # via
     #   -r requirements\test.in
     #   pytest-cov
-execnet==2.0.2
+execnet==2.1.1
     # via pytest-xdist
 iniconfig==2.0.0
     # via pytest
-packaging==24.0
+packaging==24.1
     # via pytest
-pluggy==1.4.0
+pluggy==1.5.0
     # via pytest
-pytest==8.1.1
+pytest==8.2.2
     # via
     #   -r requirements\test.in
     #   pytest-cov
@@ -30,5 +30,5 @@ pytest-cov==5.0.0
     # via -r requirements\test.in
 pytest-trio==0.8.0
     # via -r requirements\test.in
-pytest-xdist==3.5.0
+pytest-xdist==3.6.1
     # via -r requirements\test.in
