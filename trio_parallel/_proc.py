@@ -111,7 +111,7 @@ class SpawnProcWorker(_abc.AbstractWorker):
             except trio.EndOfChannel:
                 self._send_pipe.close()  # edge case: free proc spinning on recv_bytes
                 with trio.CancelScope(shield=True):
-                    await self.wait()
+                    await self.wait()  # noqa: ASYNC120
                 raise BrokenWorkerProcessError(
                     "Worker died unexpectedly:", self.proc
                 ) from None

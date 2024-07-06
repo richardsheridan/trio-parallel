@@ -1,5 +1,0 @@
-# keep me in sync with pyproject.toml!
-setuptools >= 45
-wheel
-setuptools_scm >= 7.0.5
-build
