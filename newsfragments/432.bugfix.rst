@@ -1,0 +1,1 @@
+Fix a regression induced by trio-0.27.0 that causes worker contexts to crash on exit if they happen to wait for jobs to finish.
