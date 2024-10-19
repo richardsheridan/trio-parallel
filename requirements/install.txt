@@ -28,5 +28,5 @@ sortedcontainers==2.4.0
     # via trio
 tblib==3.0.0
     # via -r requirements\install.in
-trio==0.26.0
+trio==0.27.0
     # via -r requirements\install.in
