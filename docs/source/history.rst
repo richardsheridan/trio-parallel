@@ -5,6 +5,15 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.2.3 (2024-10-19)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Fix a regression induced by trio-0.27.0 that causes worker contexts to crash on exit if they happen to wait for jobs to finish. (`#432 <https://github.com/richardsheridan/trio-parallel/issues/432>`__)
+
+
 trio-parallel 1.2.2 (2024-04-24)
 --------------------------------
 
