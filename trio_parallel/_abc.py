@@ -19,7 +19,7 @@ class BrokenWorkerError(RuntimeError):
     failure of either ``trio-parallel`` or the code that was executing in the worker.
     Some example failures may include segfaults, being killed by an external signal,
     or failing to cleanly shut down within a specified ``grace_period``. (See
-    :func:`atexit_shutdown_grace_period` and :func:`open_worker_context`.)
+    :func:`configure_default_context` and :func:`open_worker_context`.)
     """
 
 
