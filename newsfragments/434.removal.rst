@@ -1,0 +1,1 @@
+Stop advertising support for Python-3.8, although no code changes were made to break it.

@@ -5,19 +5,19 @@
 #
 #    pip-compile-multi
 #
-black==24.4.2
+black==24.10.0
     # via -r requirements\lint.in
 click==8.1.7
     # via black
 colorama==0.4.6
     # via click
-flake8==7.1.0
+flake8==7.1.1
     # via
     #   -r requirements\lint.in
     #   flake8-async
-flake8-async==24.6.1
+flake8-async==24.9.5
     # via -r requirements\lint.in
-libcst==1.4.0
+libcst==1.5.0
     # via flake8-async
 mccabe==0.7.0
     # via flake8
@@ -27,11 +27,11 @@ packaging==24.1
     # via black
 pathspec==0.12.1
     # via black
-platformdirs==4.2.2
+platformdirs==4.3.6
     # via black
-pycodestyle==2.12.0
+pycodestyle==2.12.1
     # via flake8
 pyflakes==3.2.0
     # via flake8
-pyyaml==6.0.1
+pyyaml==6.0.2
     # via libcst

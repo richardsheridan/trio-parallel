@@ -8,7 +8,7 @@
 -r install.txt
 colorama==0.4.6
     # via pytest
-coverage[toml]==7.5.4
+coverage[toml]==7.6.3
     # via
     #   -r requirements\test.in
     #   pytest-cov
@@ -20,7 +20,7 @@ packaging==24.1
     # via pytest
 pluggy==1.5.0
     # via pytest
-pytest==8.2.2
+pytest==8.3.3
     # via
     #   -r requirements\test.in
     #   pytest-cov

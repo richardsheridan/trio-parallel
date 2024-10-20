@@ -1,3 +1,4 @@
 -r test.in
 -r docs.in
 -r lint.in
+-r coverage.in
