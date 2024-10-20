@@ -53,7 +53,11 @@ async def test_entry_cancellation(manager, shutdown_cache):
         child_start = True
         try:
             return await run_sync(
-                _block_worker, block, worker_start, worker_done, kill_on_cancel=kill_on_cancel
+                _block_worker,
+                block,
+                worker_start,
+                worker_done,
+                kill_on_cancel=kill_on_cancel,
             )
         finally:
             child_done = True
@@ -80,7 +84,11 @@ async def test_kill_cancellation(manager, shutdown_cache):
         child_start = True
         try:
             return await run_sync(
-                _block_worker, block, worker_start, worker_done, kill_on_cancel=kill_on_cancel
+                _block_worker,
+                block,
+                worker_start,
+                worker_done,
+                kill_on_cancel=kill_on_cancel,
             )
         finally:
             child_done = True
@@ -113,7 +121,11 @@ async def test_uncancellable_cancellation(manager, shutdown_cache):
         nonlocal child_start, child_done
         child_start = True
         await run_sync(
-            _block_worker, block, worker_start, worker_done, kill_on_cancel=kill_on_cancel
+            _block_worker,
+            block,
+            worker_start,
+            worker_done,
+            kill_on_cancel=kill_on_cancel,
         )
         child_done = True
 
