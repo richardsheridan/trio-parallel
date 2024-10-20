@@ -275,16 +275,17 @@ jobs:
           jobs: ${{ toJSON(needs) }}
 
   Release:
-    name: Release on PyPI
-    if: github.event_name == 'release'
+    name: Release on PyPI, Attest, and Update GitHub
+    if: github.event.action == 'published'
     needs: All
-    timeout-minutes: 1
+    timeout-minutes: 2
     runs-on: ubuntu-latest
     environment:
       name: release
       url: https://pypi.org/p/trio-parallel
     permissions:
       id-token: write
+      contents: write
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
@@ -293,23 +294,10 @@ jobs:
           path: dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-
-  Update:
-    name: Update GitHub Release
-    if: github.event_name == 'release'
-    needs: All
-    timeout-minutes: 1
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4.1.2
         with:
-          name: Packages
-          path: dist
+          attestations: true
       - name: Upload to GitHub
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           gh release upload ${{ github.ref_name }} dist/* --repo ${{ github.repository }}
