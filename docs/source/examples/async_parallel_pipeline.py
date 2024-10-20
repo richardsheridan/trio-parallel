@@ -10,7 +10,7 @@ import trio_parallel
 async def to_process_map_as_completed(
     sync_fn,
     job_aiter,
-    cancellable=False,
+    kill_on_cancel=False,
     limiter=None,
     *,
     task_status,
@@ -28,7 +28,7 @@ async def to_process_map_as_completed(
             result = await trio_parallel.run_sync(
                 sync_fn,
                 *job_item,
-                cancellable=cancellable,
+                kill_on_cancel=kill_on_cancel,
                 limiter=trio.CapacityLimiter(1),
             )
             await send_chan.send(result)

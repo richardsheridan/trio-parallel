@@ -122,6 +122,8 @@ async def test_cancellable(mock_context):
         assert obsvd_deadline == float("inf")
         _, _, obsvd_deadline = await run_sync(bool, cancellable=True)
         assert obsvd_deadline == deadline
+        _, _, obsvd_deadline = await run_sync(bool, kill_on_cancel=True)
+        assert obsvd_deadline == deadline
 
 
 async def test_cache_scope_args(mock_context):

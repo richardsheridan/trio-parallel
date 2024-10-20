@@ -48,12 +48,12 @@ async def test_run_sync(shutdown_cache):
 
 
 async def test_entry_cancellation(manager, shutdown_cache):
-    async def child(cancellable):
+    async def child(kill_on_cancel):
         nonlocal child_start, child_done
         child_start = True
         try:
             return await run_sync(
-                _block_worker, block, worker_start, worker_done, cancellable=cancellable
+                _block_worker, block, worker_start, worker_done, kill_on_cancel=kill_on_cancel
             )
         finally:
             child_done = True
@@ -75,12 +75,12 @@ async def test_entry_cancellation(manager, shutdown_cache):
 
 
 async def test_kill_cancellation(manager, shutdown_cache):
-    async def child(cancellable):
+    async def child(kill_on_cancel):
         nonlocal child_start, child_done
         child_start = True
         try:
             return await run_sync(
-                _block_worker, block, worker_start, worker_done, cancellable=cancellable
+                _block_worker, block, worker_start, worker_done, kill_on_cancel=kill_on_cancel
             )
         finally:
             child_done = True
@@ -109,11 +109,11 @@ async def test_kill_cancellation(manager, shutdown_cache):
 
 
 async def test_uncancellable_cancellation(manager, shutdown_cache):
-    async def child(cancellable):
+    async def child(kill_on_cancel):
         nonlocal child_start, child_done
         child_start = True
         await run_sync(
-            _block_worker, block, worker_start, worker_done, cancellable=cancellable
+            _block_worker, block, worker_start, worker_done, kill_on_cancel=kill_on_cancel
         )
         child_done = True
 
@@ -260,7 +260,7 @@ async def test_get_default_context_stats():  # noqa: ASYNC910
 def test_sequential_runs(shutdown_cache):
     async def run_with_timeout():
         with trio.fail_after(20):
-            return await run_sync(os.getpid, cancellable=True)
+            return await run_sync(os.getpid, kill_on_cancel=True)
 
     same_pid = trio.run(run_with_timeout) == trio.run(run_with_timeout)
     assert same_pid
@@ -269,12 +269,12 @@ def test_sequential_runs(shutdown_cache):
 async def test_concurrent_runs(shutdown_cache):
     async def worker(i):
         with trio.fail_after(20):
-            assert await run_sync(int, i, cancellable=True) == i
+            assert await run_sync(int, i, kill_on_cancel=True) == i
             for _ in range(30):
-                assert await run_sync(int, i, cancellable=True) == i
+                assert await run_sync(int, i, kill_on_cancel=True) == i
             with trio.move_on_after(0.5):
                 while True:
-                    assert await run_sync(int, i, cancellable=True) == i
+                    assert await run_sync(int, i, kill_on_cancel=True) == i
 
     async with trio.open_nursery() as n:
         for i in range(2):
