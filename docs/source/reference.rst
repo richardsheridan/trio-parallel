@@ -158,8 +158,6 @@ Internal Esoterica
 
 You probably won't use these... but create an issue if you do and need help!
 
-.. autofunction:: atexit_shutdown_grace_period
-
 .. autofunction:: default_context_statistics
 
 .. _cloudpickle: https://github.com/cloudpipe/cloudpickle

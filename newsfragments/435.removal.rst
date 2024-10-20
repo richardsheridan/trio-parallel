@@ -1,0 +1,1 @@
+Removed deprecated ``atexit_shutdown_grace_period``. Use `configure_default_context` to configure the default context shutdown grace period.

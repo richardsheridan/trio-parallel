@@ -376,36 +376,6 @@ async def open_worker_context(
         await ctx._aclose()  # noqa: ASYNC102
 
 
-def atexit_shutdown_grace_period(
-    grace_period=DEFAULT_CONTEXT.grace_period,
-):  # pragma: no cover, deprecated
-    """Set the default worker cache shutdown grace period.
-
-    DEPRECATION NOTICE: this function has been superseded by
-    `configure_default_context` and will be removed in a future version
-
-    You might need this if you have a long-running `atexit` function, such as those
-    installed by ``coverage.py`` or ``viztracer``.
-    This only affects the `atexit` behavior of the default context corresponding to
-    :func:`trio_parallel.run_sync`. Existing and future `WorkerContext` instances
-    are unaffected.
-
-    Args:
-      grace_period (float): The time in seconds to wait for workers to
-          exit before issuing SIGKILL/TerminateProcess and raising `BrokenWorkerError`.
-          Pass `math.inf` to wait forever.
-    """
-    import warnings
-
-    warnings.warn(
-        DeprecationWarning(
-            "Superseded by `configure_default_context` "
-            "and will be removed in a future version"
-        )
-    )
-    configure_default_context(grace_period=grace_period)
-
-
 async def run_sync(
     sync_fn: Callable[..., T],
     *args,
