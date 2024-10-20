@@ -146,6 +146,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
         self,
         sync_fn: Callable[..., T],
         *args,
+        kill_on_cancel: bool = False,
         cancellable: bool = False,
         limiter: trio.CapacityLimiter = None,
     ) -> T:
@@ -162,7 +163,7 @@ class WorkerContext(metaclass=NoPublicConstructor):
         async with limiter, self._lifetime:
             self._worker_cache.prune()
             while True:
-                with trio.CancelScope(shield=not cancellable):
+                with trio.CancelScope(shield=not (cancellable or kill_on_cancel)):
                     try:
                         worker = self._worker_cache.pop()
                     except IndexError:
@@ -379,6 +380,7 @@ async def open_worker_context(
 async def run_sync(
     sync_fn: Callable[..., T],
     *args,
+    kill_on_cancel: bool = False,
     cancellable: bool = False,
     limiter: trio.CapacityLimiter = None,
 ) -> T:
@@ -406,10 +408,12 @@ async def run_sync(
           limitations.
       *args: Positional arguments to pass to sync_fn. If you need keyword
           arguments, use :func:`functools.partial`.
-      cancellable (bool): Whether to allow cancellation of this operation.
+      kill_on_cancel (bool): Whether to allow cancellation of this operation.
           Cancellation always involves abrupt termination of the worker process
           with SIGKILL/TerminateProcess. To obtain correct semantics with CTRL+C,
           SIGINT is ignored when raised in workers.
+      cancellable (bool): Alias for ``kill_on_cancel``. If both aliases are passed,
+          Python's ``or`` operator combines them.
       limiter (None, or trio.CapacityLimiter):
           An object used to limit the number of simultaneous processes. Most
           commonly this will be a `~trio.CapacityLimiter`, but any async
@@ -425,7 +429,11 @@ async def run_sync(
 
     """
     return await get_default_context().run_sync(
-        sync_fn, *args, cancellable=cancellable, limiter=limiter
+        sync_fn,
+        *args,
+        kill_on_cancel=kill_on_cancel,
+        cancellable=cancellable,
+        limiter=limiter,
     )
 
 

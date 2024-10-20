@@ -13,7 +13,7 @@ async def amain():
     await trio.to_thread.run_sync(bool)
 
     with trio.move_on_after(0.5):
-        await trio_parallel.run_sync(hello_delayed_world, cancellable=True)
+        await trio_parallel.run_sync(hello_delayed_world, kill_on_cancel=True)
 
     with trio.move_on_after(0.5):
         await trio.to_thread.run_sync(hello_delayed_world, abandon_on_cancel=True)

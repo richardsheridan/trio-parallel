@@ -60,11 +60,11 @@ Example
             # This job could take far too long, make it cancellable!
             nursery.start_soon(
                 functools.partial(
-                    trio_parallel.run_sync, loop, 10 ** 20, cancellable=True
+                    trio_parallel.run_sync, loop, 10 ** 20, kill_on_cancel=True
                 )
             )
             await trio.sleep(2)
-            # Only explicitly cancellable jobs are killed on cancel
+            # Only explicit kill_on_cancel jobs are terminated
             nursery.cancel_scope.cancel()
         print("Total runtime:", trio.current_time() - t0)
 

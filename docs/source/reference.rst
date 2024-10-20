@@ -86,15 +86,15 @@ Cancellation
 ~~~~~~~~~~~~
 
 Cancellation of :func:`trio_parallel.run_sync` is modeled after
-:func:`trio.to_thread.run_sync`, with a ``cancellable`` keyword argument that
+:func:`trio.to_thread.run_sync`, with a ``kill_on_cancel`` keyword argument that
 defaults to ``False``. Entry is an unconditional checkpoint, i.e. regardless of
-the value of ``cancellable``. The only difference in behavior comes upon cancellation
-when ``cancellable=True``. A Trio thread will be abandoned to run in the background
+the value of ``kill_on_cancel``. The key difference in behavior comes upon cancellation
+when ``kill_on_cancel=True``. A Trio thread will be abandoned to run in the background
 while this package will kill the worker with ``SIGKILL``/``TerminateProcess``:
 
 .. literalinclude:: examples/cancellation.py
 
-We recommend to avoid using the cancellation feature
+We recommend to avoid using the ``kill_on_cancel`` feature
 if loss of intermediate results, writes to the filesystem, or shared memory writes
 may leave the larger system in an incoherent state.
 
