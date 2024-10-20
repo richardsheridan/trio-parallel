@@ -21,6 +21,8 @@ from tblib.pickling_support import install as install_pickling_support
 MAX_TIMEOUT = 24.0 * 60.0 * 60.0
 ACK = b"\x06"
 
+EAGER_CLEANUP = True  # test_retire hook
+
 
 def handle_job(job):
     try:
@@ -94,7 +96,8 @@ def worker_behavior(recv_pipe, send_pipe, idle_timeout, init, retire):
     else:
         # Clean idle shutdown or retirement: close recv_pipe first to minimize
         # subsequent race.
-        recv_pipe.close()
+        if EAGER_CLEANUP:  # Set False to maximize race for test_retire
+            recv_pipe.close()
         # Race condition: it is possible to sneak a write through in the main process
         # between the while loop predicate and recv_pipe.close(). Naively, this would
         # make a clean shutdown look like a broken worker. By sending a sentinel
