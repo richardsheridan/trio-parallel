@@ -283,7 +283,6 @@ jobs:
     permissions:
       id-token: write
       contents: write
-      attestations: write
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4.1.2
@@ -292,12 +291,10 @@ jobs:
           path: dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true
       - name: Upload to GitHub
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           gh release upload ${{ github.ref_name }} dist/* --repo ${{ github.repository }}
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: dist/*
