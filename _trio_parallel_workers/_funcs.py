@@ -58,12 +58,6 @@ def _never_halts(ev):  # pragma: no cover, worker will be killed
         pass
 
 
-def _raise_ki():
-    import signal, trio
-
-    trio._util.signal_raise(signal.SIGINT)
-
-
 _lambda = lambda: None  # pragma: no cover, never run
 
 

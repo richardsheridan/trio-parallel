@@ -6,6 +6,7 @@
 
 import math
 import os
+import signal
 
 import trio
 import pytest
@@ -13,7 +14,6 @@ import pytest
 from _trio_parallel_workers._funcs import (
     _lambda,
     _return_lambda,
-    _raise_ki,
     _never_halts,
     _no_trio,
 )
@@ -97,7 +97,7 @@ async def test_exhaustively_cancel_run_sync(worker, manager):
 
 
 async def test_ki_does_not_propagate(worker):
-    (await worker.run_sync(_raise_ki)).unwrap()
+    (await worker.run_sync(signal.raise_signal, signal.SIGINT)).unwrap()
 
 
 @pytest.mark.parametrize("job", [_lambda, _return_lambda])
