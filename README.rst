@@ -26,6 +26,7 @@ Style          |style badge|
 Distribution   | |version badge|
                | |python versions badge|
                | |python interpreters badge|
+               | |downloads badge|
 
 =============  =============================
 
@@ -207,8 +208,8 @@ and pull requests are very welcome! Please read the `code of conduct`_.
    :target: `tests`_
    :alt: Tests
 
-.. _coverage: https://codecov.io/gh/richardsheridan/trio-parallel
-.. |coverage badge| image:: https://codecov.io/gh/richardsheridan/trio-parallel/branch/main/graph/badge.svg?token=EQqs2abxxG
+.. _coverage: https://github.com/richardsheridan/trio-parallel/actions?query=branch%3Amain
+.. |coverage badge| image:: https://img.shields.io/github/actions/workflow/status/richardsheridan/trio-parallel/ci.yml?branch=main&label=100%25%20coverage
    :target: `coverage`_
    :alt: Test coverage
 
@@ -221,6 +222,11 @@ and pull requests are very welcome! Please read the `code of conduct`_.
 .. |license badge| image:: https://img.shields.io/pypi/l/trio-parallel?color=informational
    :target: `license`_
    :alt: MIT -or- Apache License 2.0
+
+.. _downloads: https://pepy.tech/project/trio-parallel
+.. |downloads badge| image:: https://static.pepy.tech/badge/trio-parallel/month
+   :target: `downloads`_
+   :alt: Monthly Downloads
 
 .. _coverage.py: https://coverage.readthedocs.io/
 .. _viztracer: https://viztracer.readthedocs.io/
