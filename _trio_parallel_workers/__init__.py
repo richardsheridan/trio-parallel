@@ -15,7 +15,7 @@ try:
 except ImportError:
     from pickle import dumps, loads
 
-from outcome import capture, Error
+from ._cheap_outcome import capture, Error
 from tblib.pickling_support import install as install_pickling_support
 
 MAX_TIMEOUT = 24.0 * 60.0 * 60.0
