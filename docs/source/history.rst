@@ -5,6 +5,16 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.2.4 (2024-12-21)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Ensure worker processes are eagerly reaped after a rare race condition edge case. (`#436 <https://github.com/richardsheridan/trio-parallel/issues/436>`__)
+- Fix a usage of a removed internal trio function in the test suite. (`#444 <https://github.com/richardsheridan/trio-parallel/issues/444>`__)
+
+
 trio-parallel 1.2.3 (2024-10-19)
 --------------------------------
 
@@ -45,7 +55,7 @@ trio-parallel 1.2.0 (2022-10-29)
 Features
 ~~~~~~~~
 
-- The behavior of the default context is now fully configurable, superseding ``atexit_shutdown_grace_period`` (`#328 <https://github.com/richardsheridan/trio-parallel/issues/328>`__)
+- The behavior of the default context is now fully configurable, superseding `atexit_shutdown_grace_period` (`#328 <https://github.com/richardsheridan/trio-parallel/issues/328>`__)
 
 
 Bugfixes
@@ -131,7 +141,7 @@ Features
 
 - Added configuration options for the grace periods permitted to worker caches upon
   shutdown. This includes a new keyword argument for :func:`open_worker_context` and
-  a new top level function ``atexit_shutdown_grace_period``. (`#108 <https://github.com/richardsheridan/trio-parallel/issues/108>`__)
+  a new top level function :func:`atexit_shutdown_grace_period`. (`#108 <https://github.com/richardsheridan/trio-parallel/issues/108>`__)
 - :func:`open_worker_context` gained a new argument, ``init``, and ``retire`` is no longer
   called before the first job in the worker. (`#110 <https://github.com/richardsheridan/trio-parallel/issues/110>`__)
 

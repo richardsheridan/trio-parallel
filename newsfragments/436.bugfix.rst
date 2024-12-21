@@ -1,1 +1,0 @@
-Ensure worker processes are eagerly reaped after a rare race condition edge case.
