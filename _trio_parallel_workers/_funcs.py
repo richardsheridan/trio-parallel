@@ -76,8 +76,8 @@ def _monkeypatch_max_timeout():
     return True
 
 
-def _no_trio():
-    return "trio" not in sys.modules
+def _no_trio_attrs():
+    return "trio" not in sys.modules and "attrs" not in sys.modules
 
 
 class SpecialError(Exception):
