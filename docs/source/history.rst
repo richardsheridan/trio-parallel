@@ -5,6 +5,16 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.2.4 (2024-12-21)
+--------------------------------
+
+Bugfixes
+~~~~~~~~
+
+- Ensure worker processes are eagerly reaped after a rare race condition edge case. (`#436 <https://github.com/richardsheridan/trio-parallel/issues/436>`__)
+- Fix a usage of a removed internal trio function in the test suite. (`#444 <https://github.com/richardsheridan/trio-parallel/issues/444>`__)
+
+
 trio-parallel 1.2.3 (2024-10-19)
 --------------------------------
 
