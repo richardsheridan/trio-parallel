@@ -164,6 +164,7 @@ jobs:
           name: Coverage-${{ matrix.os }}-${{ matrix.python }}
           path: "*coverage*${{ matrix.os }}-${{ matrix.python }}*"
           if-no-files-found: error
+          include-hidden-files: true
 
   Examples:
     name: 'Test examples ${{ matrix.os }} (${{ matrix.python }})'
