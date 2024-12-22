@@ -153,7 +153,7 @@ jobs:
       - name: Run tests
         timeout-minutes: ${{ matrix.test-timeout }}
         run: |
-          pytest trio_parallel --cov-report xml:coverage-${{ matrix.os }}-${{ matrix.python }}.xml
+          pytest trio_parallel
           coverage report
           mv .coverage .coverage.${{ matrix.os }}-${{ matrix.python }}
         shell: bash
