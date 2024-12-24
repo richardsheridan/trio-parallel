@@ -250,6 +250,7 @@ jobs:
         run: |
           pip install -U pip
           pip install -r requirements/coverage.txt
+          pip install git+https://github.com/nedbat/coveragepy@67f1440e0a384000e337
       - name: Run coverage
         run: |
           coverage combine
