@@ -153,7 +153,7 @@ jobs:
       - name: Install specific coverage
         shell: bash
         run: |
-          uv pip install git+https://github.com/nedbat/coveragepy@67f1440e0a384000e337
+          uv pip install --system git+https://github.com/nedbat/coveragepy@67f1440e0a384000e337
       - name: Run tests
         timeout-minutes: ${{ matrix.test-timeout }}
         run: |
