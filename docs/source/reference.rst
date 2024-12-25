@@ -138,6 +138,15 @@ lifetime is required in a subset of your application.
 .. autoclass:: WorkerContext()
    :members:
 
+Alternatively, you can implicitly override the default context of :func:`run_sync`
+in any subset of the task tree using `cache_scope()`. This async context manager
+sets an internal TreeVar_ so that the current task and all nested subtasks operate
+using an internal, isolated `WorkerContext`, without having to manually pass a
+context object around.
+
+.. autofunction:: cache_scope
+   :async-with: ctx
+
 One typical use case for configuring workers is to set a policy for taking a worker
 out of service. For this, use the ``retire`` argument. This example shows how to
 build (trivial) stateless and stateful worker retirement policies.
@@ -145,11 +154,11 @@ build (trivial) stateless and stateful worker retirement policies.
 .. literalinclude:: examples/single_use_workers.py
 
 A more realistic use-case might examine the worker process's memory usage (e.g. with
-`psutil <https://psutil.readthedocs.io/en/latest/>`_) and retire if usage is too high.
+psutil_) and retire if usage is too high.
 
 If you are retiring workers frequently, like in the single-use case, a large amount
-of process startup overhead will be incurred with the default worker type. If your
-platform supports it, an alternate `WorkerType` might cut that overhead down.
+of process startup overhead will be incurred with the default "spawn" worker type.
+If your platform supports it, an alternate `WorkerType` might cut that overhead down.
 
 .. autoclass:: WorkerType()
 
@@ -161,4 +170,6 @@ You probably won't use these... but create an issue if you do and need help!
 .. autofunction:: default_context_statistics
 
 .. _cloudpickle: https://github.com/cloudpipe/cloudpickle
+.. _psutil: https://psutil.readthedocs.io/en/latest/
 .. _service: https://github.com/richardsheridan/trio-parallel/issues/348
+.. _TreeVar: https://tricycle.readthedocs.io/en/latest/reference.html#tricycle.TreeVar

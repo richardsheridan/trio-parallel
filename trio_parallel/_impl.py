@@ -390,6 +390,8 @@ async def cache_scope(
     worker_type=WorkerType.SPAWN,
 ):
     """
+    Override the configuration of `trio_parallel.run_sync()` in this and all subtasks.
+
     The context will automatically wait for any running workers to become idle when
     exiting the scope. Since this wait cannot be cancelled, it is more convenient to
     only pass the context object to tasks that cannot outlive the scope, for example,
