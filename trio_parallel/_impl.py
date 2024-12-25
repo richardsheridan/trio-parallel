@@ -302,7 +302,7 @@ else:
     def get_default_context():
         try:
             return CACHE_SCOPE_TREEVAR.get()
-        except LookupError:
+        except (LookupError, RuntimeError):
             return DEFAULT_CONTEXT
 
     @atexit.register
