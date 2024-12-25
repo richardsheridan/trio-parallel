@@ -1,3 +1,0 @@
-Add `cache_scope()`, an async context manager that can override the behavior of
-`trio_parallel.run_sync()` in a subtree of your Trio tasks with an implicit
-`WorkerContext`.

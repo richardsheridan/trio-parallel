@@ -1,1 +1,0 @@
-Add ``kill_on_cancel`` kwarg to :func:`run_sync`. The alias ``cancellable`` will remain indefinitely.
