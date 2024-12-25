@@ -145,7 +145,7 @@ using an internal, isolated `WorkerContext`, without having to manually pass a
 context object around.
 
 .. autofunction:: cache_scope
-   :async-with: ctx
+   :async-with:
 
 One typical use case for configuring workers is to set a policy for taking a worker
 out of service. For this, use the ``retire`` argument. This example shows how to

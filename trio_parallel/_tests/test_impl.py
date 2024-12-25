@@ -226,6 +226,7 @@ async def test_cache_scope_follows_task_tree_discipline():
             await _assert_worker_pid(pid, False)
             task_status.started()
             await e.wait()
+        await _assert_worker_pid(pid, True)
 
     async def assert_elsewhere_in_task_tree():
         await _assert_worker_pid(pid, False)
@@ -237,3 +238,19 @@ async def test_cache_scope_follows_task_tree_discipline():
         await nursery.start(make_a_cache_scope_around_nursery)
         # this line tests the main difference from contextvars vs treevars
         shared_nursery.start_soon(assert_elsewhere_in_task_tree)
+
+
+async def test_cache_scope_overrides_nested():
+    pid1 = await run_sync(os.getpid)
+    async with _impl.cache_scope():
+        pid2 = await run_sync(os.getpid)
+        async with _impl.cache_scope():
+            await _assert_worker_pid(pid1, False)
+            await _assert_worker_pid(pid2, False)
+
+
+async def test_cache_scope_doesnt_override_explicit_context():
+    async with _impl.open_worker_context() as ctx:
+        pid = await ctx.run_sync(os.getpid)
+        async with _impl.cache_scope():
+            assert pid == await ctx.run_sync(os.getpid)

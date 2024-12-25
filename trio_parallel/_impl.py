@@ -393,10 +393,9 @@ async def cache_scope(
     Override the configuration of `trio_parallel.run_sync()` in this task and all
     subtasks.
 
-    The context will automatically wait for any running workers to become idle when
-    exiting the scope. Since this wait cannot be cancelled, it is more convenient to
-    only pass the context object to tasks that cannot outlive the scope, for example,
-    by using a :class:`~trio.Nursery`.
+    The internal `WorkerContext` is passed implicitly down the task tree and can
+    be overridden by nested scopes. Explicit `WorkerContext` objects from
+    `open_worker_context` will not be overridden.
 
     Args:
       idle_timeout (float): The time in seconds an idle worker will
