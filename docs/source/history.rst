@@ -5,6 +5,26 @@ Release history
 
 .. towncrier release notes start
 
+trio-parallel 1.3.0 (2024-12-25)
+--------------------------------
+
+Features
+~~~~~~~~
+
+- Advertise support for Python-3.13, although no code changes were made to support it. (`#434 <https://github.com/richardsheridan/trio-parallel/issues/434>`__)
+- Add ``kill_on_cancel`` kwarg to :func:`run_sync`. The alias ``cancellable`` will remain indefinitely. (`#437 <https://github.com/richardsheridan/trio-parallel/issues/437>`__)
+- Add `cache_scope()`, an async context manager that can override the behavior of
+  `trio_parallel.run_sync()` in a subtree of your Trio tasks with an implicit
+  `WorkerContext`. (`#455 <https://github.com/richardsheridan/trio-parallel/issues/455>`__)
+
+
+Deprecations and Removals
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Stop advertising support for Python-3.8, although no code changes were made to break it. (`#434 <https://github.com/richardsheridan/trio-parallel/issues/434>`__)
+- Removed deprecated ``atexit_shutdown_grace_period``. Use `configure_default_context` to configure the default context shutdown grace period. (`#435 <https://github.com/richardsheridan/trio-parallel/issues/435>`__)
+
+
 trio-parallel 1.2.4 (2024-12-21)
 --------------------------------
 
