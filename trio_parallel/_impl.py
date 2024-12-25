@@ -271,16 +271,10 @@ def configure_default_context(
         DEFAULT_CONTEXT = ctx
 
 
-async def close_at_run_end(ctx):
-    try:
-        await trio.sleep_forever()
-    finally:
-        await ctx._aclose()  # noqa: ASYNC102
-
-
 CACHE_SCOPE_TREEVAR = tricycle.TreeVar("tp_cache_scope")
+
 if sys.platform == "win32":
-    DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("win32_ctx")
+    DEFAULT_CONTEXT_RUNVAR = trio.lowlevel.RunVar("tp_win32_ctx")
     DEFAULT_CONTEXT_PARAMS = {}
 
     def get_default_context():
@@ -296,6 +290,12 @@ if sys.platform == "win32":
             # set ctx last so as not to leak on KeyboardInterrupt
             DEFAULT_CONTEXT_RUNVAR.set(ctx)
         return ctx
+
+    async def close_at_run_end(ctx):
+        try:
+            await trio.sleep_forever()
+        finally:
+            await ctx._aclose()  # noqa: ASYNC102
 
 else:
 
@@ -390,7 +390,8 @@ async def cache_scope(
     worker_type=WorkerType.SPAWN,
 ):
     """
-    Override the configuration of `trio_parallel.run_sync()` in this and all subtasks.
+    Override the configuration of `trio_parallel.run_sync()` in this task and all
+    subtasks.
 
     The context will automatically wait for any running workers to become idle when
     exiting the scope. Since this wait cannot be cancelled, it is more convenient to
