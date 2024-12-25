@@ -3,6 +3,7 @@
 from ._impl import (
     run_sync,
     open_worker_context,
+    cache_scope,
     WorkerContext,
     WorkerType,
     current_default_worker_limiter,

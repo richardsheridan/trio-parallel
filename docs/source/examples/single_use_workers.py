@@ -31,10 +31,10 @@ async def amain():
                 nursery.start_soon(ctx.run_sync, worker, i)
 
     print("dual use worker behavior:")
-    async with trio_parallel.open_worker_context(retire=after_dual_use) as ctx:
+    async with trio_parallel.cache_scope(retire=after_dual_use):
         async with trio.open_nursery() as nursery:
             for i in range(10):
-                nursery.start_soon(ctx.run_sync, worker, i)
+                nursery.start_soon(trio_parallel.run_sync, worker, i)
 
     print("default behavior:")
     async with trio.open_nursery() as nursery:
