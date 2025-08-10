@@ -18,7 +18,7 @@ from ._abc import WorkerCache, AbstractWorker, NoPublicConstructor
 T = TypeVar("T")
 
 # Sane default might be to expect cpu-bound work
-DEFAULT_LIMIT = os.cpu_count() or 1
+DEFAULT_LIMIT = os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count() or 1
 limiter_runvar = trio.lowlevel.RunVar("trio_parallel")
 
 
