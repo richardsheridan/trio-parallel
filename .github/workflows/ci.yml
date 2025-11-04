@@ -139,7 +139,7 @@ jobs:
           cache-suffix: '-${{ matrix.python }}'
           cache-dependency-path: '**/requirements/test.txt'
       - name: Download build artifact
-        uses: actions/download-artifact@v5.0.0
+        uses: actions/download-artifact@v6.0.0
         with:
           name: Packages
           path: dist
@@ -211,7 +211,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Download build artifact
-        uses: actions/download-artifact@v5.0.0
+        uses: actions/download-artifact@v6.0.0
         with:
           name: Packages
           path: dist
@@ -232,7 +232,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5.0.0
       - name: Download coverage artifact
-        uses: actions/download-artifact@v5.0.0
+        uses: actions/download-artifact@v6.0.0
         with:
           pattern: Coverage-*
           merge-multiple: true
@@ -286,7 +286,7 @@ jobs:
       contents: write
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v5.0.0
+        uses: actions/download-artifact@v6.0.0
         with:
           name: Packages
           path: dist
