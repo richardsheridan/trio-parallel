@@ -91,6 +91,7 @@ exclude_lines = [
     "pragma: no cover",
     "abc.abstractmethod",
     "abstractmethod",
+    "pytest.fail"
 ]
 
 [tool.coverage.html]
