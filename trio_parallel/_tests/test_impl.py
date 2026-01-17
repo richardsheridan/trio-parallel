@@ -1,4 +1,4 @@
-""" Tests of public API with mocked-out workers ("collaboration" tests)"""
+"""Tests of public API with mocked-out workers ("collaboration" tests)"""
 
 import os
 import sys

@@ -1,7 +1,7 @@
-""" Tests of internal worker process API ("contract" tests)
+"""Tests of internal worker process API ("contract" tests)
 
-    These are specific to subprocesses and you wouldn't expect these to pass
-    with thread or subinterpreter workers.
+These are specific to subprocesses and you wouldn't expect these to pass
+with thread or subinterpreter workers.
 """
 
 import math
