@@ -8,11 +8,10 @@ name = "trio-parallel"
 description = "CPU parallelism for Trio"
 readme = { file = "README.rst", content-type = "text/x-rst" }
 authors = [{ name = "Richard Sheridan", email = "richard.sheridan@gmail.com" }]
-license = { text = "MIT OR Apache-2.0" }
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE.MIT", "LICENSE.APACHE2"]
 keywords = ["parallel", "trio", "async", "dispatch", "multiprocessing"]
 classifiers = [
-    "License :: OSI Approved :: MIT License",
-    "License :: OSI Approved :: Apache Software License",
     "Framework :: Trio",
     "Operating System :: POSIX :: Linux",
     "Operating System :: MacOS :: MacOS X",
