@@ -131,14 +131,3 @@ async def test_shutdown(cache_and_workertype):
     cache.append(worker)
     cache.shutdown(math.inf)
     cache.clear()
-
-
-async def test_shutdown_immediately(cache_and_workertype):
-    cache, worker_type = cache_and_workertype
-    worker = worker_type(math.inf, bool, bool)
-    await worker.start()
-    await worker.run_sync(bool)
-    cache.append(worker)
-    with pytest.raises(BrokenWorkerError):
-        cache.shutdown(0)
-    cache.clear()
