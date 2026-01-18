@@ -257,7 +257,7 @@ async def test_configure_default_context_thread(shutdown_cache):
         await trio.to_thread.run_sync(configure_default_context)
 
 
-async def test_get_default_context_stats():  # noqa: ASYNC910
+async def test_get_default_context_stats():  # noqa: ASYNC910,ASYNC124
     s = default_context_statistics()
     assert hasattr(s, "idle_workers")
     assert hasattr(s, "running_workers")

@@ -1,4 +1,4 @@
-""" Tests of internal cache API ("contract" tests)"""
+"""Tests of internal cache API ("contract" tests)"""
 
 import math
 

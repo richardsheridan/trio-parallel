@@ -20,8 +20,8 @@ jobs:
           - ubuntu-latest
           - macos-latest
         python:
-          - '3.12'
-          - 'pypy-3.10'
+          - '3.14'
+          - 'pypy-3.11'
         source:
           - 'trio-parallel'
           - 'git+https://github.com/python-trio/trio.git trio-parallel'

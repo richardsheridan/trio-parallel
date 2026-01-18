@@ -1,6 +1,6 @@
-""" Tests of internal worker API ("contract" tests)
+"""Tests of internal worker API ("contract" tests)
 
-    All workers should pass these tests, regardless of implementation
+All workers should pass these tests, regardless of implementation
 """
 
 import math

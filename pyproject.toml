@@ -18,11 +18,11 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Development Status :: 5 - Production/Stable",
@@ -77,7 +77,7 @@ faulthandler_timeout = 60
 [tool.coverage.run]
 branch = true
 concurrency = ["multiprocessing", "thread"]
-parallel = true
+patch = ["subprocess"]  # implies parallel=True
 source_pkgs = ["trio_parallel", "_trio_parallel_workers"]
 disable_warnings = [
     "module-not-imported", # for test_clean_exit_on_shutdown
@@ -91,6 +91,7 @@ exclude_lines = [
     "pragma: no cover",
     "abc.abstractmethod",
     "abstractmethod",
+    "pytest.fail"
 ]
 
 [tool.coverage.html]
