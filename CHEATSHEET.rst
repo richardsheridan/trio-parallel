@@ -4,16 +4,9 @@ Tips
 If you want to use static typing (mypy) in your project
 -------------------------------------------------------
 
-  * Update ``install_requires`` in ``setup.py`` to include ``"trio-typing"``
-    (assuming you use it).
+  * Type hints in this repo are just that... hints.
 
-  * Uncomment the dependency on ``mypy`` in ``test-requirements.txt``.
-
-  * Uncomment the mypy invocation in ``check.sh``.
-
-  * Create an empty ``trio_parallel/py.typed`` file,
-    and add ``"include trio_parallel/py.typed"`` to
-    ``MANIFEST.in``.
+  * Extremely easy to maintain PRs for mypy/ty support are welcome.
 
 To run tests
 ------------
