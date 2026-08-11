@@ -1,6 +1,5 @@
 [build-system]
-# keep me in sync with build.in!
-requires = ["setuptools >= 45", "wheel", "setuptools_scm[toml] >= 7.0.5"]
+requires = ["setuptools >= 77", "setuptools_scm[toml] >= 7.0.5"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -38,7 +37,7 @@ dependencies = [
     "tblib",
     "tricycle >= 0.3.0"
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 dynamic = ["version"]
 
 [project.urls]
